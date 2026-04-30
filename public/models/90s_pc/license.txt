@@ -1,0 +1,11 @@
+Model Information:
+* title:	90s - 00s PC
+* source:	https://sketchfab.com/3d-models/90s-00s-pc-451d69fabf344777a0021ea4d8b98956
+* author:	ImSiyue (https://sketchfab.com/siyue_cherry)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "90s - 00s PC" (https://sketchfab.com/3d-models/90s-00s-pc-451d69fabf344777a0021ea4d8b98956) by ImSiyue (https://sketchfab.com/siyue_cherry) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)

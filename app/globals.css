@@ -1,0 +1,232 @@
+@import "tailwindcss";
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+@keyframes orbit-spin {
+  to { transform: rotate(360deg); }
+}
+.orbit-text-spin {
+  animation: orbit-spin 14s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@font-face {
+    font-family: "Space Mono";
+    src: url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.eot");
+    src: url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.eot?#iefix")format("embedded-opentype"),
+    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.woff2")format("woff2"),
+    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.woff")format("woff"),
+    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.ttf")format("truetype"),
+    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.svg#Space Mono")format("svg");
+}
+
+@font-face {
+    font-family: "Neue Montreal";
+    src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot");
+    src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot?#iefix")format("embedded-opentype"),
+    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.woff2")format("woff2"),
+    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.woff")format("woff"),
+    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.ttf")format("truetype"),
+    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.svg#Neue Montreal")format("svg");
+}
+
+@font-face {
+    font-family: "Slito";
+    src: url("/fonts/Slito-Regular.otf") format("opentype");
+} 
+
+@theme {
+  --color-background: #FEFFF8;
+  --color-foreground: #242124;
+  --color-primary-color: #F59E0B;
+  --color-secondary-color: #3B82F6;
+  --color-tertiary-color: #e2725b;
+  --color-text-white: #ffffff;
+  --color-grey: #808080;
+  --color-warning: #c70a0a;
+  --color-accent-color: #fce5cd;
+  --color-mustard: #e7ab23;
+  --color-off-white: #eceff1;
+
+  --font-sans: var(--font-geist-mono);
+  --font-heading: "Neue Montreal", sans-serif;
+
+  --text-h1: 120px;
+  --text-h1--line-height: 0.9em;
+  --text-h1--font-weight: 800;
+
+  --text-h2: 100px;
+  --text-h2--line-height: 0.9em;
+  --text-h2--font-weight: 800;
+
+  --text-h3: 33px;
+  --text-h3--line-height: 1.4em;
+  --text-h3--font-weight: 800;
+
+  --text-h4: 28px;
+  --text-h4--line-height: 1.4em;
+  --text-h4--font-weight: 700;
+
+  --text-h5: 23px;
+  --text-h5--line-height: 1.4em;
+  --text-h5--font-weight: 600;
+
+  --text-h6: 18px;
+  --text-h6--line-height: 1.4em;
+  --text-h6--font-weight: 600;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.6em;
+  --text-body--font-weight: 400;
+
+  --text-body-2: 18px;
+  --text-body-2--line-height: 1.4em;
+  --text-body-2--font-weight: 400;
+
+  --shadow-soft: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  --shadow-medium: rgb(0, 0, 0, 0.1) 0px 0px 0px 1px;
+}
+
+
+@layer base {
+  body {
+    @apply bg-background;
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    font-weight: var(--text-body--font-weight);
+  }
+
+  li {
+    margin-bottom: 0.5rem; /* adjust spacing as needed */
+    line-height: 1.6; /* improves readability */
+  }
+
+  h1 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h1);
+    line-height: var(--text-h1--line-height);
+    font-weight: var(--text-h1--font-weight);
+    color: var(--color-foreground);
+  }
+
+  h2 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h2);
+    line-height: var(--text-h2--line-height);
+    font-weight: var(--text-h2--font-weight);
+    color: var(--color-foreground);
+  }
+
+  h3 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h3);
+    line-height: var(--text-h3--line-height);
+    font-weight: var(--text-h3--font-weight);
+    color: var(--color-foreground);
+  }
+
+  h4 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h4);
+    line-height: var(--text-h4--line-height);
+    font-weight: var(--text-h4--font-weight);
+    color: var(--color-foreground);
+  }
+
+  h5 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h5);
+    line-height: var(--text-h5--line-height);
+    font-weight: var(--text-h5--font-weight);
+    color: var(--color-foreground);
+  }
+
+  h6 {
+    font-family: var(--font-heading);
+    font-size: var(--text-h6);
+    line-height: var(--text-h6--line-height);
+    font-weight: var(--text-h6--font-weight);
+    color: var(--color-foreground);
+  }
+
+  p {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    font-weight: var(--text-body--font-weight);
+    color: var(--color-foreground);
+  }
+
+  a {
+    color: var(--color-secondary-color);
+    transition: color 0.2s ease;
+  }
+
+  a:hover {
+    color: var(--color-primary-color);
+  }
+
+  button {
+    @apply flex gap-[10px] items-center justify-center rounded-full text-text-white bg-primary-color py-[10px] px-[20px] cursor-pointer;
+  }
+
+  button:hover {
+    @apply text-text-white bg-secondary-color;
+  }
+}
+
+@layer components {
+  
+  .preloader-images {
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+  }
+
+  .preloader-images .img-wrap {
+    clip-path: polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%);
+    will-change: clip-path;
+    overflow: hidden;
+  }
+
+   .preloader-images .img {
+    transform: scale(1.2);
+   }
+
+   .projects li {
+    @apply text-lg py-2.5 px-3.5 bg-white shadow-[5px_5px_0_-1px_rgba(0,0,0,1)];
+    cursor: pointer;
+    transition: color 0.3s ease;
+   }
+
+  .projects li:hover {
+      @apply bg-black text-white shadow-[5px_5px_0_-1px_rgba(255,255,255,1)];
+  }
+
+  .project-description {
+    perspective: 1000px;
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+    max-width: 400px;
+    pointer-events: none;
+    transform-origin: center center;
+  }
+
+  .project-description p {
+    line-height: 1.6;
+    font-size: 0.95rem;
+    margin: 0;
+    font-weight: 500;
+  }
+
+
+
+
+
+}

@@ -1,0 +1,11 @@
+Model Information:
+* title:	OLD PC
+* source:	https://sketchfab.com/3d-models/old-pc-4719e3b31e4d4fc1a7e6341259abe5ef
+* author:	iammura (https://sketchfab.com/iammura)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "OLD PC" (https://sketchfab.com/3d-models/old-pc-4719e3b31e4d4fc1a7e6341259abe5ef) by iammura (https://sketchfab.com/iammura) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
