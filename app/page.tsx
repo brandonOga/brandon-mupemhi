@@ -322,6 +322,9 @@ export default function Home() {
     window.addEventListener('pointerup', handleSkillPointerUp);
     window.addEventListener('pointercancel', handleSkillPointerUp);
 
+    let threeRafId = 0;
+    let marqueeRafId = 0;
+
     const ctx = gsap.context(() => {
       const heroRing = heroRingRef.current;
       const orbitLabels = heroRing
@@ -485,7 +488,7 @@ export default function Home() {
       const timer = new THREE.Timer();
 
       function animateThree() {
-        requestAnimationFrame(animateThree);
+        threeRafId = requestAnimationFrame(animateThree);
 
         timer.update();
         if (displayMaterial) {
@@ -881,9 +884,11 @@ export default function Home() {
 
     }, root);
 
-    requestAnimationFrame(animate);
-    
+    marqueeRafId = requestAnimationFrame(animate);
+
     return () => {
+      cancelAnimationFrame(threeRafId);
+      cancelAnimationFrame(marqueeRafId);
       shaderRippleCleanups.forEach(fn => fn());
       cleanupOrbitLabels?.();
       ctx.revert();
@@ -923,6 +928,7 @@ export default function Home() {
                   alt="Brandon"
                   priority
                   fill
+                  sizes="300px"
                 />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -930,8 +936,8 @@ export default function Home() {
                   className="img object-cover will-change-transform"
                   src="/images/brandon2.jpg"
                   alt="Brandon"
-                  priority
                   fill
+                  sizes="300px"
                 />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -939,8 +945,8 @@ export default function Home() {
                   className="img object-cover will-change-transform"
                   src="/images/brandon3.jpg"
                   alt="Brandon"
-                  priority
                   fill
+                  sizes="300px"
                 />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -948,8 +954,8 @@ export default function Home() {
                   className="img object-cover will-change-transform"
                   src="/images/brandon5.jpg"
                   alt="Brandon"
-                  priority
                   fill
+                  sizes="300px"
                 />
               </div>
             </div>
@@ -998,8 +1004,9 @@ export default function Home() {
                     alt="Brandon"
                     priority
                     fill
+                    sizes="50vw"
                   />
-                </div> 
+                </div>
               </div>
               <h1 className=" font-bold uppercase text-right">Mupemhi<br/>Brandon</h1>
             </div>
@@ -1007,21 +1014,21 @@ export default function Home() {
         </section>
 
         {/*About Section */}
-        <section className="w-[130vw] h-screen  pl-37.5 flex shrink-0 relative overflow-hidden ">
-          <div className="w-2/5 h-full">
-            <div className="w-full h-full relative">
+        <section className="w-[130vw] h-screen pb-15 pt-20 pl-37.5 flex flex-col shrink-0 relative overflow-hidden">
+          {/* Content: image floated left, large text wraps around + below */}
+          <div className="flex-1 mt-4">
+            <div className="float-left w-100 h-100 relative mr-14">
               <Image
                 className="img object-cover will-change-transform"
                 src="/images/brandon4.jpg"
                 alt="Brandon"
-                priority
                 fill
+                sizes="36vw"
               />
             </div>
-          </div>
-          <div className="w-auto flex-1 flex flex-col items-center justify-center h-full perspective-[1000px] pt-20 pb-15 ">
-            <h2 className=" ">Know me better</h2>
-            <p className="text-lg max-w-2xl text-center">I am a passionate visual storyteller dedicated to crafting memorable digital experiences. With a focus on clear design, engaging visuals, and thoughtful, user-friendly interactions, I strive to create work that resonates with audiences and leaves a lasting impact.</p>
+            <p className="text-2xl leading-[1.15] font-bold">
+              I&apos;m Brandon, a passionate visual storyteller dedicated to crafting memorable digital experiences. With bold design, engaging visuals, and thoughtful user-focused interactions, I create work that feels alive, cinematic, and impossible to ignore.
+            </p>
           </div>
         </section>
 
@@ -1054,8 +1061,8 @@ export default function Home() {
                   className="img object-cover will-change-transform"
                   src="/images/contact.jpg"
                   alt="Placeholder"
-                  priority
                   fill
+                  sizes="20vw"
                 />
             </div>
             <h2 className="text-[250px] uppercase">Hello</h2>

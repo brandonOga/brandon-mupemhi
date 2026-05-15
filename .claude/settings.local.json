@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm uninstall *)",
+      "WebFetch(domain:ayurchenko.xyz)",
+      "WebSearch",
+      "Bash(mkdir \"C:\\\\Users\\\\brand\\\\.claude\\\\projects\\\\c--Refreshed-portfolio-designbybrandon\\\\memory\" 2>nul; echo done)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\brand\\.claude\\projects\\c--Refreshed-portfolio-designbybrandon\\memory"
+    ]
+  }
+}

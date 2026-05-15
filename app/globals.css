@@ -19,6 +19,7 @@
 
 @font-face {
     font-family: "Space Mono";
+    font-display: swap;
     src: url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.eot");
     src: url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.eot?#iefix")format("embedded-opentype"),
     url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.woff2")format("woff2"),
@@ -29,6 +30,7 @@
 
 @font-face {
     font-family: "Neue Montreal";
+    font-display: swap;
     src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot");
     src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot?#iefix")format("embedded-opentype"),
     url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.woff2")format("woff2"),
@@ -39,8 +41,9 @@
 
 @font-face {
     font-family: "Slito";
+    font-display: swap;
     src: url("/fonts/Slito-Regular.otf") format("opentype");
-} 
+}
 
 @theme {
   --color-background: #FEFFF8;
@@ -111,6 +114,7 @@
   }
 
   h1 {
+    @apply uppercase;
     font-family: var(--font-heading);
     font-size: var(--text-h1);
     line-height: var(--text-h1--line-height);
@@ -124,6 +128,7 @@
     line-height: var(--text-h2--line-height);
     font-weight: var(--text-h2--font-weight);
     color: var(--color-foreground);
+    text-transform: uppercase;
   }
 
   h3 {
