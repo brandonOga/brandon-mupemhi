@@ -1,5 +1,6 @@
 'use client';
 import Image from "next/image";
+import Link from "next/link";
 import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
 import {ScrollTrigger} from "gsap/ScrollTrigger";
@@ -14,6 +15,7 @@ import { IoLogoLinkedin } from "react-icons/io";
 import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
+import { projects } from "./data/projects";
 gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
 
 export default function Home() {
@@ -906,13 +908,6 @@ export default function Home() {
     };
   }, []);
 
-  const projectsData = [
-    { name: "Ferrari", image: "/images/ferrari.jpg", description: "Premium automotive design" },
-    { name: "Alfa Romeo", image: "/images/alfa-romeo.jpg", description: "Timeless Italian elegance" },
-    { name: "Red Bull", image: "/images/red-bull.jpg", description: "Dynamic brand presence" },
-    { name: "Aston Martin", image: "/images/aston-martin.jpg", description: "Luxury craftsmanship" },
-    { name: "Mercedes", image: "/images/mercedes.jpg", description: "Engineering excellence" }
-  ];
 
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
@@ -1041,9 +1036,9 @@ export default function Home() {
         </section>
         <section ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
-            {projectsData.map((project) => (
+            {projects.map((project) => (
               <li key={project.name} data-img={project.image} data-description={project.description}>
-                {project.name}
+                <Link href={`/projects/${project.slug}`}>{project.name}</Link>
               </li>
             ))}
           </ul>
