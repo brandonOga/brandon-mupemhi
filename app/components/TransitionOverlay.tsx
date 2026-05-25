@@ -7,10 +7,14 @@ import gsap from 'gsap';
 type Direction = 'enter-zoomed' | 'exit-to-home';
 
 type TransitionContextType = {
-  navigateTo: (href: string, direction?: Direction) => void;
+  navigateTo:  (href: string, direction?: Direction) => void;
+  showOverlay: () => void;
 };
 
-const TransitionContext = createContext<TransitionContextType>({ navigateTo: () => {} });
+const TransitionContext = createContext<TransitionContextType>({
+  navigateTo:  () => {},
+  showOverlay: () => {},
+});
 
 const FULL_CLIP = 'inset(0% 0% 0% 0% round 0px)';
 
@@ -31,10 +35,17 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
     const overlay = overlayRef.current;
 
     if (dir === 'enter-zoomed') {
-      // Project page — no overlay at all, just unlock
-      busy.current = false;
+      // Fade overlay out quickly — content zooms in beneath it
+      if (overlay) {
+        gsap.to(overlay, {
+          autoAlpha: 0,
+          duration: 0.35,
+          ease: 'power2.out',
+          onComplete: () => { busy.current = false; },
+        });
+      }
     } else {
-      // Returned to homepage — cover briefly while the model reloads,
+      // Returned to homepage — hold overlay while model reloads,
       // then fade out in sync with the camera zoom-out
       if (overlay) {
         gsap.set(overlay, { autoAlpha: 1, clipPath: FULL_CLIP });
@@ -50,18 +61,25 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
     }
   }, [pathname]);
 
+  // Called mid-zoom to fade the overlay in before the camera enters the model
+  const showOverlay = useCallback(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    gsap.set(overlay, { clipPath: FULL_CLIP });
+    gsap.to(overlay, { autoAlpha: 1, duration: 0.3, ease: 'power2.in' });
+  }, []);
+
   const navigateTo = useCallback((href: string, direction: Direction = 'exit-to-home') => {
     if (busy.current && direction !== 'enter-zoomed') return;
 
     busy.current    = true;
     pending.current = direction;
 
-    // No overlay on either direction — navigate directly
     requestAnimationFrame(() => router.push(href));
   }, [router]);
 
   return (
-    <TransitionContext.Provider value={{ navigateTo }}>
+    <TransitionContext.Provider value={{ navigateTo, showOverlay }}>
       {children}
       <div
         ref={overlayRef}

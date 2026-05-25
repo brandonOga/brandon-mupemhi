@@ -20,7 +20,7 @@ import { projects } from "./data/projects";
 gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
 
 export default function Home() {
-  const { navigateTo } = usePageTransition();
+  const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -391,7 +391,7 @@ export default function Home() {
       camera.position.set(0, 0, 3);
       camera.lookAt(0, -0.25, 0);
       
-      camera.position.set(0, 0, cameFromProject ? 0.12 : 3);
+      camera.position.set(0, 0, cameFromProject ? 0.8 : 3);
 
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
       threeCamera.current   = camera;
@@ -506,7 +506,7 @@ export default function Home() {
           // Zoom out from inside the screen when returning from a project page
           if (cameFromProject) {
             setTimeout(() => {
-              gsap.to(camera.position, { z: 3, duration: 1.2, ease: 'power3.out' });
+              gsap.to(camera.position, { z: 3, duration: 1.0, ease: 'power3.out' });
             }, 300);
           }
 
@@ -967,15 +967,16 @@ export default function Home() {
     // Straighten the monitor so the zoom flies straight in
     gsap.to(grp.rotation, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' });
 
-    // Fly the camera into the screen
-    gsap.to(cam.position, {
-      z: 0.12,
-      duration: 0.75,
-      ease: 'power3.in',
-      onComplete: () => {
+    // Fly the camera toward the screen — stop before entering the model geometry
+    gsap.to(cam.position, { z: 0.8, duration: 0.7, ease: 'power3.in' });
+
+    // Halfway through the zoom, fade the overlay in to cover the entry moment
+    gsap.delayedCall(0.42, () => {
+      showOverlay();
+      gsap.delayedCall(0.3, () => {
         isZoomingRef.current = false;
         navigateTo(href, 'enter-zoomed');
-      },
+      });
     });
   };
 

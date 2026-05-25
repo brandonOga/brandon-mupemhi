@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { projects } from "@/app/data/projects";
 import type { Metadata } from "next";
 import BackButton from "./BackButton";
+import ProjectPageClient from "./ProjectPageClient";
 
 export function generateStaticParams() {
   return projects.map((p) => ({ slug: p.slug }));
@@ -28,26 +29,28 @@ export default async function ProjectPage({
   if (!project) notFound();
 
   return (
-    <main className="min-h-screen bg-background pt-20">
-      <div className="px-7 mb-10">
-        <BackButton />
-      </div>
+    <ProjectPageClient>
+      <main className="min-h-screen bg-background pt-20">
+        <div className="px-7 mb-10">
+          <BackButton />
+        </div>
 
-      <div className="relative w-full h-[70vh] bg-neutral-900">
-        <Image
-          src={project.image}
-          alt={project.name}
-          fill
-          className="object-cover"
-          sizes="100vw"
-          priority
-        />
-      </div>
+        <div className="relative w-full h-[70vh] bg-neutral-900">
+          <Image
+            src={project.image}
+            alt={project.name}
+            fill
+            className="object-cover"
+            sizes="100vw"
+            priority
+          />
+        </div>
 
-      <div className="px-7 pt-12 pb-24 flex flex-col gap-6 max-w-4xl">
-        <h1 className="font-bold uppercase">{project.name}</h1>
-        <p className="text-xl uppercase">{project.description}</p>
-      </div>
-    </main>
+        <div className="px-7 pt-12 pb-24 flex flex-col gap-6 max-w-4xl">
+          <h1 className="font-bold uppercase">{project.name}</h1>
+          <p className="text-xl uppercase">{project.description}</p>
+        </div>
+      </main>
+    </ProjectPageClient>
   );
 }
