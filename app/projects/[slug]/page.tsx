@@ -1,8 +1,8 @@
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { projects } from "@/app/data/projects";
 import type { Metadata } from "next";
+import BackButton from "./BackButton";
 
 export function generateStaticParams() {
   return projects.map((p) => ({ slug: p.slug }));
@@ -30,12 +30,7 @@ export default async function ProjectPage({
   return (
     <main className="min-h-screen bg-background pt-20">
       <div className="px-7 mb-10">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 uppercase text-sm tracking-widest hover:opacity-60 transition-opacity"
-        >
-          ← Back
-        </Link>
+        <BackButton />
       </div>
 
       <div className="relative w-full h-[70vh] bg-neutral-900">

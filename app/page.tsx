@@ -1,6 +1,7 @@
 'use client';
 import Image from "next/image";
 import Link from "next/link";
+import { usePageTransition } from "./components/TransitionOverlay";
 import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
 import {ScrollTrigger} from "gsap/ScrollTrigger";
@@ -19,6 +20,7 @@ import { projects } from "./data/projects";
 gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
 
 export default function Home() {
+  const { navigateTo } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -26,6 +28,13 @@ export default function Home() {
   const projectsRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
+
+  const threeCamera      = useRef<THREE.PerspectiveCamera | null>(null);
+  const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
+  const monitorScreen    = useRef<THREE.Mesh | null>(null);
+  const monitorGroupRef  = useRef<THREE.Group | null>(null);
+  const isZoomingRef     = useRef(false);
+  const scrollPosRef     = useRef(0);
 
   const firstText = useRef(null);
   const secondText = useRef(null);
@@ -72,7 +81,14 @@ export default function Home() {
     let cleanupOrbitLabels: (() => void) | null = null;
     const shaderRippleCleanups: Array<() => void> = [];
 
-    const xPos = { target: 0, current: 0 };
+    const cameFromProject = sessionStorage.getItem('return-from-project') === 'true';
+    const savedScroll     = cameFromProject ? parseFloat(sessionStorage.getItem('return-scroll-pos') || '0') : 0;
+    if (cameFromProject) {
+      sessionStorage.removeItem('return-from-project');
+      sessionStorage.removeItem('return-scroll-pos');
+    }
+
+    const xPos = { target: savedScroll, current: savedScroll };
     const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
 
@@ -90,6 +106,7 @@ export default function Home() {
       if (Math.abs(xPos.target - xPos.current) < 0.05) {
         xPos.current = xPos.target;
       }
+      scrollPosRef.current = xPos.target;
       scrollContainer.style.transform = `translateX(-${xPos.current}px)`;
 
       const maxScroll = getMaxScroll();
@@ -374,7 +391,11 @@ export default function Home() {
       camera.position.set(0, 0, 3);
       camera.lookAt(0, -0.25, 0);
       
+      camera.position.set(0, 0, cameFromProject ? 0.12 : 3);
+
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+      threeCamera.current   = camera;
+      threeRenderer.current = renderer;
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -400,6 +421,7 @@ export default function Home() {
       scene.add(topLight);
 
       const monitorGroup = new THREE.Group();
+      monitorGroupRef.current = monitorGroup;
       scene.add(monitorGroup);
 
       const textureLoader = new THREE.TextureLoader();
@@ -478,7 +500,15 @@ export default function Home() {
 
           // 5. Hide the old and add the new to the monitorGroup
           screenMesh.visible = false;
-          monitorGroup.add(customScreen); // Add to group, not scene
+          monitorGroup.add(customScreen);
+          monitorScreen.current = customScreen;
+
+          // Zoom out from inside the screen when returning from a project page
+          if (cameFromProject) {
+            setTimeout(() => {
+              gsap.to(camera.position, { z: 3, duration: 1.2, ease: 'power3.out' });
+            }, 300);
+          }
 
           // Update aspect ratio
           displayMaterial.uniforms.planeAspect.value = size.x / size.y;
@@ -640,6 +670,16 @@ export default function Home() {
           mask: type === "lines" ? "lines" : undefined,
         });
       }
+
+      const hasSeenPreloader = sessionStorage.getItem('preloader-shown');
+
+      if (hasSeenPreloader) {
+        gsap.set(".preloader", { autoAlpha: 0 });
+        gsap.set(".preloader-header", { autoAlpha: 0 });
+        const skipHeaderRow = createSplit(".header-row h1", "lines", "line");
+        gsap.set(skipHeaderRow.lines, { yPercent: 0 });
+      } else {
+        sessionStorage.setItem('preloader-shown', 'true');
 
       const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
       const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
@@ -814,6 +854,8 @@ export default function Home() {
         stagger: 0.1,
       });
 
+      } // end preloader
+
       if (slider.current) {
         gsap.to(slider.current, {
           scrollTrigger: {
@@ -908,6 +950,61 @@ export default function Home() {
     };
   }, []);
 
+  const zoomIntoScreen = (href: string) => {
+    if (isZoomingRef.current) return;
+    const cam = threeCamera.current;
+    const grp = monitorGroupRef.current;
+
+    if (!cam || !grp) {
+      navigateTo(href, 'enter-zoomed');
+      return;
+    }
+
+    isZoomingRef.current = true;
+    sessionStorage.setItem('return-from-project', 'true');
+    sessionStorage.setItem('return-scroll-pos', scrollPosRef.current.toString());
+
+    // Straighten the monitor so the zoom flies straight in
+    gsap.to(grp.rotation, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' });
+
+    // Fly the camera into the screen
+    gsap.to(cam.position, {
+      z: 0.12,
+      duration: 0.75,
+      ease: 'power3.in',
+      onComplete: () => {
+        isZoomingRef.current = false;
+        navigateTo(href, 'enter-zoomed');
+      },
+    });
+  };
+
+  const getMonitorScreenRect = (): DOMRect | null => {
+    const cam  = threeCamera.current;
+    const ren  = threeRenderer.current;
+    const mesh = monitorScreen.current;
+    if (!cam || !ren || !mesh) return null;
+
+    mesh.updateMatrixWorld(true);
+    const geo = mesh.geometry as THREE.BufferGeometry;
+    const pos = geo.attributes.position;
+    const canvasRect = ren.domElement.getBoundingClientRect();
+    const xs: number[] = [];
+    const ys: number[] = [];
+
+    for (let i = 0; i < pos.count; i++) {
+      const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+      v.applyMatrix4(mesh.matrixWorld).project(cam);
+      xs.push((v.x + 1) / 2 * canvasRect.width  + canvasRect.left);
+      ys.push(-(v.y - 1) / 2 * canvasRect.height + canvasRect.top);
+    }
+
+    const left   = Math.min(...xs);
+    const top    = Math.min(...ys);
+    const right  = Math.max(...xs);
+    const bottom = Math.max(...ys);
+    return new DOMRect(left, top, right - left, bottom - top);
+  };
 
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
@@ -1038,7 +1135,12 @@ export default function Home() {
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
             {projects.map((project) => (
               <li key={project.name} data-img={project.image} data-description={project.description}>
-                <Link href={`/projects/${project.slug}`}>{project.name}</Link>
+                <a
+                  href={`/projects/${project.slug}`}
+                  onClick={(e) => { e.preventDefault(); zoomIntoScreen(`/projects/${project.slug}`); }}
+                >
+                  {project.name}
+                </a>
               </li>
             ))}
           </ul>
