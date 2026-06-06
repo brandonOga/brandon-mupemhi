@@ -205,13 +205,13 @@
    }
 
    .projects li {
-    @apply text-lg py-2.5 px-3.5 bg-white shadow-[5px_5px_0_-1px_rgba(0,0,0,1)];
+    @apply text-lg py-2.5 px-3.5 !text-foreground bg-white shadow-[5px_5px_0_-1px_rgba(0,0,0,1)];
     cursor: pointer;
     transition: color 0.3s ease;
    }
 
   .projects li:hover {
-      @apply bg-black text-white shadow-[5px_5px_0_-1px_rgba(255,255,255,1)];
+      @apply bg-black !text-white shadow-[5px_5px_0_-1px_rgba(255,255,255,1)];
   }
 
   .project-description {
