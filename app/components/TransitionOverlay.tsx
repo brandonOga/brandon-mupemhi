@@ -85,7 +85,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
         ref={overlayRef}
         style={{
           position: 'fixed', inset: 0, zIndex: 200,
-          background: '#000',
+          background: '#FEFFF8',
           opacity: 0,
           pointerEvents: 'none',
         }}

@@ -1,11 +1,11 @@
 Model Information:
-* title:	Macintosh 128K Computer (1984)
-* source:	https://sketchfab.com/3d-models/macintosh-128k-computer-1984-70e8f2c87fec4cde8ba6d6cea00edd35
-* author:	Daz (https://sketchfab.com/Darren.Hogan)
+* title:	Macintosh
+* source:	https://sketchfab.com/3d-models/macintosh-f58b4bb7fb62402ea56782a46b4b481b
+* author:	Brian Seoane (https://sketchfab.com/dgrafi.seoane)
 
 Model License:
-* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
-* requirements:	Author must be credited. No commercial use.
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
 
 If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
-This work is based on "Macintosh 128K Computer (1984)" (https://sketchfab.com/3d-models/macintosh-128k-computer-1984-70e8f2c87fec4cde8ba6d6cea00edd35) by Daz (https://sketchfab.com/Darren.Hogan) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+This work is based on "Macintosh" (https://sketchfab.com/3d-models/macintosh-f58b4bb7fb62402ea56782a46b4b481b) by Brian Seoane (https://sketchfab.com/dgrafi.seoane) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

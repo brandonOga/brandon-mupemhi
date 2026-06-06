@@ -414,6 +414,7 @@ export default function Home() {
 
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
       directionalLight.position.set(15, 10, -5);
+
       scene.add(directionalLight);
 
       const topLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -423,6 +424,7 @@ export default function Home() {
       const monitorGroup = new THREE.Group();
       monitorGroupRef.current = monitorGroup;
       scene.add(monitorGroup);
+
 
       const textureLoader = new THREE.TextureLoader();
       const textureCache: { [key: string]: THREE.Texture } = {};
@@ -468,6 +470,7 @@ export default function Home() {
       new GLTFLoader().load("/models/old_pc/scene.gltf", (gltf) => {
         const model = gltf.scene;
         normalizeModel(model, 2);
+
         monitorGroup.add(model);
 
         const screenMesh = model.getObjectByName("Cube124_Material001_0") as THREE.Mesh;
@@ -1172,7 +1175,7 @@ export default function Home() {
               <div className="w-full md:w-auto p-1 animate-rotate-border rounded-full bg-conic/[from_var(--border-angle)] from-transparent via-primary-color to-transparent from-80% via-90% to-100%">
                   <a 
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-3 bg-background uppercase items-center text-lg md:text-2xl  flex gap-5  rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-6.25 py-3 bg-background uppercase items-center text-lg md:text-2xl  flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Drop me a line
                   <IoIosMail className="text-[30px] md:text-[40px]" />
                   </a>
@@ -1180,10 +1183,10 @@ export default function Home() {
             </div>
 
             {/*Phone */}
-            <div className="w-full md:w-auto xl:rotate-[-14deg] origin-left border-2 border-foreground rounded-full hover:bg-primary-color hover:border-primary-color ">
+            <div className="w-full md:w-auto xl:rotate-[-14deg] origin-left border-2 border-foreground rounded-full hover:bg-accent">
               <div className="p-1.25 w-full md:w-auto ">
                   <a href="tel:+263776382111" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5  rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Ring me up
                   <MdPhoneEnabled className="text-[30px] md:text-[40px]" />
                   </a>
@@ -1192,14 +1195,14 @@ export default function Home() {
                     
             {/*Linkedin */}
             <div className="w-full md:w-auto border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-7.5 ">
-            <div className="p-1.25 w-full md:w-auto ">
-                <a 
-                href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5  rounded-full hover:bg-primary-color hover:text-white"> 
-                Linkedin
-                <IoLogoLinkedin  className="text-[30px] md:text-[40px]" />
-                </a>
-            </div>
+              <div className="p-1.25 w-full md:w-auto ">
+                  <a 
+                  href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
+                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  Linkedin
+                  <IoLogoLinkedin  className="text-[30px] md:text-[40px]" />
+                  </a>
+              </div>
             </div>
                     
             {/*Dribbble */}
@@ -1207,7 +1210,7 @@ export default function Home() {
               <div className="p-1.25 w-full md:w-auto">
                 <a 
                   href="https://dribbble.com/OGA_01" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5  rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Dribbble
                   <PiDribbbleLogoFill className="text-[30px] md:text-[40px]" />
                 </a>
