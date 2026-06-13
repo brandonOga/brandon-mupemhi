@@ -19,6 +19,8 @@ import { FaArrowRight } from "react-icons/fa";
 import { projects } from "./data/projects";
 gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
 
+let preloaderHasPlayed = false;
+
 export default function Home() {
   const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
@@ -674,15 +676,13 @@ export default function Home() {
         });
       }
 
-      const hasSeenPreloader = sessionStorage.getItem('preloader-shown');
-
-      if (hasSeenPreloader) {
+      if (preloaderHasPlayed) {
         gsap.set(".preloader", { autoAlpha: 0 });
         gsap.set(".preloader-header", { autoAlpha: 0 });
         const skipHeaderRow = createSplit(".header-row h1", "lines", "line");
         gsap.set(skipHeaderRow.lines, { yPercent: 0 });
       } else {
-        sessionStorage.setItem('preloader-shown', 'true');
+        preloaderHasPlayed = true;
 
       const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
       const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
@@ -1013,7 +1013,7 @@ export default function Home() {
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
         {/* Preloader */}
-        <section className="preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
+        <section className="preloader invisible w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
           <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 bg-red scale-x-0 origin-left will-change-transform"></div>
           <div>
             <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
@@ -1062,7 +1062,7 @@ export default function Home() {
         </section>
 
         {/* Preloader Header */}
-        <div className="preloader-header fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
+        <div className="preloader-header invisible fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
           <a href="#" className="text-white font-heading font-bold text-8xl uppercase whitespace-nowrap">Brandon Mupemhi </a>
         </div>
 
@@ -1131,8 +1131,8 @@ export default function Home() {
         {/* Projects Section */}
         <section className="w-auto h-screen -mr-[20vw] shrink-0  flex flex-col justify-end items-end pl-25  p-20 gap-0 z-1">
           <div className = "flex flex-col h-full ">
-            <h2 className="font-bold uppercase ">Featured</h2>
-            <h2 className="font-bold uppercase ">Projects</h2>
+            <h2 className="font-bold uppercase ">Creative</h2>
+            <h2 className="font-bold uppercase ">Showcase</h2>
           </div>
         </section>
         <section ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
