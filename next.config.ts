@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "res.cloudinary.com",
       },
+      {
+        // Supabase Storage public URLs (project-images bucket)
+        protocol: "https",
+        hostname: "*.supabase.co",
+      },
     ],
   },
   compiler: {
