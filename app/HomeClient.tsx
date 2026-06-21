@@ -19,6 +19,8 @@ import { FaArrowRight } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
 gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
 
+let preloaderHasPlayed = false;
+
 export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
@@ -92,7 +94,50 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
 
+    // Header nav: scroll to a section by id. Dispatched from the Header when
+    // already on the homepage, or stashed in sessionStorage when navigating
+    // home from another page.
+    const scrollToSection = (id: string) => {
+      const target = sections.find((s) => s.id === id) as HTMLElement | undefined;
+      if (target) {
+        xPos.target = Math.max(0, Math.min(getMaxScroll(), target.offsetLeft));
+      }
+    };
+
+    const handleSectionNav = (event: Event) => {
+      scrollToSection((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener('navigate-section', handleSectionNav);
+
+    const pendingSection = sessionStorage.getItem('scroll-to-section');
+    if (pendingSection) {
+      sessionStorage.removeItem('scroll-to-section');
+      scrollToSection(pendingSection);
+    }
+
+    const aboutSection = sections.find((s) => s.id === 'about') as HTMLElement | undefined;
+
     const handleWheel = (event: WheelEvent) => {
+      // Hand the wheel to the About panel's vertical scroll only once the panel
+      // fully fills the viewport (its left edge is aligned to the screen).
+      // While it's still partway through the horizontal slide, keep scrolling
+      // horizontally. Vertical scroll then runs until it tops/bottoms out,
+      // after which horizontal scrolling resumes.
+      if (aboutSection) {
+        const panelOffset = aboutSection.offsetLeft - xPos.current;
+        const aboutFillsScreen = Math.abs(panelOffset) < window.innerWidth * 0.05;
+        if (aboutFillsScreen) {
+          const atTop = aboutSection.scrollTop <= 0;
+          const atBottom =
+            aboutSection.scrollTop + aboutSection.clientHeight >= aboutSection.scrollHeight - 1;
+          const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
+          if (canScrollY && ((event.deltaY > 0 && !atBottom) || (event.deltaY < 0 && !atTop))) {
+            xPos.target = aboutSection.offsetLeft; // lock it to full view while scrolling
+            return;
+          }
+        }
+      }
+
       event.preventDefault();
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
       xPos.target = Math.max(0, Math.min(getMaxScroll(), xPos.target + delta * 1.5));
@@ -674,189 +719,93 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       }
 
-      const hasSeenPreloader = sessionStorage.getItem('preloader-shown');
-
-      if (hasSeenPreloader) {
+      if (preloaderHasPlayed) {
         gsap.set(".preloader", { autoAlpha: 0 });
         gsap.set(".preloader-header", { autoAlpha: 0 });
-        const skipHeaderRow = createSplit(".header-row h1", "lines", "line");
-        gsap.set(skipHeaderRow.lines, { yPercent: 0 });
       } else {
-        sessionStorage.setItem('preloader-shown', 'true');
+        preloaderHasPlayed = true;
 
-      const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
-      const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
-      const splitHeaderRow = createSplit(".header-row h1", "lines", "line");
+        const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
+        const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
 
-      const chars = preLoaderHeader.chars;
-      const lines = splitPreLoaderCopy.lines;
-      const headerLines = splitHeaderRow.lines;
-      const initialChar = chars[0];
-      const lastChar = chars[7];
+        const chars = preLoaderHeader.chars;
+        const lines = splitPreLoaderCopy.lines;
+        const initialChar = chars[0] as HTMLElement;
+        const lastChar = chars[7] as HTMLElement;
 
-      chars.forEach((char, index) => {
-        gsap.set(char, {
-          yPercent: index % 2 === 0 ? -100 : 100,
+        chars.forEach((char, index) => {
+          gsap.set(char, { yPercent: index % 2 === 0 ? -100 : 100 });
         });
-      });
 
-      gsap.set(lines, {yPercent: 100});
-      gsap.set(headerLines, {yPercent: 100});
+        gsap.set(lines, { yPercent: 100 });
 
-      const preLoaderImages = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap");
-      const preLoaderImagesInner = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap .img");
+        const preLoaderImages = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap");
+        const preLoaderImagesInner = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap .img");
 
-      gsap.set(".preloader-images", {
-        clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", 
-        autoAlpha: 1
-      });
+        gsap.set(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", autoAlpha: 1 });
+        gsap.set(".preloader", { autoAlpha: 1 });
+        gsap.set(".preloader-header", { autoAlpha: 1 });
+        gsap.set(".preloader-copy", { opacity: 1 });
+        gsap.set(preLoaderImages, { clipPath: "polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)" });
+        gsap.set(preLoaderImagesInner, { scale: 2 });
 
-      gsap.set(".preloader", {
-        autoAlpha: 1,
-      });
+        const preloaderTL = gsap.timeline({ delay: 0.25 });
 
-      gsap.set(".preloader-header", {
-        autoAlpha: 1,
-      })
+        preloaderTL
+          .to(".progress-bar", { scaleX: 1, duration: 4, ease: "power3.inOut" })
+          .to(".progress-bar", { scaleX: 0, duration: 1, ease: "power3.in" });
 
-      gsap.set(".preloader-copy", {
-        opacity: 1,
-      });
+        preLoaderImages.forEach((imgWrap, i) => {
+          preloaderTL.to(imgWrap, { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", ease: "hop", duration: 1, delay: i * 1 }, "-=5");
+        });
 
-      gsap.set(preLoaderImages, {
-        clipPath: "polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)"
-      });
+        preLoaderImagesInner.forEach((imgWrap, i) => {
+          preloaderTL.to(imgWrap, { scale: 1, ease: "hop", duration: 1.5, delay: i * 1 }, "-=5.5");
+        });
 
-      gsap.set(preLoaderImagesInner, {
-        scale: 2
-      });
+        preloaderTL.to(lines, { yPercent: 0, duration: 2, ease: "hop", stagger: 0.1 }, "-=5.5");
+        preloaderTL.to(chars, { yPercent: 0, duration: 1, ease: "hop", stagger: 0.025 }, "-=5");
 
-      const preloaderTL = gsap.timeline({ delay: 0.25 });
+        preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1, ease: "hop" }, "exit");
+        preloaderTL.to(lines, { y: "125%", duration: 2, ease: "hop", stagger: 0.1 }, "exit");
 
-      preloaderTL
-        .to(".progress-bar", {
-          scaleX: 1,
-          duration: 4,
-          ease: "power3.inOut"
-        })
-        .to(".progress-bar", {
-          scaleX: 0,
+        preloaderTL.to(chars, {
+          yPercent: (index) => {
+            if (index === 0 || index === 7) return 0;
+            return index % 2 === 0 ? 100 : -100;
+          },
           duration: 1,
-          ease: "power3.in"
-        })
-
-      preLoaderImages.forEach((imgWrap, i) => {
-        preloaderTL.to(imgWrap, {
-          clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)",
           ease: "hop",
-          duration: 1,
-          delay: i * 1, 
-        }, "-=5");
-      });
+          stagger: 0.025,
+          delay: 0.5,
+          onStart: () => {
+            const initialCharMask = initialChar.parentElement;
+            if (initialCharMask && initialCharMask.classList.contains("char-mask")) {
+              initialCharMask.style.overflow = "visible";
+            }
 
-      preLoaderImagesInner.forEach((imgWrap, i) => {
-        preloaderTL.to(imgWrap, {
-          scale: 1,
-          ease: "hop",
-          duration: 1.5,
-          delay: i * 1, 
-        }, "-=5.5");
-      });
+            const viewportWidth = window.innerWidth;
+            const centerX = viewportWidth / 2;
+            const initialCharRect = initialChar.getBoundingClientRect();
+            const lastCharRect = lastChar.getBoundingClientRect();
 
-      preloaderTL.to(lines, {
-        yPercent: 0,
-        duration: 2,
-        ease: "hop",
-        stagger: 0.1,
-      }, "-=5.5");
+            gsap.to([initialChar, lastChar], {
+              duration: 1,
+              ease: "hop",
+              delay: 0.5,
+              x: (i: number) => {
+                if (i === 0) return centerX - initialCharRect.left - initialCharRect.width;
+                return centerX - lastCharRect.left;
+              },
+              onComplete: () => {
+                gsap.set(".preloader-header", { mixBlendMode: "difference" });
+                gsap.to(".preloader-header", { y: 0, x: "0", top: "2rem", left: "50%", scale: 0.35, duration: 1.75, ease: "hop" });
+              },
+            });
+          },
+        }, "-=2.5");
 
-      preloaderTL.to(chars, {
-        yPercent: 0,
-        duration: 1,
-        ease: "hop",
-        stagger: 0.025,
-      }, "-=5");
-
-      preloaderTL.to(".preloader-images", {
-        clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)",
-        duration: 1,
-        ease: "hop"
-      }, "exit");
-
-      preloaderTL.to(lines, {
-        y: "125%",
-        duration: 2,
-        ease: "hop",
-        stagger: 0.1,
-      }, "exit")
-
-      preloaderTL.to(chars, {
-        yPercent: (index) => {
-          if (index === 0 || index === 7) {
-            return 0;
-          }
-          return index % 2 === 0 ? 100 : -100 
-        },
-        duration: 1,
-        ease: "hop",
-        stagger: 0.025,
-        delay: 0.5,
-        onStart: () => {
-          const initialCharMask = initialChar.parentElement;
-
-          if (
-            initialCharMask && 
-            initialCharMask.classList.contains("char-mask")
-          ) {
-            initialCharMask.style.overflow = "visible";
-          }
-
-          const viewportWidth = window.innerWidth;
-          const centerX = viewportWidth / 2;
-          const initialCharRect = initialChar.getBoundingClientRect();
-          const lastCharRect = lastChar.getBoundingClientRect();
-
-          gsap.to([initialChar, lastChar], {
-            duration: 1,
-            ease: "hop",
-            delay: 0.5,
-            x: (i) => {
-              if (i === 0) {
-                return centerX - initialCharRect.left - initialCharRect.width
-              }else{
-                return centerX - lastCharRect.left
-              }
-            },
-            onComplete: () => {
-              gsap.set(".preloader-header", {mixBlendMode: "difference"});
-              gsap.to(".preloader-header", {
-                y: 0,
-                x: "0",
-                top: "2rem",
-                left: "50%",
-                scale: 0.35,
-                duration: 1.75,
-                ease: "hop"
-              });
-            },
-          });
-        },
-      }, "-=2.5");
-
-      preloaderTL.to(".preloader", {
-        scaleY: 0,
-        duration: 1.75,
-        ease: "hop",
-        transformOrigin: "top center",
-      }, "-=0.5");
-
-      preloaderTL.to(headerLines, {
-        yPercent: 0,
-        duration: 1.2,
-        ease: "power4.out",
-        stagger: 0.1,
-      });
-
+        preloaderTL.to(".preloader", { scaleY: 0, duration: 1.75, ease: "hop", transformOrigin: "top center" }, "-=0.5");
       } // end preloader
 
       if (slider.current) {
@@ -871,6 +820,75 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           x: "-500px",
         });
       }
+
+      // ── Viewport-entrance animations (IntersectionObserver, works with
+      //    the horizontal lerp scroll used by this layout) ─────────────────
+      const entranceObservers: IntersectionObserver[] = [];
+
+      // Headings: per-character slide-in (same motion as the hover effect)
+      const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
+        "main > section h1, main > section h2, main > section h3"
+      ));
+      entranceHeadings.forEach((heading) => {
+        const split = SplitText.create(heading, {
+          type: "chars,words",
+          charsClass: "entrance-char",
+          mask: "chars",
+        });
+        const chars = split.chars as HTMLElement[];
+        gsap.set(chars, { display: "inline-block", xPercent: 110 });
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.to(chars, {
+            xPercent: 0,
+            duration: 0.55,
+            ease: "power3.out",
+            stagger: 0.03,
+          });
+        }, { threshold: 0.1 });
+        obs.observe(heading);
+        entranceObservers.push(obs);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf(chars);
+          split.revert();
+        });
+      });
+
+      // Paragraphs & list items: fade + slide up
+      const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
+        "main > section p, main > section li"
+      ));
+      entranceTexts.forEach((el) => {
+        gsap.set(el, { opacity: 0, y: 24 });
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.to(el, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" });
+        }, { threshold: 0.15 });
+        obs.observe(el);
+        entranceObservers.push(obs);
+        shaderRippleCleanups.push(() => { obs.disconnect(); gsap.killTweensOf(el); });
+      });
+
+      // Images & project cards: fade + slide up + subtle scale
+      const entranceImages = Array.from(document.querySelectorAll<HTMLElement>(
+        "main > section img, main > section .project-card, main > section [data-animate-img]"
+      ));
+      entranceImages.forEach((el) => {
+        gsap.set(el, { opacity: 0, y: 36, scale: 0.97 });
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.to(el, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "power3.out" });
+        }, { threshold: 0.1 });
+        obs.observe(el);
+        entranceObservers.push(obs);
+        shaderRippleCleanups.push(() => { obs.disconnect(); gsap.killTweensOf(el); });
+      });
 
       // ── Per-character slide hover on headings ──────────────────────────
       const slideEls = Array.from(document.querySelectorAll<HTMLElement>(
@@ -941,6 +959,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       ctx.revert();
       cancelAnimationFrame(lerpRafId);
       window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener('navigate-section', handleSectionNav);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
       window.removeEventListener('pointercancel', handleSkillPointerUp);
@@ -1013,46 +1032,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
         {/* Preloader */}
-        <section className="preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
-          <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 bg-red scale-x-0 origin-left will-change-transform"></div>
+        <section className="preloader invisible w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
+          <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 scale-x-0 origin-left will-change-transform"></div>
           <div>
             <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon.jpg"
-                  alt="Brandon"
-                  priority
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon2.jpg"
-                  alt="Brandon"
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon2.jpg" alt="Brandon" fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon3.jpg"
-                  alt="Brandon"
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon3.jpg" alt="Brandon" fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon5.jpg"
-                  alt="Brandon"
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon5.jpg" alt="Brandon" fill sizes="300px" />
               </div>
             </div>
           </div>
@@ -1062,7 +1056,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Preloader Header */}
-        <div className="preloader-header fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
+        <div className="preloader-header invisible fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
           <a href="#" className="text-white font-heading font-bold text-8xl uppercase whitespace-nowrap">Brandon Mupemhi </a>
         </div>
 
@@ -1076,7 +1070,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
               <div className="flex flex-col gap-5">
                 <h1 className=" font-bold uppercase">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I’m an experienced Web & UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
+                <p className="w-7/10 uppercase">I&apos;m an experienced Web &amp; UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
               </div>
               <div className="w-[60vw] relative flex justify-start items-center gap-3 touch-none skill-pill-wrapper">
                 <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">UI/UX Designer</p>
@@ -1109,22 +1103,82 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
 
-        {/*About Section */}
-        <section id="about" className="w-[130vw] h-screen pb-15 pt-20 pl-37.5 flex flex-col shrink-0 relative overflow-hidden">
-          {/* Content: image floated left, large text wraps around + below */}
-          <div className="flex-1 mt-4">
-            <div className="float-left w-100 h-100 relative mr-14">
+        {/*About Section — numbered grid around a centered portrait. Scrolls
+            vertically when its content is taller than the viewport (see the
+            wheel handler, which yields to it before resuming horizontal). */}
+        <section id="about" className="w-screen h-screen shrink-0 relative overflow-x-hidden overflow-y-auto bg-background [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
+              cell/item span. Remove this row of outline-* utilities when done. */}
+          <div className="grid min-h-full w-full grid-cols-3 grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-16 pt-24 pb-16 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/70">
+            {/* Headline */}
+            <h2 className="col-span-2 row-start-1 self-start font-heading font-bold uppercase leading-none whitespace-nowrap text-[5rem] xl:text-[7rem] text-foreground">
+              About Me
+            </h2>
+
+            {/* 01 — Love */}
+            <div className="col-start-3 row-start-1 max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">01</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Love</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I love bold, expressive design — clean type, motion, and interfaces that feel alive.
+              </p>
+            </div>
+
+            {/* 02 — Past experience */}
+            <div className="col-start-2 row-start-2 max-w-[18rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">02</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Past Experience</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I&apos;ve crafted websites and brand experiences for clients across very different industries.
+              </p>
+            </div>
+
+            {/* Asterisk motif */}
+            <div className="col-start-1 row-start-3 self-center flex gap-1 text-primary-color text-3xl">
+              <LiaAsteriskSolid />
+              <LiaAsteriskSolid />
+              <LiaAsteriskSolid />
+            </div>
+
+            {/* 03 — Approach */}
+            <div className="col-start-3 row-start-3 max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">03</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Approach</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I blend UI/UX thinking with hands-on frontend, so the work looks sharp and ships fast.
+              </p>
+            </div>
+
+            {/* Centered portrait — spans the middle column; taller than its
+                cell, anchored to the top so it grows downward (the side
+                columns hold 04/05, so the extra height never overlaps text). */}
+            <div className="col-start-2 row-start-3 row-span-2 self-start relative h-[70vh] overflow-hidden">
               <Image
-                className="img object-cover will-change-transform"
+                className="object-cover grayscale will-change-transform"
                 src="/images/brandon4.jpg"
-                alt="Brandon"
+                alt="Brandon Mupemhi"
                 fill
-                sizes="36vw"
+                sizes="34vw"
               />
             </div>
-            <p className="text-2xl leading-[1.15] font-bold">
-              I&apos;m Brandon, a passionate visual storyteller dedicated to crafting memorable digital experiences. With bold design, engaging visuals, and thoughtful user-focused interactions, I create work that feels alive, cinematic, and impossible to ignore.
-            </p>
+
+            {/* 04 — Current experience */}
+            <div className="col-start-1 row-start-4 self-end max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">04</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Current Experience</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I work as a freelance web &amp; UI/UX designer, building memorable sites for brands of all sizes.
+              </p>
+            </div>
+
+            {/* 05 — Inspiration */}
+            <div className="col-start-3 row-start-4 self-end max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">05</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Inspiration</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I&apos;m inspired by motion, editorial layouts, and the energy of great brand storytelling.
+              </p>
+            </div>
           </div>
         </section>
 
