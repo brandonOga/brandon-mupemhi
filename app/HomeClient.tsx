@@ -17,7 +17,6 @@ import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
-import { getShadowMaterial } from "three/src/nodes/TSL.js";
 gsap.registerPlugin(Flip, customEase, ScrollTrigger, SplitText);
 
 let preloaderHasPlayed = false;
@@ -80,7 +79,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     }
 
     const createCounterDigits = () => {
-      const counter1 = document.querySelector(".counter-1");
+      const counter1 = document.querySelector(".counter-1") as Element;
       const num0 = document.createElement("div");
       num0.className = "num";
       num0.textContent = "0";
@@ -91,7 +90,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       num1.textContent = "1";
       counter1.appendChild(num1);
 
-      const counter2 = document.querySelector(".counter-2");
+      const counter2 = document.querySelector(".counter-2") as Element;
       for (let i = 0; i <= 10; i++) {
         const numDiv = document.createElement("div");
         numDiv.className = i === 10 ? "num num1offset2" : "num";
@@ -99,7 +98,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         counter2.appendChild(numDiv)
       }
 
-      const counter3 = document.querySelector(".counter-3");
+      const counter3 = document.querySelector(".counter-3") as Element;
       for (let i = 0; i < 30; i++) {
         const numDiv = document.createElement("div");
         numDiv.className = "num";
@@ -113,9 +112,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       counter3.appendChild(finalNum);
     };
 
-    const animateCounter = (counter, duration, delay = 0) => {
-      const numHeight = counter.querySelector(".num").clientHeight;
-      const totalDistance = 
+    const animateCounter = (counter: Element | null, duration: number, delay = 0) => {
+      if (!counter) return;
+      const numHeight = (counter.querySelector(".num") as HTMLElement).clientHeight;
+      const totalDistance =
        (counter.querySelectorAll(".num").length - 1) * numHeight;
       gsap.to(counter, {
         y: -totalDistance,
