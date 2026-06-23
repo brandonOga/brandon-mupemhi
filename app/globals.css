@@ -304,4 +304,30 @@
     pointer-events: none;
     height: 0;
   }
+
+  .digit {
+    position: relative;
+    top: -15px;
+  }
+
+  .num1offset1 {
+    position: relative;
+    right: -30px;
+  }
+
+  .num1offset2 {
+    position: relative;
+    right: -15px;
+  }
+.images-container .imag {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  width: 25%;
+  aspect-ratio: 5 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  transform: scale(0);
+}
+
 }

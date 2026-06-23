@@ -1,9 +1,9 @@
 'use client';
 import Image from "next/image";
-import Link from "next/link";
 import { usePageTransition } from "./components/TransitionOverlay";
 import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
+import { Flip } from "gsap/Flip";
 import {ScrollTrigger} from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
@@ -17,7 +17,8 @@ import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
-gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
+import { getShadowMaterial } from "three/src/nodes/TSL.js";
+gsap.registerPlugin(Flip, customEase, ScrollTrigger, SplitText);
 
 let preloaderHasPlayed = false;
 
@@ -64,6 +65,157 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   
   useLayoutEffect(() => {
     if (!projectsRef.current || !scrollRef.current) return;
+
+    const setupTextSplitting = () => {
+      const heroTextEls = gsap.utils.toArray<HTMLElement>("section.hero h1, section.hero p");
+      heroTextEls.forEach((el) => {
+        SplitText.create(el, {
+          type: "chars",
+          charsClass: "hero-char",
+          mask: "chars",
+        });
+      });
+      // Parents must be visible so the mask clips correctly; chars start at yPercent 100
+      gsap.set("section.hero h1, section.hero p", { visibility: "visible", opacity: 1 });
+    }
+
+    const createCounterDigits = () => {
+      const counter1 = document.querySelector(".counter-1");
+      const num0 = document.createElement("div");
+      num0.className = "num";
+      num0.textContent = "0";
+      counter1.appendChild(num0);
+
+      const num1 = document.createElement("div");
+      num1.className = "num num1offset1";
+      num1.textContent = "1";
+      counter1.appendChild(num1);
+
+      const counter2 = document.querySelector(".counter-2");
+      for (let i = 0; i <= 10; i++) {
+        const numDiv = document.createElement("div");
+        numDiv.className = i === 10 ? "num num1offset2" : "num";
+        numDiv.textContent = i === 10 ? "0" : String(i);
+        counter2.appendChild(numDiv)
+      }
+
+      const counter3 = document.querySelector(".counter-3");
+      for (let i = 0; i < 30; i++) {
+        const numDiv = document.createElement("div");
+        numDiv.className = "num";
+        numDiv.textContent = String(i % 10);
+        counter3.appendChild(numDiv)
+      }
+
+      const finalNum = document.createElement("div");
+      finalNum.className = "num";
+      finalNum.textContent = "0";
+      counter3.appendChild(finalNum);
+    };
+
+    const animateCounter = (counter, duration, delay = 0) => {
+      const numHeight = counter.querySelector(".num").clientHeight;
+      const totalDistance = 
+       (counter.querySelectorAll(".num").length - 1) * numHeight;
+      gsap.to(counter, {
+        y: -totalDistance,
+        duration: duration,
+        delay: delay,
+        ease: "power2.inOut"
+      })
+    }
+
+    function animateImages() {
+      const images = document.querySelectorAll(".imag");
+      const target = document.querySelector(".hero-display-target");
+
+      const state = Flip.getState(images);
+
+      images.forEach((imag) => {
+        Flip.fit(imag, target, { scale: true });
+      });
+
+      const mainTimeline = gsap.timeline();
+
+      mainTimeline.add(
+        Flip.from(state, {
+          duration:1,
+          stagger: 0.1,
+          ease: "power3.inOut",
+        })
+      );
+
+      images.forEach((imag, index) => {
+        const scaleTimeline = gsap.timeline();
+
+        scaleTimeline.to(imag, {
+          scale: 2.5,
+          duration: 0.45,
+          ease: "power3.in"
+        }, 0.025
+      )
+      .to(imag, 
+        {
+          scale:1,
+          duration:0.45,
+          ease: "power3.out",
+        },
+      0.5);
+
+      mainTimeline.add(scaleTimeline, index * 0.1);
+      });
+      return mainTimeline;
+    }
+
+    setupTextSplitting();
+    createCounterDigits();
+
+    animateCounter(document.querySelector(".counter-3"), 2.5);
+    animateCounter(document.querySelector(".counter-2"), 3);
+    animateCounter(document.querySelector(".counter-1"), 2, 1.5);
+
+    const tl = gsap.timeline();
+    gsap.set(".imag", {scale:0})
+    gsap.set(".hero-char", { yPercent: 100 })
+    gsap.set(".hero-item", { autoAlpha: 0, y: 20 })
+
+    tl.to(".hero-bg", {
+      scaleY: "100%",
+      duration: 3,
+      ease: "power2.inOut",
+      delay: 0.25,
+    })
+
+    tl.to(".imag", {
+      scale:1,
+      duration:1,
+      stagger: 0.125,
+      ease: "power3.out"
+      },
+    "<"
+    );
+
+    tl.to(".counter", {
+      opacity: 0,
+      duration:0.3,
+      ease: "power3.out",
+      onStart: () => {
+        const imagesTL = animateImages();
+        imagesTL.to(".hero-char", {
+          yPercent: 0,
+          duration: 0.8,
+          stagger: 0.015,
+          ease: "power3.out",
+        });
+        imagesTL.to(".hero-item", {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.6,
+          stagger: 0.12,
+          ease: "power3.out",
+        }, "<0.2");
+      },
+    });
 
     const animate = () => {
       if (xPercent.current < -100) {
@@ -125,7 +277,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // after which horizontal scrolling resumes.
       if (aboutSection) {
         const panelOffset = aboutSection.offsetLeft - xPos.current;
-        const aboutFillsScreen = Math.abs(panelOffset) < window.innerWidth * 0.05;
+        const aboutFillsScreen = Math.abs(panelOffset) < window.innerWidth * 0.1;
         if (aboutFillsScreen) {
           const atTop = aboutSection.scrollTop <= 0;
           const atBottom =
@@ -827,7 +979,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // Headings: per-character slide-in (same motion as the hover effect)
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
-        "main > section h1, main > section h2, main > section h3"
+        "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
       ));
       entranceHeadings.forEach((heading) => {
         const split = SplitText.create(heading, {
@@ -860,7 +1012,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // Paragraphs & list items: fade + slide up
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
-        "main > section p, main > section li"
+        "main > section:not(.hero) p, main > section:not(.hero) li"
       ));
       entranceTexts.forEach((el) => {
         gsap.set(el, { opacity: 0, y: 24 });
@@ -892,7 +1044,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // ── Per-character slide hover on headings ──────────────────────────
       const slideEls = Array.from(document.querySelectorAll<HTMLElement>(
-        ".hero h1, .hero h2, main > section h1, main > section h2"
+        "main > section:not(.hero) h1, main > section:not(.hero) h2"
       ));
 
       slideEls.forEach((heading) => {
@@ -1031,7 +1183,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
-        {/* Preloader */}
+        {/* Preloader 
         <section className="preloader invisible w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
           <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 scale-x-0 origin-left will-change-transform"></div>
           <div>
@@ -1054,25 +1206,49 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <p className="text-white uppercase text-center">I design memorable, user-centered digital experiences that help brands of all sizes stand out and perform.</p>
           </div>
         </section>
-
-        {/* Preloader Header */}
+        */}
+        {/* Preloader Header 
         <div className="preloader-header invisible fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
           <a href="#" className="text-white font-heading font-bold text-8xl uppercase whitespace-nowrap">Brandon Mupemhi </a>
         </div>
-
+        */}
+      
       <main
         ref={scrollRef}
         className="flex flex-row will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero  w-screen h-screen shrink-0 flex flex-col overflow-hidden relative" ref={heroRef}>
+        <section id="home" className="hero bg-amber-100 w-screen h-screen shrink-0 flex flex-col overflow-hidden relative" ref={heroRef}>
+          <div className="hero-bg absolute inset-0 bg-background origin-bottom scale-y-0 "></div>
+          <div className="counter fixed right-10 bottom-10 flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase z-50">
+            <div className="counter-1 digit"></div>
+            <div className="counter-2 digit"></div>
+            <div className="counter-3 digit"></div>
+          </div>
+          <div className="images-container absolute inset-0">
+            <div className="imag image-1">
+              <Image src="/images/brandon.jpg" alt="Brandon" fill className="object-cover" />
+            </div>
+            <div className="imag image-2">
+              <Image src="/images/brandon2.jpg" alt="Brandon" fill className="object-cover" />
+            </div>
+            <div className="imag image-3">
+              <Image src="/images/brandon3.jpg" alt="Brandon" fill className="object-cover" />
+            </div>
+            <div className="imag image-4">
+              <Image src="/images/brandon4.jpg" alt="Brandon" fill className="object-cover" />
+            </div>
+            <div className="imag image-5">
+              <Image src="/images/brandon5.jpg" alt="Brandon" fill className="object-cover" />
+            </div>
+          </div>
           <div className="h-full w-full flex items-end pb-15 pt-20 gap-5">
             <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
               <div className="flex flex-col gap-5">
-                <h1 className=" font-bold uppercase">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I&apos;m an experienced Web &amp; UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
+                <h1 className="invisible font-bold uppercase">Creative <br/> Designer</h1>
+                <p className="invisible w-7/10 uppercase">I&apos;m an experienced Web &amp; UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
               </div>
-              <div className="w-[60vw] relative flex justify-start items-center gap-3 touch-none skill-pill-wrapper">
+              <div className="invisible hero-item w-[60vw] relative flex justify-start items-center gap-3 touch-none skill-pill-wrapper">
                 <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">UI/UX Designer</p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase"><LiaAsteriskSolid className="text-2xl"/></p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-2xl uppercase">Frontend Developer</p>
@@ -1081,24 +1257,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
-              <div className="flex items-center gap-2">
+              <div className="invisible hero-item flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Open for Work</p>
               </div>
-              <div className="relative w-full h-[40vh]">
-                {/* Image clipped to pill shape */}
-                <div className="absolute inset-0  overflow-hidden">
-                  <Image
-                    className="img object-cover will-change-transform"
-                    src="/images/contact.jpg"
-                    alt="Brandon"
-                    priority
-                    fill
-                    sizes="50vw"
-                  />
-                </div>
-              </div>
-              <h1 className=" font-bold uppercase text-right">Mupemhi<br/>Brandon</h1>
+              <div className="hero-display-target invisible hero-item relative w-full h-[40vh]"></div>
+              <h1 className="invisible font-bold uppercase text-right">Mupemhi<br/>Brandon</h1>
             </div>
           </div>
         </section>
