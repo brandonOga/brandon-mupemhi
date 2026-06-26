@@ -489,6 +489,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         normalizeModel(model, 2);
 
         monitorGroup.add(model);
+        model.updateMatrixWorld(true);
 
         const screenMesh = model.getObjectByName("Cube124_Material001_0") as THREE.Mesh;
 
@@ -682,10 +683,131 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       customEase.create("hop", "0.9, 0, 0.1, 1");
 
+      // ── Char hover helper (defined early so animateHeroEntrance can call it) ──
+      const setupCharHover = (heading: HTMLElement) => {
+        const split = SplitText.create(heading, {
+          type: "chars,words",
+          charsClass: "slide-char",
+          mask: "chars",
+        });
+        const splitChars = split.chars as HTMLElement[];
+        gsap.set(splitChars, { display: "inline-block" });
+
+        const charHandlers: Array<{ char: HTMLElement; onEnter: () => void }> = [];
+
+        const animateChar = (char: HTMLElement) => {
+          if (char.dataset.animating === "1") return;
+          char.dataset.animating = "1";
+          gsap.killTweensOf(char);
+          gsap.to(char, {
+            xPercent: -110,
+            duration: 0.35,
+            ease: "power2.in",
+            onComplete: () => {
+              gsap.set(char, { xPercent: 110 });
+              gsap.to(char, {
+                xPercent: 0,
+                duration: 0.4,
+                ease: "power3.out",
+                onComplete: () => { delete char.dataset.animating; },
+              });
+            },
+          });
+        };
+
+        splitChars.forEach((char) => {
+          if (!char.textContent || char.textContent.trim().length === 0) return;
+          const onEnter = () => animateChar(char);
+          char.addEventListener("mouseenter", onEnter);
+          charHandlers.push({ char, onEnter });
+        });
+
+        shaderRippleCleanups.push(() => {
+          charHandlers.forEach(({ char, onEnter }) => {
+            char.removeEventListener("mouseenter", onEnter);
+            gsap.killTweensOf(char);
+          });
+          gsap.killTweensOf(splitChars);
+          split.revert();
+        });
+      };
+
+      // ── Hero entrance (called from preloader timeline on first visit) ─────────
+      const animateHeroEntrance = () => {
+        const heroHeadings = Array.from(document.querySelectorAll<HTMLElement>(".hero h1"));
+        const heroTexts    = Array.from(document.querySelectorAll<HTMLElement>(".hero p:not(.skill-pill)"));
+        const heroImg      = document.querySelector<HTMLElement>(".hero img");
+
+        const tl = gsap.timeline();
+
+        // h1s: reveal lines, then hand off to char hover
+        heroHeadings.forEach((heading, i) => {
+          gsap.set(heading, { autoAlpha: 1 });
+          const split = SplitText.create(heading, { type: "lines", mask: "lines" });
+          const lines = split.lines as HTMLElement[];
+          gsap.set(lines, { yPercent: 110 });
+          tl.to(lines, {
+            yPercent: 0,
+            duration: 0.9,
+            ease: "power3.out",
+            stagger: 0.1,
+            onComplete: () => { split.revert(); setupCharHover(heading); },
+          }, i * 0.2);
+          shaderRippleCleanups.push(() => { gsap.killTweensOf(lines); split.revert(); });
+        });
+
+        // paragraphs: reveal lines
+        heroTexts.forEach((el, i) => {
+          gsap.set(el, { autoAlpha: 1 });
+          const split = SplitText.create(el, { type: "lines", mask: "lines" });
+          const lines = split.lines as HTMLElement[];
+          gsap.set(lines, { yPercent: 110 });
+          tl.to(lines, {
+            yPercent: 0,
+            duration: 0.7,
+            ease: "power3.out",
+            stagger: 0.06,
+          }, 0.3 + i * 0.1);
+          shaderRippleCleanups.push(() => { gsap.killTweensOf(lines); split.revert(); });
+        });
+
+        // image: clip-path wipe-in
+        if (heroImg) {
+          tl.to(heroImg, { clipPath: "inset(0% 0% 0% 0%)", scale: 1, duration: 1.1, ease: "power3.out" }, 0.1);
+          shaderRippleCleanups.push(() => {
+            gsap.killTweensOf(heroImg);
+            gsap.set(heroImg, { clearProps: "clipPath,scale" });
+          });
+        }
+
+        // skill pills: clip-path inset reveal from bottom (bottom edge appears first, then upward)
+        const pills = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
+        if (pills.length) {
+          gsap.set(pills, { autoAlpha: 1, clipPath: "inset(100% 0% 0% 0%)" });
+          tl.to(pills, {
+            clipPath: "inset(0% 0% 0% 0%)",
+            duration: 0.9,
+            ease: "power3.out",
+            stagger: 0.07,
+          }, 0.45);
+          shaderRippleCleanups.push(() => {
+            gsap.killTweensOf(pills);
+            gsap.set(pills, { clearProps: "clipPath,opacity,visibility" });
+          });
+        }
+      };
+
       if (preloaderHasPlayed) {
         gsap.set(".preloader", { autoAlpha: 0 });
+        // On return visits skip the entrance reveal — just wire up hover
+        Array.from(document.querySelectorAll<HTMLElement>(".hero h1")).forEach(setupCharHover);
       } else {
         preloaderHasPlayed = true;
+
+        // Pre-hide hero content so it's invisible until the preloader exits
+        gsap.set([".hero h1", ".hero p:not(.skill-pill)"], { autoAlpha: 0 });
+        gsap.set(".hero img", { clipPath: "inset(0% 0% 100% 0%)", scale: 1.1 });
+        gsap.set(".hero .skill-pill", { autoAlpha: 0 });
 
         createCounterDigits();
 
@@ -729,126 +851,114 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // exit fires the moment counter reads 100
         preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1,    ease: "hop" }, counterEnd);
         preloaderTL.to(".preloader",         { scaleY: 0,                                           duration: 1.75, ease: "hop", transformOrigin: "top center" }, counterEnd + 0.25);
+        // Fire hero entrance 0.5 timeline-seconds before the preloader fully collapses
+        preloaderTL.call(animateHeroEntrance, [], ">-0.5");
       } // end preloader
 
-      // ── Viewport-entrance animations (IntersectionObserver) ───────────────
-      // Headings: per-character slide-in
+      // ── Entrance + hover animations ──────────────────────────────────────────
+
+      // Non-hero headings: line-mask slide-up reveal, then char hover once done
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
       ));
       entranceHeadings.forEach((heading) => {
-        const split = SplitText.create(heading, {
-          type: "chars,words",
-          charsClass: "entrance-char",
-          mask: "chars",
-        });
-        const chars = split.chars as HTMLElement[];
-        gsap.set(chars, { display: "inline-block", xPercent: 110 });
+        const split = SplitText.create(heading, { type: "lines", mask: "lines" });
+        const lines = split.lines as HTMLElement[];
+        gsap.set(lines, { yPercent: 110 });
 
         const obs = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
           obs.disconnect();
-          gsap.to(chars, {
-            xPercent: 0,
-            duration: 0.55,
+          gsap.to(lines, {
+            yPercent: 0,
+            duration: 0.9,
             ease: "power3.out",
-            stagger: 0.03,
+            stagger: 0.12,
+            onComplete: () => {
+              split.revert();
+              setupCharHover(heading);
+            },
           });
-        }, { threshold: 0.1 });
+        }, { threshold: 0.2 });
         obs.observe(heading);
+
         shaderRippleCleanups.push(() => {
           obs.disconnect();
-          gsap.killTweensOf(chars);
+          gsap.killTweensOf(lines);
           split.revert();
         });
       });
 
-      // Paragraphs & list items: fade + slide up
+      // Paragraphs and list items: line-mask slide-up reveal
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) p, main > section:not(.hero) li"
       ));
       entranceTexts.forEach((el) => {
-        gsap.set(el, { opacity: 0, y: 24 });
+        const split = SplitText.create(el, { type: "lines", mask: "lines" });
+        const lines = split.lines as HTMLElement[];
+        gsap.set(lines, { yPercent: 110 });
+
         const obs = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
           obs.disconnect();
-          gsap.to(el, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" });
+          gsap.to(lines, {
+            yPercent: 0,
+            duration: 0.7,
+            ease: "power3.out",
+            stagger: 0.06,
+          });
         }, { threshold: 0.15 });
         obs.observe(el);
-        shaderRippleCleanups.push(() => { obs.disconnect(); gsap.killTweensOf(el); });
-      });
-
-      // Images & project cards: fade + slide up + subtle scale
-      const entranceImages = Array.from(document.querySelectorAll<HTMLElement>(
-        "main > section img, main > section .project-card, main > section [data-animate-img]"
-      ));
-      entranceImages.forEach((el) => {
-        gsap.set(el, { opacity: 0, y: 36, scale: 0.97 });
-        const obs = new IntersectionObserver(([entry]) => {
-          if (!entry.isIntersecting) return;
-          obs.disconnect();
-          gsap.to(el, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "power3.out" });
-        }, { threshold: 0.1 });
-        obs.observe(el);
-        shaderRippleCleanups.push(() => { obs.disconnect(); gsap.killTweensOf(el); });
-      });
-
-      // ── Per-character slide hover on headings ──────────────────────────
-      const slideEls = Array.from(document.querySelectorAll<HTMLElement>(
-        "main > section h1, main > section h2"
-      ));
-
-      slideEls.forEach((heading) => {
-        const split = SplitText.create(heading, {
-          type: "chars,words,lines",
-          charsClass: "slide-char",
-          mask: "chars",
-        });
-
-        const splitChars = split.chars as HTMLElement[];
-        gsap.set(splitChars, { display: "inline-block" });
-
-        const charHandlers: Array<{ char: HTMLElement; onEnter: () => void }> = [];
-
-        const animateCharEntrance = (char: HTMLElement) => {
-          if (char.dataset.animating === "1") return;
-          char.dataset.animating = "1";
-
-          gsap.killTweensOf(char);
-          gsap.to(char, {
-            xPercent: -110,
-            duration: 0.35,
-            ease: "power2.in",
-            onComplete: () => {
-              gsap.set(char, { xPercent: 110 });
-              gsap.to(char, {
-                xPercent: 0,
-                duration: 0.4,
-                ease: "power3.out",
-                onComplete: () => {
-                  delete char.dataset.animating;
-                },
-              });
-            },
-          });
-        };
-
-        splitChars.forEach((char) => {
-          if (!char.textContent || char.textContent.trim().length === 0) return;
-          const onEnter = () => animateCharEntrance(char);
-          char.addEventListener("mouseenter", onEnter);
-          charHandlers.push({ char, onEnter });
-        });
 
         shaderRippleCleanups.push(() => {
-          charHandlers.forEach(({ char, onEnter }) => {
-            char.removeEventListener("mouseenter", onEnter);
-            gsap.killTweensOf(char);
-          });
-          gsap.killTweensOf(splitChars);
+          obs.disconnect();
+          gsap.killTweensOf(lines);
           split.revert();
         });
       });
+
+      // Images: clip-path wipe-in from bottom + descale; about portrait keeps
+      // extra scale (1.12) as headroom for the parallax yPercent shift below.
+      const entranceImages = Array.from(document.querySelectorAll<HTMLElement>(
+        "main > section:not(.hero) img"
+      ));
+      entranceImages.forEach((el) => {
+        const isAboutPortrait = !!el.closest("#about");
+        const endScale = isAboutPortrait ? 1.12 : 1;
+        gsap.set(el, { clipPath: "inset(0% 0% 100% 0%)", scale: 1.15 });
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.to(el, {
+            clipPath: "inset(0% 0% 0% 0%)",
+            scale: endScale,
+            duration: 1.1,
+            ease: "power3.out",
+          });
+        }, { threshold: 0.1 });
+        obs.observe(el);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf(el);
+          gsap.set(el, { clearProps: "clipPath,scale" });
+        });
+      });
+
+      // About portrait: vertical parallax driven by the about section's own scroll
+      const aboutPortrait = document.querySelector<HTMLElement>("#about img");
+      if (aboutPortrait && aboutSection) {
+        const onAboutScroll = () => {
+          const maxScroll = aboutSection.scrollHeight - aboutSection.clientHeight;
+          const progress = maxScroll > 0 ? aboutSection.scrollTop / maxScroll : 0;
+          gsap.set(aboutPortrait, { yPercent: -progress * 12 });
+        };
+        aboutSection.addEventListener("scroll", onAboutScroll, { passive: true });
+        shaderRippleCleanups.push(() => {
+          if (aboutSection) aboutSection.removeEventListener("scroll", onAboutScroll);
+        });
+      }
 
     }, root);
 
