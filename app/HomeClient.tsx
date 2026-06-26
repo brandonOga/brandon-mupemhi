@@ -3,8 +3,6 @@ import Image from "next/image";
 import { usePageTransition } from "./components/TransitionOverlay";
 import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
-import { Flip } from "gsap/Flip";
-import {ScrollTrigger} from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
 import * as THREE from 'three';
@@ -17,7 +15,7 @@ import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
-gsap.registerPlugin(Flip, customEase, ScrollTrigger, SplitText);
+gsap.registerPlugin(customEase, SplitText);
 
 let preloaderHasPlayed = false;
 
@@ -25,8 +23,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const heroRingRef = useRef<HTMLDivElement>(null);
   const projectsRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
@@ -38,13 +34,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const isZoomingRef     = useRef(false);
   const scrollPosRef     = useRef(0);
 
-  const firstText = useRef(null);
-  const secondText = useRef(null);
-  const slider = useRef(null);
-  const xPercent = useRef(0);
-  const direction = useRef(-1);
-
-  
 
   function normalizeModel(model: THREE.Object3D, targetSize: number = 2) {
     const box = new THREE.Box3().setFromObject(model);
@@ -59,24 +48,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     new THREE.Box3().setFromObject(model).getCenter(center);
     model.position.sub(center);
     
-    console.log(`Model normalized: Scale factor=${scale.toFixed(3)}, Size=[${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}]`);
   }
   
   useLayoutEffect(() => {
     if (!projectsRef.current || !scrollRef.current) return;
-
-    const setupTextSplitting = () => {
-      const heroTextEls = gsap.utils.toArray<HTMLElement>("section.hero h1, section.hero p");
-      heroTextEls.forEach((el) => {
-        SplitText.create(el, {
-          type: "chars",
-          charsClass: "hero-char",
-          mask: "chars",
-        });
-      });
-      // Parents must be visible so the mask clips correctly; chars start at yPercent 100
-      gsap.set("section.hero h1, section.hero p", { visibility: "visible", opacity: 1 });
-    }
 
     const createCounterDigits = () => {
       const counter1 = document.querySelector(".counter-1") as Element;
@@ -112,127 +87,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       counter3.appendChild(finalNum);
     };
 
-    const animateCounter = (counter: Element | null, duration: number, delay = 0) => {
-      if (!counter) return;
-      const numHeight = (counter.querySelector(".num") as HTMLElement).clientHeight;
-      const totalDistance =
-       (counter.querySelectorAll(".num").length - 1) * numHeight;
-      gsap.to(counter, {
-        y: -totalDistance,
-        duration: duration,
-        delay: delay,
-        ease: "power2.inOut"
-      })
-    }
-
-    function animateImages() {
-      const images = document.querySelectorAll(".imag");
-      const target = document.querySelector(".hero-display-target");
-
-      const state = Flip.getState(images);
-
-      images.forEach((imag) => {
-        Flip.fit(imag, target, { scale: true });
-      });
-
-      const mainTimeline = gsap.timeline();
-
-      mainTimeline.add(
-        Flip.from(state, {
-          duration:1,
-          stagger: 0.1,
-          ease: "power3.inOut",
-        })
-      );
-
-      images.forEach((imag, index) => {
-        const scaleTimeline = gsap.timeline();
-
-        scaleTimeline.to(imag, {
-          scale: 2.5,
-          duration: 0.45,
-          ease: "power3.in"
-        }, 0.025
-      )
-      .to(imag, 
-        {
-          scale:1,
-          duration:0.45,
-          ease: "power3.out",
-        },
-      0.5);
-
-      mainTimeline.add(scaleTimeline, index * 0.1);
-      });
-      return mainTimeline;
-    }
-
-    setupTextSplitting();
-    createCounterDigits();
-
-    animateCounter(document.querySelector(".counter-3"), 2.5);
-    animateCounter(document.querySelector(".counter-2"), 3);
-    animateCounter(document.querySelector(".counter-1"), 2, 1.5);
-
-    const tl = gsap.timeline();
-    gsap.set(".imag", {scale:0})
-    gsap.set(".hero-char", { yPercent: 100 })
-    gsap.set(".hero-item", { autoAlpha: 0, y: 20 })
-
-    tl.to(".hero-bg", {
-      scaleY: "100%",
-      duration: 3,
-      ease: "power2.inOut",
-      delay: 0.25,
-    })
-
-    tl.to(".imag", {
-      scale:1,
-      duration:1,
-      stagger: 0.125,
-      ease: "power3.out"
-      },
-    "<"
-    );
-
-    tl.to(".counter", {
-      opacity: 0,
-      duration:0.3,
-      ease: "power3.out",
-      onStart: () => {
-        const imagesTL = animateImages();
-        imagesTL.to(".hero-char", {
-          yPercent: 0,
-          duration: 0.8,
-          stagger: 0.015,
-          ease: "power3.out",
-        });
-        imagesTL.to(".hero-item", {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.6,
-          stagger: 0.12,
-          ease: "power3.out",
-        }, "<0.2");
-      },
-    });
-
-    const animate = () => {
-      if (xPercent.current < -100) {
-        xPercent.current = 0;
-      } else if (xPercent.current > 0) {
-        xPercent.current = -100;
-      }
-
-      gsap.set(firstText.current, { xPercent: xPercent.current });
-      gsap.set(secondText.current, { xPercent: xPercent.current });
-      requestAnimationFrame(animate);
-      xPercent.current += 0.1 * direction.current;
-    };
-
     const scrollContainer = scrollRef.current;
     const projectsContainer = projectsRef.current;
-    let cleanupOrbitLabels: (() => void) | null = null;
     const shaderRippleCleanups: Array<() => void> = [];
 
     const cameFromProject = sessionStorage.getItem('return-from-project') === 'true';
@@ -539,44 +395,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     window.addEventListener('pointercancel', handleSkillPointerUp);
 
     let threeRafId = 0;
-    let marqueeRafId = 0;
 
     const ctx = gsap.context(() => {
-      const heroRing = heroRingRef.current;
-      const orbitLabels = heroRing
-        ? Array.from(heroRing.querySelectorAll<HTMLElement>('.orbit-label'))
-        : [];
-
-      if (heroRing && orbitLabels.length > 0) {
-        const orbitState = { angle: 180 };
-        const angleStep = 360 / orbitLabels.length;
-        const ringStroke = 5;
-
-        const updateOrbit = () => {
-          const radiusX = heroRing.clientWidth * 0.5 - ringStroke * 0.5;
-          const radiusY = heroRing.clientHeight * 0.5 - ringStroke * 0.5;
-          orbitState.angle = (orbitState.angle + 0.12 * gsap.ticker.deltaRatio()) % 360;
-
-          orbitLabels.forEach((label, index) => {
-            const angle = orbitState.angle + index * angleStep;
-            const radians = (angle * Math.PI) / 180;
-
-            gsap.set(label, {
-              x: Math.cos(radians) * radiusX,
-              y: Math.sin(radians) * radiusY,
-              rotation: 0,
-            });
-          });
-        };
-
-        gsap.ticker.add(updateOrbit);
-        updateOrbit();
-
-        cleanupOrbitLabels = () => {
-          gsap.ticker.remove(updateOrbit);
-        };
-      }
-
       const container = projectsRef.current!;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
@@ -860,124 +680,59 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       });
 
-      // GSAP animations (rest of your code remains the same...)
       customEase.create("hop", "0.9, 0, 0.1, 1");
-
-      const createSplit = (selector: string, type: string, className: string) => {
-        return SplitText.create(selector, {
-          type: type,
-          [type + "ClassName"]: className,
-          mask: type === "lines" ? "lines" : undefined,
-        });
-      }
 
       if (preloaderHasPlayed) {
         gsap.set(".preloader", { autoAlpha: 0 });
-        gsap.set(".preloader-header", { autoAlpha: 0 });
       } else {
         preloaderHasPlayed = true;
 
-        const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
-        const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
-
-        const chars = preLoaderHeader.chars;
-        const lines = splitPreLoaderCopy.lines;
-        const initialChar = chars[0] as HTMLElement;
-        const lastChar = chars[7] as HTMLElement;
-
-        chars.forEach((char, index) => {
-          gsap.set(char, { yPercent: index % 2 === 0 ? -100 : 100 });
-        });
-
-        gsap.set(lines, { yPercent: 100 });
+        createCounterDigits();
 
         const preLoaderImages = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap");
         const preLoaderImagesInner = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap .img");
 
         gsap.set(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", autoAlpha: 1 });
-        gsap.set(".preloader", { autoAlpha: 1 });
-        gsap.set(".preloader-header", { autoAlpha: 1 });
-        gsap.set(".preloader-copy", { opacity: 1 });
         gsap.set(preLoaderImages, { clipPath: "polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)" });
         gsap.set(preLoaderImagesInner, { scale: 2 });
 
-        const preloaderTL = gsap.timeline({ delay: 0.25 });
+        const scrollDist = (el: HTMLElement) => {
+          const h = (el.querySelector(".num") as HTMLElement).clientHeight;
+          return (el.querySelectorAll(".num").length - 1) * h;
+        };
 
-        preloaderTL
-          .to(".progress-bar", { scaleX: 1, duration: 4, ease: "power3.inOut" })
-          .to(".progress-bar", { scaleX: 0, duration: 1, ease: "power3.in" });
+        const c1 = document.querySelector(".counter-1") as HTMLElement;
+        const c2 = document.querySelector(".counter-2") as HTMLElement;
+        const c3 = document.querySelector(".counter-3") as HTMLElement;
 
+        // counter-1 sits at position 1.5 with duration 2 → finishes at t=3.5 within the timeline
+        const counterEnd = 3.5;
+
+        const preloaderTL = gsap.timeline({ delay: 0.25, timeScale: 0.6 });
+
+        // counters — wired into the timeline so they're in sync with everything else
+        preloaderTL.to(c3, { y: -scrollDist(c3), duration: 2.5, ease: "power2.inOut" }, 0);
+        preloaderTL.to(c2, { y: -scrollDist(c2), duration: 3,   ease: "power2.inOut" }, 0);
+        preloaderTL.to(c1, { y: -scrollDist(c1), duration: 2,   ease: "power2.inOut" }, 1.5);
+
+        // images staggered so the last one finishes exactly at counterEnd
+        // 4 images × 1s duration: last starts at counterEnd-1=2.5 → stagger 2.5/3 ≈ 0.833
         preLoaderImages.forEach((imgWrap, i) => {
-          preloaderTL.to(imgWrap, { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", ease: "hop", duration: 1, delay: i * 1 }, "-=5");
+          preloaderTL.to(imgWrap, { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", ease: "hop", duration: 1 }, i * 0.833);
         });
 
+        // 4 inner images × 1.5s duration: last starts at counterEnd-1.5=2 → stagger 2/3 ≈ 0.667
         preLoaderImagesInner.forEach((imgWrap, i) => {
-          preloaderTL.to(imgWrap, { scale: 1, ease: "hop", duration: 1.5, delay: i * 1 }, "-=5.5");
+          preloaderTL.to(imgWrap, { scale: 1, ease: "hop", duration: 1.5 }, i * 0.667);
         });
 
-        preloaderTL.to(lines, { yPercent: 0, duration: 2, ease: "hop", stagger: 0.1 }, "-=5.5");
-        preloaderTL.to(chars, { yPercent: 0, duration: 1, ease: "hop", stagger: 0.025 }, "-=5");
-
-        preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1, ease: "hop" }, "exit");
-        preloaderTL.to(lines, { y: "125%", duration: 2, ease: "hop", stagger: 0.1 }, "exit");
-
-        preloaderTL.to(chars, {
-          yPercent: (index) => {
-            if (index === 0 || index === 7) return 0;
-            return index % 2 === 0 ? 100 : -100;
-          },
-          duration: 1,
-          ease: "hop",
-          stagger: 0.025,
-          delay: 0.5,
-          onStart: () => {
-            const initialCharMask = initialChar.parentElement;
-            if (initialCharMask && initialCharMask.classList.contains("char-mask")) {
-              initialCharMask.style.overflow = "visible";
-            }
-
-            const viewportWidth = window.innerWidth;
-            const centerX = viewportWidth / 2;
-            const initialCharRect = initialChar.getBoundingClientRect();
-            const lastCharRect = lastChar.getBoundingClientRect();
-
-            gsap.to([initialChar, lastChar], {
-              duration: 1,
-              ease: "hop",
-              delay: 0.5,
-              x: (i: number) => {
-                if (i === 0) return centerX - initialCharRect.left - initialCharRect.width;
-                return centerX - lastCharRect.left;
-              },
-              onComplete: () => {
-                gsap.set(".preloader-header", { mixBlendMode: "difference" });
-                gsap.to(".preloader-header", { y: 0, x: "0", top: "2rem", left: "50%", scale: 0.35, duration: 1.75, ease: "hop" });
-              },
-            });
-          },
-        }, "-=2.5");
-
-        preloaderTL.to(".preloader", { scaleY: 0, duration: 1.75, ease: "hop", transformOrigin: "top center" }, "-=0.5");
+        // exit fires the moment counter reads 100
+        preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1,    ease: "hop" }, counterEnd);
+        preloaderTL.to(".preloader",         { scaleY: 0,                                           duration: 1.75, ease: "hop", transformOrigin: "top center" }, counterEnd + 0.25);
       } // end preloader
 
-      if (slider.current) {
-        gsap.to(slider.current, {
-          scrollTrigger: {
-            trigger: document.documentElement,
-            scrub: 0.25,
-            start: 0,
-            end: window.innerHeight,
-            onUpdate: (e) => (direction.current = e.direction * -1),
-          },
-          x: "-500px",
-        });
-      }
-
-      // ── Viewport-entrance animations (IntersectionObserver, works with
-      //    the horizontal lerp scroll used by this layout) ─────────────────
-      const entranceObservers: IntersectionObserver[] = [];
-
-      // Headings: per-character slide-in (same motion as the hover effect)
+      // ── Viewport-entrance animations (IntersectionObserver) ───────────────
+      // Headings: per-character slide-in
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
       ));
@@ -1001,8 +756,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           });
         }, { threshold: 0.1 });
         obs.observe(heading);
-        entranceObservers.push(obs);
-
         shaderRippleCleanups.push(() => {
           obs.disconnect();
           gsap.killTweensOf(chars);
@@ -1022,7 +775,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           gsap.to(el, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" });
         }, { threshold: 0.15 });
         obs.observe(el);
-        entranceObservers.push(obs);
         shaderRippleCleanups.push(() => { obs.disconnect(); gsap.killTweensOf(el); });
       });
 
@@ -1038,13 +790,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           gsap.to(el, { opacity: 1, y: 0, scale: 1, duration: 0.7, ease: "power3.out" });
         }, { threshold: 0.1 });
         obs.observe(el);
-        entranceObservers.push(obs);
         shaderRippleCleanups.push(() => { obs.disconnect(); gsap.killTweensOf(el); });
       });
 
       // ── Per-character slide hover on headings ──────────────────────────
       const slideEls = Array.from(document.querySelectorAll<HTMLElement>(
-        "main > section:not(.hero) h1, main > section:not(.hero) h2"
+        "main > section h1, main > section h2"
       ));
 
       slideEls.forEach((heading) => {
@@ -1101,13 +852,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     }, root);
 
-    marqueeRafId = requestAnimationFrame(animate);
-
     return () => {
       cancelAnimationFrame(threeRafId);
-      cancelAnimationFrame(marqueeRafId);
       shaderRippleCleanups.forEach(fn => fn());
-      cleanupOrbitLabels?.();
       ctx.revert();
       cancelAnimationFrame(lerpRafId);
       window.removeEventListener("wheel", handleWheel);
@@ -1154,38 +901,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     });
   };
 
-  const getMonitorScreenRect = (): DOMRect | null => {
-    const cam  = threeCamera.current;
-    const ren  = threeRenderer.current;
-    const mesh = monitorScreen.current;
-    if (!cam || !ren || !mesh) return null;
-
-    mesh.updateMatrixWorld(true);
-    const geo = mesh.geometry as THREE.BufferGeometry;
-    const pos = geo.attributes.position;
-    const canvasRect = ren.domElement.getBoundingClientRect();
-    const xs: number[] = [];
-    const ys: number[] = [];
-
-    for (let i = 0; i < pos.count; i++) {
-      const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
-      v.applyMatrix4(mesh.matrixWorld).project(cam);
-      xs.push((v.x + 1) / 2 * canvasRect.width  + canvasRect.left);
-      ys.push(-(v.y - 1) / 2 * canvasRect.height + canvasRect.top);
-    }
-
-    const left   = Math.min(...xs);
-    const top    = Math.min(...ys);
-    const right  = Math.max(...xs);
-    const bottom = Math.max(...ys);
-    return new DOMRect(left, top, right - left, bottom - top);
-  };
-
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
-        {/* Preloader 
-        <section className="preloader invisible w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
-          <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 scale-x-0 origin-left will-change-transform"></div>
+        {/* Preloader */}
+        <section className="preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
           <div>
             <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -1202,53 +921,26 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
           </div>
-          <div className="preloader-copy w-150 opacity-0 mt-12 will-change-opacity">
-            <p className="text-white uppercase text-center">I design memorable, user-centered digital experiences that help brands of all sizes stand out and perform.</p>
+          <div className="counter absolute right-10 bottom-10 flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase text-white">
+            <div className="counter-1 digit"></div>
+            <div className="counter-2 digit"></div>
+            <div className="counter-3 digit"></div>
           </div>
         </section>
-        */}
-        {/* Preloader Header 
-        <div className="preloader-header invisible fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
-          <a href="#" className="text-white font-heading font-bold text-8xl uppercase whitespace-nowrap">Brandon Mupemhi </a>
-        </div>
-        */}
       
       <main
         ref={scrollRef}
         className="flex flex-row will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero bg-amber-100 w-screen h-screen shrink-0 flex flex-col overflow-hidden relative" ref={heroRef}>
-          <div className="hero-bg absolute inset-0 bg-background origin-bottom scale-y-0 "></div>
-          <div className="counter fixed right-10 bottom-10 flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase z-50">
-            <div className="counter-1 digit"></div>
-            <div className="counter-2 digit"></div>
-            <div className="counter-3 digit"></div>
-          </div>
-          <div className="images-container absolute inset-0">
-            <div className="imag image-1">
-              <Image src="/images/brandon.jpg" alt="Brandon" fill className="object-cover" />
-            </div>
-            <div className="imag image-2">
-              <Image src="/images/brandon2.jpg" alt="Brandon" fill className="object-cover" />
-            </div>
-            <div className="imag image-3">
-              <Image src="/images/brandon3.jpg" alt="Brandon" fill className="object-cover" />
-            </div>
-            <div className="imag image-4">
-              <Image src="/images/brandon4.jpg" alt="Brandon" fill className="object-cover" />
-            </div>
-            <div className="imag image-5">
-              <Image src="/images/brandon5.jpg" alt="Brandon" fill className="object-cover" />
-            </div>
-          </div>
+        <section id="home" className="hero w-screen h-screen shrink-0 flex flex-col overflow-hidden relative">
           <div className="h-full w-full flex items-end pb-15 pt-20 gap-5">
             <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
               <div className="flex flex-col gap-5">
-                <h1 className="invisible font-bold uppercase">Creative <br/> Designer</h1>
-                <p className="invisible w-7/10 uppercase">I&apos;m an experienced Web &amp; UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
+                <h1 className="font-bold uppercase whitespace-nowrap">Creative <br/> Designer</h1>
+                <p className="w-7/10 uppercase">I&apos;m an experienced Web &amp; UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
               </div>
-              <div className="invisible hero-item w-[60vw] relative flex justify-start items-center gap-3 touch-none skill-pill-wrapper">
+              <div className="w-[60vw] relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
                 <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">UI/UX Designer</p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase"><LiaAsteriskSolid className="text-2xl"/></p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-2xl uppercase">Frontend Developer</p>
@@ -1257,12 +949,23 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
-              <div className="invisible hero-item flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Open for Work</p>
               </div>
-              <div className="hero-display-target invisible hero-item relative w-full h-[40vh]"></div>
-              <h1 className="invisible font-bold uppercase text-right">Mupemhi<br/>Brandon</h1>
+              <div className="relative w-full h-[40vh]">
+                <div className="absolute inset-0 overflow-hidden">
+                  <Image
+                    className="img object-cover will-change-transform"
+                    src="/images/contact.jpg"
+                    alt="Brandon"
+                    priority
+                    fill
+                    sizes="50vw"
+                  />
+                </div>
+              </div>
+              <h1 className="font-bold uppercase text-right whitespace-nowrap">Mupemhi<br/>Brandon</h1>
             </div>
           </div>
         </section>
@@ -1374,7 +1077,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         
         <section id="say-hello" className="w-screen h-screen shrink-0 flex flex-col gap-30 justify-center items-center">
           <div className="w-full flex items-center justify-center gap-0">
-            <h2 className="text-[250px] uppercase">Say</h2>
+            <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Say</h2>
             <div className="w-[20vw] h-40 rounded-full relative overflow-hidden ring-5 rotate-10 ring-secondary-color">
                 <Image
                   className="img object-cover will-change-transform"
@@ -1384,7 +1087,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   sizes="20vw"
                 />
             </div>
-            <h2 className="text-[250px] uppercase">Hello</h2>
+            <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Hello</h2>
           </div>
           <div className="w-full flex flex-wrap xl:flex-row  justify-center  items-center gap-5 xl:gap-1.25">
 
