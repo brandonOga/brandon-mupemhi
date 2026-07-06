@@ -127,21 +127,26 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     const handleWheel = (event: WheelEvent) => {
       // Hand the wheel to the About panel's vertical scroll only once the panel
-      // fully fills the viewport (its left edge is aligned to the screen).
-      // While it's still partway through the horizontal slide, keep scrolling
-      // horizontally. Vertical scroll then runs until it tops/bottoms out,
-      // after which horizontal scrolling resumes.
+      // has actually settled into full view. While it's nearby but still easing
+      // in, pin the target so it can't overshoot and swallow the wheel event
+      // (rather than snapping current) so the existing lerp finishes the last
+      // bit of the slide smoothly — no jump, and no horizontal drift once
+      // vertical scroll takes over.
       if (aboutSection) {
         const panelOffset = aboutSection.offsetLeft - xPos.current;
-        const aboutFillsScreen = Math.abs(panelOffset) < window.innerWidth * 0.1;
-        if (aboutFillsScreen) {
+        const nearAbout = Math.abs(panelOffset) < window.innerWidth * 0.1;
+        if (nearAbout) {
           const atTop = aboutSection.scrollTop <= 0;
           const atBottom =
             aboutSection.scrollTop + aboutSection.clientHeight >= aboutSection.scrollHeight - 1;
           const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
           if (canScrollY && ((event.deltaY > 0 && !atBottom) || (event.deltaY < 0 && !atTop))) {
-            xPos.target = aboutSection.offsetLeft; // lock it to full view while scrolling
-            return;
+            xPos.target = aboutSection.offsetLeft; // pin — never overshoot past the panel
+            if (Math.abs(panelOffset) > 1) {
+              event.preventDefault(); // still easing in; hold off native scroll until settled
+              return;
+            }
+            return; // fully settled — let the vertical scroll happen natively
           }
         }
       }
@@ -732,6 +737,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       };
 
+      // Skill pills: clip-path inset reveal directly on .skill-pill — clip-path
+      // doesn't touch `transform`, so it's safe even though the drag physics
+      // loop writes style.transform on the same element every frame. Each
+      // pill's JSX default state is already clipped (inset(100% ...)) so
+      // there's no flash before this code runs. Collected once up front so
+      // both the first-load entrance and the later scroll-into-view observer
+      // can reuse the same `pillSlides`.
+      const pillSlides = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
+
       // ── Hero entrance (called from preloader timeline on first visit) ─────────
       const animateHeroEntrance = () => {
         const heroHeadings = Array.from(document.querySelectorAll<HTMLElement>(".hero h1"));
@@ -780,26 +794,25 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           });
         }
 
-        // skill pills: clip-path inset reveal from bottom (bottom edge appears first, then upward)
-        const pills = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
-        if (pills.length) {
-          gsap.set(pills, { autoAlpha: 1, clipPath: "inset(100% 0% 0% 0%)" });
-          tl.to(pills, {
+        // skill pills: clip-path inset reveal from bottom (bottom edge
+        // appears first, then upward), staggered individually.
+        if (pillSlides.length) {
+          gsap.set(pillSlides, { clipPath: "inset(100% 0% 0% 0%)" });
+          tl.to(pillSlides, {
             clipPath: "inset(0% 0% 0% 0%)",
-            duration: 0.9,
+            duration: 0.7,
             ease: "power3.out",
-            stagger: 0.07,
+            stagger: 0.1,
           }, 0.45);
-          shaderRippleCleanups.push(() => {
-            gsap.killTweensOf(pills);
-            gsap.set(pills, { clearProps: "clipPath,opacity,visibility" });
-          });
         }
       };
 
       if (preloaderHasPlayed) {
         gsap.set(".preloader", { autoAlpha: 0 });
-        // On return visits skip the entrance reveal — just wire up hover
+        // On return visits skip the entrance reveal — instantly show the
+        // pills (default JSX state hides them via inline style for the
+        // first-load case) and just wire up hover.
+        gsap.set(pillSlides, { clipPath: "inset(0% 0% 0% 0%)" });
         Array.from(document.querySelectorAll<HTMLElement>(".hero h1")).forEach(setupCharHover);
       } else {
         preloaderHasPlayed = true;
@@ -807,7 +820,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // Pre-hide hero content so it's invisible until the preloader exits
         gsap.set([".hero h1", ".hero p:not(.skill-pill)"], { autoAlpha: 0 });
         gsap.set(".hero img", { clipPath: "inset(0% 0% 100% 0%)", scale: 1.1 });
-        gsap.set(".hero .skill-pill", { autoAlpha: 0 });
+        // Skill pill lines were already pre-hidden (yPercent 110) above, right
+        // after the SplitText split.
 
         createCounterDigits();
 
@@ -854,6 +868,36 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // Fire hero entrance 0.5 timeline-seconds before the preloader fully collapses
         preloaderTL.call(animateHeroEntrance, [], ">-0.5");
       } // end preloader
+
+      // Skill pills: clip-path inset reveal whenever they scroll into view.
+      const pillWrapperEl = document.querySelector<HTMLElement>(".skill-pill-wrapper");
+      if (pillWrapperEl && pillSlides.length) {
+        let firstEntryHandled = false;
+        const pillObserver = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          if (!firstEntryHandled) {
+            firstEntryHandled = true;
+            return;
+          }
+          gsap.killTweensOf(pillSlides);
+          gsap.fromTo(
+            pillSlides,
+            { clipPath: "inset(100% 0% 0% 0%)" },
+            {
+              clipPath: "inset(0% 0% 0% 0%)",
+              duration: 0.7,
+              ease: "power3.out",
+              stagger: 0.1,
+            }
+          );
+        }, { threshold: 0.3 });
+        pillObserver.observe(pillWrapperEl);
+
+        shaderRippleCleanups.push(() => {
+          pillObserver.disconnect();
+          gsap.killTweensOf(pillSlides);
+        });
+      }
 
       // ── Entrance + hover animations ──────────────────────────────────────────
 
@@ -919,6 +963,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // Images: clip-path wipe-in from bottom + descale; about portrait keeps
       // extra scale (1.12) as headroom for the parallax yPercent shift below.
+      // A timeout safety net guarantees the image is never left permanently
+      // hidden if the observer never fires for any reason.
       const entranceImages = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) img"
       ));
@@ -927,38 +973,34 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         const endScale = isAboutPortrait ? 1.12 : 1;
         gsap.set(el, { clipPath: "inset(0% 0% 100% 0%)", scale: 1.15 });
 
-        const obs = new IntersectionObserver(([entry]) => {
-          if (!entry.isIntersecting) return;
-          obs.disconnect();
+        let revealed = false;
+        const reveal = () => {
+          if (revealed) return;
+          revealed = true;
           gsap.to(el, {
             clipPath: "inset(0% 0% 0% 0%)",
             scale: endScale,
             duration: 1.1,
             ease: "power3.out",
           });
+        };
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          reveal();
         }, { threshold: 0.1 });
         obs.observe(el);
 
+        const safetyTimer = window.setTimeout(reveal, 3000);
+
         shaderRippleCleanups.push(() => {
           obs.disconnect();
+          window.clearTimeout(safetyTimer);
           gsap.killTweensOf(el);
           gsap.set(el, { clearProps: "clipPath,scale" });
         });
       });
-
-      // About portrait: vertical parallax driven by the about section's own scroll
-      const aboutPortrait = document.querySelector<HTMLElement>("#about img");
-      if (aboutPortrait && aboutSection) {
-        const onAboutScroll = () => {
-          const maxScroll = aboutSection.scrollHeight - aboutSection.clientHeight;
-          const progress = maxScroll > 0 ? aboutSection.scrollTop / maxScroll : 0;
-          gsap.set(aboutPortrait, { yPercent: -progress * 12 });
-        };
-        aboutSection.addEventListener("scroll", onAboutScroll, { passive: true });
-        shaderRippleCleanups.push(() => {
-          if (aboutSection) aboutSection.removeEventListener("scroll", onAboutScroll);
-        });
-      }
 
     }, root);
 
@@ -1048,14 +1090,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
               <div className="flex flex-col gap-5">
                 <h1 className="font-bold uppercase whitespace-nowrap">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I&apos;m an experienced Web &amp; UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
+                <p className="w-7/10 uppercase">I am an experienced web and ui/ux designer who creates memorable digital experiences for brands of all sizes.</p>
               </div>
               <div className="w-[60vw] relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">UI/UX Designer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase"><LiaAsteriskSolid className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-2xl uppercase">Frontend Developer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase"><FaArrowRight className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">Wordpress Developer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
@@ -1083,12 +1125,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         {/*About Section — numbered grid around a centered portrait. Scrolls
             vertically when its content is taller than the viewport (see the
             wheel handler, which yields to it before resuming horizontal). */}
-        <section id="about" className="w-screen h-screen shrink-0 relative overflow-x-hidden overflow-y-auto bg-background [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <section id="about" className="w-screen h-screen shrink-0 relative overflow-x-hidden overflow-y-auto  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-3 grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-16 pt-24 pb-16 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/70">
+          <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-16 pt-24 pb-16 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/70">
             {/* Headline */}
-            <h2 className="col-span-2 row-start-1 self-start font-heading font-bold uppercase leading-none whitespace-nowrap text-[5rem] xl:text-[7rem] text-foreground">
+            <h2 className="col-span-2 row-start-1 self-start font-heading font-bold uppercase leading-none whitespace-nowrap  text-foreground">
               About Me
             </h2>
 
@@ -1129,11 +1171,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* Centered portrait — spans the middle column; taller than its
                 cell, anchored to the top so it grows downward (the side
                 columns hold 04/05, so the extra height never overlaps text). */}
-            <div className="col-start-2 row-start-3 row-span-2 self-start relative h-[70vh] overflow-hidden">
+            <div className="col-start-2 row-start-3 row-span-2 self-start relative min-h-175 overflow-hidden">
               <Image
                 className="object-cover grayscale will-change-transform"
                 src="/images/brandon4.jpg"
                 alt="Brandon Mupemhi"
+                priority
                 fill
                 sizes="34vw"
               />
@@ -1193,6 +1236,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   className="img object-cover will-change-transform"
                   src="/images/contact.jpg"
                   alt="Placeholder"
+                  priority
                   fill
                   sizes="20vw"
                 />
