@@ -2,10 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-
-const BUCKET = 'project-images';
 
 function slugify(input: string): string {
   return input
@@ -13,20 +10,6 @@ function slugify(input: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-}
-
-async function uploadImage(
-  supabase: SupabaseClient,
-  file: File
-): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type || 'image/jpeg',
-    upsert: false,
-  });
-  if (error) throw new Error(`Image upload failed: ${error.message}`);
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 export type SaveState = { error?: string };
@@ -51,21 +34,11 @@ export async function saveProject(
   if (!slug) return { error: 'Could not derive a slug — add one manually.' };
 
   try {
-    // Cover image: new upload wins, otherwise keep the current URL.
-    let cover_image = (formData.get('cover_image_current') as string) || '';
-    const coverFile = formData.get('cover_file') as File | null;
-    if (coverFile && coverFile.size > 0) {
-      cover_image = await uploadImage(supabase, coverFile);
-    }
-
-    // Gallery: kept existing URLs + any newly uploaded files.
-    const kept = (formData.getAll('gallery_keep') as string[]).filter(Boolean);
-    const galleryFiles = (formData.getAll('gallery_files') as File[]).filter(
-      (f) => f && f.size > 0
-    );
-    const uploaded: string[] = [];
-    for (const f of galleryFiles) uploaded.push(await uploadImage(supabase, f));
-    const gallery = [...kept, ...uploaded];
+    // Images are uploaded client-side directly to Supabase Storage (so large
+    // files never pass through the server action / Vercel's 4.5MB function
+    // body limit); the form only sends the resulting public URLs here.
+    const cover_image = (formData.get('cover_image_current') as string) || '';
+    const gallery = (formData.getAll('gallery_keep') as string[]).filter(Boolean);
 
     const tags = ((formData.get('tags') as string) || '')
       .split(',')

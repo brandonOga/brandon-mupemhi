@@ -23,9 +23,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      // Project image uploads go through a Server Action; the default cap is
-      // 1 MB, which rejects normal photos. Allow room for a cover + gallery.
-      bodySizeLimit: "25mb",
+      // Images upload client-side straight to Supabase Storage now; this
+      // action body only carries form text + a rich-text body field.
+      bodySizeLimit: "2mb",
     },
   },
 };
