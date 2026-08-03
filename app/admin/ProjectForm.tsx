@@ -1,12 +1,13 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { saveProject, type SaveState } from './actions';
 import RichTextEditor from './RichTextEditor';
 import FileInput from './FileInput';
 import type { Project } from '@/lib/projects';
+import { createClient } from '@/lib/supabase/client';
 
 const input =
   'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px]';
@@ -14,16 +15,74 @@ const labelText = 'uppercase opacity-55 text-xs tracking-wide';
 const card = 'rounded-xl border border-foreground/12 bg-white/70 p-6 flex flex-col gap-5';
 const legend = 'text-xs uppercase tracking-widest opacity-40 font-medium';
 
+const BUCKET = 'project-images';
+const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
+const MAX_UPLOAD_LABEL = 'Max 1MB per image';
+
+// Uploads directly to Supabase Storage from the browser so large images never
+// pass through the server action — Vercel caps serverless function request
+// bodies at 4.5MB regardless of Next.js's bodySizeLimit config.
+async function uploadImage(file: File): Promise<string> {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`"${file.name}" is too large — ${MAX_UPLOAD_LABEL}.`);
+  }
+  const supabase = createClient();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: false,
+  });
+  if (error) throw new Error(`Image upload failed: ${error.message}`);
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
 export default function ProjectForm({ project }: { project?: Project }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(
     saveProject,
     {}
   );
   const [gallery, setGallery] = useState<string[]>(project?.gallery ?? []);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [, startTransition] = useTransition();
+
+  const busy = pending || uploading;
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setUploadError('');
+    const form = e.currentTarget;
+    const raw = new FormData(form);
+
+    setUploading(true);
+    try {
+      const coverFile = raw.get('cover_file') as File | null;
+      if (coverFile && coverFile.size > 0) {
+        raw.set('cover_image_current', await uploadImage(coverFile));
+      }
+      raw.delete('cover_file');
+
+      const galleryFiles = (raw.getAll('gallery_files') as File[]).filter(
+        (f) => f && f.size > 0
+      );
+      raw.delete('gallery_files');
+      for (const f of galleryFiles) {
+        raw.append('gallery_keep', await uploadImage(f));
+      }
+    } catch (err) {
+      setUploading(false);
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
+      return;
+    }
+    setUploading(false);
+
+    startTransition(() => formAction(raw));
+  }
 
   return (
     <form
-      action={formAction}
+      onSubmit={handleSubmit}
       className="flex flex-col gap-6 max-w-3xl mx-auto px-4 py-10"
     >
       {/* Header */}
@@ -137,7 +196,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
           <span className="text-xs opacity-45">
             {project?.cover_image
               ? 'Leave empty to keep the current image.'
-              : 'Shown on the project card and as the page header.'}
+              : 'Shown on the project card and as the page header.'}{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
 
@@ -177,7 +237,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
             buttonLabel="Add images"
           />
           <span className="text-xs opacity-45">
-            Selected files are added to the gallery on save.
+            Selected files are added to the gallery on save.{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
       </section>
@@ -207,19 +268,19 @@ export default function ProjectForm({ project }: { project?: Project }) {
         </div>
       </section>
 
-      {state.error && (
+      {(state.error || uploadError) && (
         <p className="text-sm text-warning bg-warning/5 border border-warning/30 rounded-md px-3 py-2">
-          {state.error}
+          {uploadError || state.error}
         </p>
       )}
 
       <div className="flex gap-3 sticky bottom-0 bg-background/90 backdrop-blur py-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={busy}
           className="bg-foreground! text-white! disabled:opacity-50"
         >
-          {pending ? 'Saving…' : 'Save project'}
+          {uploading ? 'Uploading…' : pending ? 'Saving…' : 'Save project'}
         </button>
         <Link
           href="/admin"

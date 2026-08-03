@@ -99,6 +99,9 @@
 
 
 @layer base {
+  html {
+    @apply bg-background;
+  }
   body {
     @apply bg-background;
     color: var(--color-foreground);
@@ -116,7 +119,7 @@
   h1 {
     @apply uppercase;
     font-family: var(--font-heading);
-    font-size: var(--text-h1);
+    font-size: clamp(2.5rem, 7vw, 6.25rem);
     line-height: var(--text-h1--line-height);
     font-weight: var(--text-h1--font-weight);
     color: var(--color-foreground);
@@ -124,7 +127,7 @@
 
   h2 {
     font-family: var(--font-heading);
-    font-size: var(--text-h2);
+    font-size: clamp(2rem, 6.5vw, 6.25rem);
     line-height: var(--text-h2--line-height);
     font-weight: var(--text-h2--font-weight);
     color: var(--color-foreground);
@@ -205,13 +208,15 @@
    }
 
    .projects li a {
-    @apply text-lg py-2.5 px-3.5 !text-foreground bg-white shadow-[5px_5px_0_-1px_rgba(0,0,0,1)];
+    @apply text-lg py-2.5 px-3.5 text-foreground! bg-white! whitespace-nowrap;
     cursor: pointer;
     transition: color 0.3s ease;
+    box-shadow: 5px 5px 0 -1px rgba(0, 0, 0, 1) !important;
    }
 
   .projects li:hover a {
-      @apply bg-black !text-white shadow-[5px_5px_0_-1px_rgba(255,255,255,1)];
+      @apply bg-black! text-white!;
+      box-shadow: 5px 5px 0 -1px rgba(255, 255, 255, 1) !important;
   }
 
   .project-description {
@@ -304,4 +309,37 @@
     pointer-events: none;
     height: 0;
   }
+
+  .digit {
+    position: relative;
+    top: -15px;
+  }
+
+  .num1offset1 {
+    position: relative;
+    right: -30px;
+  }
+
+  .num1offset2 {
+    position: relative;
+    right: -15px;
+  }
+.images-container .imag {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  width: 25%;
+  aspect-ratio: 5 / 3;
+  overflow: hidden;
+  transform: scale(0);
+}
+
+.images-container .imag.animate-out {
+  top: unset;
+  left: unset;
+  bottom: 50%;
+  right: 2rem;
+  transform: scale(1);
+}
+
 }
