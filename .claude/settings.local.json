@@ -43,7 +43,10 @@
       "Bash(curl -s http://localhost:3000/ -o /tmp/page6.html --max-time 15)",
       "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path,StartTime\")",
       "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"ProcessId=5908 or ProcessId=6672 or ProcessId=8516 or ProcessId=8796\\\\\" | Select-Object ProcessId,CommandLine | Format-List\")",
-      "Bash(powershell -Command \"Stop-Process -Id 5908,6672,8516,8796 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Get-Process -Name node -ErrorAction SilentlyContinue\")"
+      "Bash(powershell -Command \"Stop-Process -Id 5908,6672,8516,8796 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 1; Get-Process -Name node -ErrorAction SilentlyContinue\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Brandon Oga\\\\Downloads\\\\svg-page-transition-extracted\")",
+      "Read(//c/Users/Brandon Oga/Downloads/**)",
+      "Bash(unzip -o \"C:\\\\Users\\\\Brandon Oga\\\\Downloads\\\\svg-page-transition-master.zip\" -d .)"
     ],
     "additionalDirectories": [
       "C:\\Users\\brand\\.claude\\projects\\c--Refreshed-portfolio-designbybrandon\\memory"
