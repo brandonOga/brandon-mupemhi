@@ -1,7 +1,6 @@
 'use client';
-
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { usePageTransition } from './TransitionOverlay';
 
 const menuItems = [
   { label: 'home',      id: 'home' },
@@ -11,8 +10,7 @@ const menuItems = [
 ];
 
 export default function Header() {
-  const pathname   = usePathname();
-  const { navigateTo } = usePageTransition();
+  const pathname = usePathname();
 
   // The admin dashboard has its own chrome — don't show the site nav there.
   if (pathname.startsWith('/admin')) return null;
@@ -21,8 +19,9 @@ export default function Header() {
     if (pathname === '/') {
       window.dispatchEvent(new CustomEvent('navigate-section', { detail: id }));
     } else {
+      // Stash the target section; the global TransitionProvider click
+      // interceptor handles the actual cross-page navigation + animation.
       sessionStorage.setItem('scroll-to-section', id);
-      navigateTo('/', 'exit-to-home');
     }
   };
 
@@ -33,28 +32,37 @@ export default function Header() {
         <ul className="flex gap-8">
           {menuItems.slice(0, 2).map(({ label, id }) => (
             <li key={id}>
-              <a
+              <Link 
                 href={`/#${id}`}
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
                 className="text-black uppercase text-sm font-medium hover:text-gray-300 transition"
               >
                 {label}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
+
+        {/* Logo — static rendering of the name the hero heading animates in */}
+        <Link
+          href="/#home"
+          onClick={(e) => { e.preventDefault(); goToSection('home'); }}
+          className="font-heading font-bold uppercase text-3xl tracking-wide text-black whitespace-nowrap"
+        >
+          BM
+        </Link>
 
         {/* Right Menu */}
         <ul className="flex gap-8">
           {menuItems.slice(2).map(({ label, id }) => (
             <li key={id}>
-              <a
+              <Link
                 href={`/#${id}`}
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
                 className="text-black uppercase text-sm font-medium hover:text-gray-300 transition"
               >
                 {label}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>

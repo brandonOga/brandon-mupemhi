@@ -99,6 +99,9 @@
 
 
 @layer base {
+  html {
+    @apply bg-background;
+  }
   body {
     @apply bg-background;
     color: var(--color-foreground);

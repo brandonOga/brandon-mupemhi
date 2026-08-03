@@ -1,6 +1,6 @@
 'use client';
 import Image from "next/image";
-import { usePageTransition } from "./components/TransitionOverlay";
+import Link from "next/link";
 import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
@@ -20,7 +20,6 @@ gsap.registerPlugin(customEase, SplitText);
 let preloaderHasPlayed = false;
 
 export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
-  const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const projectsRef = useRef<HTMLDivElement>(null);
@@ -31,8 +30,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
   const monitorScreen    = useRef<THREE.Mesh | null>(null);
   const monitorGroupRef  = useRef<THREE.Group | null>(null);
-  const isZoomingRef     = useRef(false);
-  const scrollPosRef     = useRef(0);
 
 
   function normalizeModel(model: THREE.Object3D, targetSize: number = 2) {
@@ -91,14 +88,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     const projectsContainer = projectsRef.current;
     const shaderRippleCleanups: Array<() => void> = [];
 
-    const cameFromProject = sessionStorage.getItem('return-from-project') === 'true';
-    const savedScroll     = cameFromProject ? parseFloat(sessionStorage.getItem('return-scroll-pos') || '0') : 0;
-    if (cameFromProject) {
-      sessionStorage.removeItem('return-from-project');
-      sessionStorage.removeItem('return-scroll-pos');
-    }
-
-    const xPos = { target: savedScroll, current: savedScroll };
+    const xPos = { target: 0, current: 0 };
     const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
 
@@ -127,22 +117,31 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     const handleWheel = (event: WheelEvent) => {
       // Hand the wheel to the About panel's vertical scroll only once the panel
-      // has actually settled into full view. While it's nearby but still easing
-      // in, pin the target so it can't overshoot and swallow the wheel event
-      // (rather than snapping current) so the existing lerp finishes the last
-      // bit of the slide smoothly — no jump, and no horizontal drift once
-      // vertical scroll takes over.
+      // has actually settled into full view. Detected as a *crossing* of the
+      // panel's boundary (this event's delta would carry the target from one
+      // side of it to the other) rather than a proximity check on the eased
+      // xPos.current — a proximity check can be blown past entirely by one
+      // large/fast wheel event before easing ever catches up, skipping the
+      // panel without its vertical scroll ever engaging.
+      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+
       if (aboutSection) {
-        const panelOffset = aboutSection.offsetLeft - xPos.current;
-        const nearAbout = Math.abs(panelOffset) < window.innerWidth * 0.1;
-        if (nearAbout) {
-          const atTop = aboutSection.scrollTop <= 0;
-          const atBottom =
-            aboutSection.scrollTop + aboutSection.clientHeight >= aboutSection.scrollHeight - 1;
-          const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
-          if (canScrollY && ((event.deltaY > 0 && !atBottom) || (event.deltaY < 0 && !atTop))) {
-            xPos.target = aboutSection.offsetLeft; // pin — never overshoot past the panel
-            if (Math.abs(panelOffset) > 1) {
+        const aboutStart = aboutSection.offsetLeft;
+        const atTop = aboutSection.scrollTop <= 0;
+        const atBottom =
+          aboutSection.scrollTop + aboutSection.clientHeight >= aboutSection.scrollHeight - 1;
+        const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
+
+        if (canScrollY) {
+          const prospective = xPos.target + delta * 1.5;
+          const enteringForward =
+            event.deltaY > 0 && xPos.target <= aboutStart && prospective > aboutStart && !atBottom;
+          const enteringBackward =
+            event.deltaY < 0 && xPos.target >= aboutStart && prospective < aboutStart && !atTop;
+
+          if (enteringForward || enteringBackward) {
+            xPos.target = aboutStart; // clamp — never let one event skip past the panel
+            if (Math.abs(xPos.current - aboutStart) > 1) {
               event.preventDefault(); // still easing in; hold off native scroll until settled
               return;
             }
@@ -152,7 +151,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       }
 
       event.preventDefault();
-      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
       xPos.target = Math.max(0, Math.min(getMaxScroll(), xPos.target + delta * 1.5));
     };
 
@@ -164,7 +162,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (Math.abs(xPos.target - xPos.current) < 0.05) {
         xPos.current = xPos.target;
       }
-      scrollPosRef.current = xPos.target;
       scrollContainer.style.transform = `translateX(-${xPos.current}px)`;
 
       const maxScroll = getMaxScroll();
@@ -412,8 +409,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       );
       camera.position.set(0, 0, 3);
       camera.lookAt(0, -0.25, 0);
-      
-      camera.position.set(0, 0, cameFromProject ? 0.8 : 3);
 
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
       threeCamera.current   = camera;
@@ -528,13 +523,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           screenMesh.visible = false;
           monitorGroup.add(customScreen);
           monitorScreen.current = customScreen;
-
-          // Zoom out from inside the screen when returning from a project page
-          if (cameFromProject) {
-            setTimeout(() => {
-              gsap.to(camera.position, { z: 3, duration: 1.0, ease: 'power3.out' });
-            }, 300);
-          }
 
           // Update aspect ratio
           displayMaterial.uniforms.planeAspect.value = size.x / size.y;
@@ -950,6 +938,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             duration: 0.7,
             ease: "power3.out",
             stagger: 0.06,
+            onComplete: () => split.revert(),
           });
         }, { threshold: 0.15 });
         obs.observe(el);
@@ -1023,40 +1012,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
   }, []);
 
-  const zoomIntoScreen = (href: string) => {
-    if (isZoomingRef.current) return;
-    const cam = threeCamera.current;
-    const grp = monitorGroupRef.current;
-
-    if (!cam || !grp) {
-      navigateTo(href, 'enter-zoomed');
-      return;
-    }
-
-    isZoomingRef.current = true;
-    sessionStorage.setItem('return-from-project', 'true');
-    sessionStorage.setItem('return-scroll-pos', scrollPosRef.current.toString());
-
-    // Straighten the monitor so the zoom flies straight in
-    gsap.to(grp.rotation, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' });
-
-    // Fly the camera toward the screen — stop before entering the model geometry
-    gsap.to(cam.position, { z: 0.8, duration: 0.7, ease: 'power3.in' });
-
-    // Halfway through the zoom, fade the overlay in to cover the entry moment
-    gsap.delayedCall(0.42, () => {
-      showOverlay();
-      gsap.delayedCall(0.3, () => {
-        isZoomingRef.current = false;
-        navigateTo(href, 'enter-zoomed');
-      });
-    });
-  };
-
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
         {/* Preloader */}
-        <section className="preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
+        <section className={`preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
             <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -1203,22 +1162,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section className="w-auto h-screen -mr-[20vw] shrink-0  flex flex-col justify-end items-end pl-25  p-20 gap-0 z-1">
+        <section id="work" className="w-auto h-screen -mr-[20vw] shrink-0  flex flex-col justify-end items-end pl-25  p-20 gap-0 z-1">
           <div className = "flex flex-col h-full ">
             <h2 className="font-bold uppercase ">Creative</h2>
             <h2 className="font-bold uppercase ">Showcase</h2>
           </div>
         </section>
-        <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
+        <section ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
             {projects.map((project) => (
               <li key={project.name} data-img={project.cover_image} data-description={project.description}>
-                <a
-                  href={`/projects/${project.slug}`}
-                  onClick={(e) => { e.preventDefault(); zoomIntoScreen(`/projects/${project.slug}`); }}
-                >
+                <Link href={`/projects/${project.slug}`}>
                   {project.name}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
