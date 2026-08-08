@@ -5,9 +5,11 @@ import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
+import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
+import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from "./components/squiggle";
 import { IoIosMail } from "react-icons/io";
 import { MdPhoneEnabled } from "react-icons/md";
 import { IoLogoLinkedin } from "react-icons/io";
@@ -15,7 +17,7 @@ import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
-gsap.registerPlugin(customEase, SplitText);
+gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin);
 
 let preloaderHasPlayed = false;
 
@@ -25,6 +27,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const projectsRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
+  const preloaderSquiggleRef = useRef<HTMLDivElement>(null);
+  const preloaderSquigglePathRef = useRef<SVGPathElement>(null);
 
   const threeCamera      = useRef<THREE.PerspectiveCamera | null>(null);
   const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
@@ -850,10 +854,33 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           preloaderTL.to(imgWrap, { scale: 1, ease: "hop", duration: 1.5 }, i * 0.667);
         });
 
-        // exit fires the moment counter reads 100
-        preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1,    ease: "hop" }, counterEnd);
-        preloaderTL.to(".preloader",         { scaleY: 0,                                           duration: 1.75, ease: "hop", transformOrigin: "top center" }, counterEnd + 0.25);
-        // Fire hero entrance 0.5 timeline-seconds before the preloader fully collapses
+        // exit fires the moment counter reads 100 — the preloader's own
+        // curtain-close (image stack collapsing away) plays out fully first.
+        preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1, ease: "hop" }, counterEnd);
+
+        // Squiggle exit — only starts once the preloader has fully closed,
+        // not layered on top of it. Starts already fully formed (swapped in
+        // for the preloader instantly), then only animates the erase that
+        // reveals the hero.
+        const squiggleStart = counterEnd + 1;
+        preloaderTL.set(preloaderSquigglePathRef.current, {
+          drawSVG: "100%",
+          strokeWidth: SQUIGGLE_STROKE_THICK,
+        }, squiggleStart);
+        preloaderTL.set(preloaderSquiggleRef.current, { opacity: 1 }, squiggleStart);
+        preloaderTL.set(".preloader", { autoAlpha: 0 }, squiggleStart);
+        preloaderTL.to(preloaderSquigglePathRef.current, {
+          drawSVG: "100% 100%",
+          strokeWidth: SQUIGGLE_STROKE_THIN,
+          duration: 1.75,
+          ease: "power2.inOut",
+        }, squiggleStart);
+        preloaderTL.to(preloaderSquiggleRef.current, {
+          opacity: 0,
+          duration: 1,
+          ease: "power2.inOut",
+        }, squiggleStart + 0.8);
+        // Fire hero entrance 0.5 timeline-seconds before the squiggle finishes erasing
         preloaderTL.call(animateHeroEntrance, [], ">-0.5");
       } // end preloader
 
@@ -1038,7 +1065,34 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <div className="counter-3 digit"></div>
           </div>
         </section>
-      
+
+        {/* Preloader exit squiggle — draws/erases the same shape as the page transition */}
+        <div
+          ref={preloaderSquiggleRef}
+          aria-hidden
+          className="fixed inset-0 z-[51] flex items-center justify-center opacity-0 pointer-events-none"
+        >
+          <svg
+            width="100%"
+            height="100%"
+            viewBox={SQUIGGLE_VIEWBOX}
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-full"
+            style={{ transform: 'scale(1.3)' }}
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <path
+              ref={preloaderSquigglePathRef}
+              d={SQUIGGLE_PATH_D}
+              stroke="#000000"
+              strokeWidth={SQUIGGLE_STROKE_THIN}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+
       <main
         ref={scrollRef}
         className="flex flex-row will-change-transform"
