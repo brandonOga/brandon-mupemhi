@@ -421,7 +421,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.25;
-      
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.VSMShadowMap;
+
       renderer.domElement.style.position = 'absolute';
       renderer.domElement.style.top = '0';
       renderer.domElement.style.left = '0';
@@ -435,6 +437,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
       directionalLight.position.set(15, 10, -5);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.set(2048, 2048);
+      directionalLight.shadow.radius = 20;
+      directionalLight.shadow.bias = -1e-4;
+      directionalLight.shadow.normalBias = 0.02;
+      directionalLight.shadow.camera.near = 0.1;
+      directionalLight.shadow.camera.far = 30;
+      directionalLight.shadow.camera.left = -3;
+      directionalLight.shadow.camera.right = 3;
+      directionalLight.shadow.camera.top = 3;
+      directionalLight.shadow.camera.bottom = -3;
 
       scene.add(directionalLight);
 
@@ -445,6 +458,58 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const monitorGroup = new THREE.Group();
       monitorGroupRef.current = monitorGroup;
       scene.add(monitorGroup);
+
+      // Soft "fade" ground plane, matching the toddham.com technique: a
+      // procedurally generated radial-alpha texture (used as both map and
+      // alphaMap) so the plane itself is invisible except where the
+      // directional light's shadow darkens it — a floating soft shadow with
+      // no visible floor edge. Sits in the scene root (not monitorGroup) so
+      // it stays put while the model tilts on hover.
+      function createShadowFadeTexture(size = 1024) {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#f5f5f5";
+        ctx.fillRect(0, 0, size, size);
+
+        const cx = 0.5 * size;
+        const cy = 0.55 * size;
+        const radius = 0.55 * size;
+        const imageData = ctx.getImageData(0, 0, size, size);
+        const data = imageData.data;
+
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const dx = x - cx;
+            const dy = 1.2 * (y - cy);
+            let t = 1 - Math.sqrt(dx * dx + dy * dy) / radius;
+            t = Math.max(0, Math.min(1, t));
+            const smooth = t * t * t * (t * (6 * t - 15) + 10);
+            data[4 * (y * size + x) + 3] = Math.floor(255 * smooth);
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.needsUpdate = true;
+        return texture;
+      }
+
+      const shadowFadeTexture = createShadowFadeTexture();
+      const shadowFloor = new THREE.Mesh(
+        new THREE.PlaneGeometry(8, 8),
+        new THREE.MeshLambertMaterial({
+          map: shadowFadeTexture,
+          alphaMap: shadowFadeTexture,
+          transparent: true,
+          side: THREE.DoubleSide,
+        })
+      );
+      shadowFloor.rotation.x = -Math.PI / 2;
+      shadowFloor.position.y = -0.9;
+      shadowFloor.receiveShadow = true;
+      scene.add(shadowFloor);
 
 
       const textureLoader = new THREE.TextureLoader();
@@ -488,21 +553,42 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       });
 
       // Load model FIRST
-      new GLTFLoader().load("/models/old_pc/scene.gltf", (gltf) => {
+      new GLTFLoader().load("/models/macintosh/scene.gltf", (gltf) => {
         const model = gltf.scene;
-        normalizeModel(model, 2);
+        normalizeModel(model, 1.5);
+        model.position.y -= 0.2;
 
         monitorGroup.add(model);
         model.updateMatrixWorld(true);
 
-        const screenMesh = model.getObjectByName("Cube124_Material001_0") as THREE.Mesh;
+        // Not looked up by name: the glTF node and its mesh both happen to
+        // be named "Plane.001_0", so GLTFLoader's name-dedup renames the
+        // node to "Plane.001_0_1" when building the scene graph. Matching
+        // on the material name instead sidesteps that.
+        let screenMesh: THREE.Mesh | null = null;
+        model.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          if (!Array.isArray(mesh.material) && mesh.material.name === "Material.006") {
+            screenMesh = mesh;
+          }
+        });
+
+        // Drop the fade-floor to sit exactly under the model's base now that
+        // its real (post-normalize, post-offset) bounding box is known.
+        const modelBox = new THREE.Box3().setFromObject(model);
+        shadowFloor.position.y = modelBox.min.y - 0.01;
 
         if (screenMesh && displayMaterial) {
-          // 1. Get the dimensions of the screen
+          // 1. Get the dimensions of the screen — Plane.001_0 is already a
+          // small, nearly-flat plane matching the screen cutout, so no
+          // shrink margin is needed here (unlike the old curved-glass mesh)
           const box = new THREE.Box3().setFromObject(screenMesh);
           const size = new THREE.Vector3();
           box.getSize(size);
-          
+
           // 2. Create the Plane
           const customGeometry = new THREE.PlaneGeometry(size.x, size.y);
           const customScreen = new THREE.Mesh(customGeometry, displayMaterial);
@@ -516,12 +602,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
           customScreen.position.copy(worldPos);
           customScreen.quaternion.copy(worldQuat);
-          customScreen.rotateX(Math.PI / 2)
-          customScreen.position.z += 0.50;
-          customScreen.translateY(0.274);
 
-          // 4. Offset to prevent Z-Fighting (flickering)
-          customScreen.translateZ(0.01); 
+          // 4. Small forward nudge along the mesh's own normal to prevent
+          // Z-fighting with the original (now-hidden) screen mesh
+          customScreen.translateZ(0.02);
 
           // 5. Hide the old and add the new to the monitorGroup
           screenMesh.visible = false;
@@ -872,14 +956,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         preloaderTL.to(preloaderSquigglePathRef.current, {
           drawSVG: "100% 100%",
           strokeWidth: SQUIGGLE_STROKE_THIN,
-          duration: 1.75,
+          duration: 2.6,
           ease: "power2.inOut",
         }, squiggleStart);
         preloaderTL.to(preloaderSquiggleRef.current, {
           opacity: 0,
-          duration: 1,
+          duration: 1.5,
           ease: "power2.inOut",
-        }, squiggleStart + 0.8);
+        }, squiggleStart + 1.2);
         // Fire hero entrance 0.5 timeline-seconds before the squiggle finishes erasing
         preloaderTL.call(animateHeroEntrance, [], ">-0.5");
       } // end preloader
@@ -1103,7 +1187,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
               <div className="flex flex-col gap-5">
                 <h1 className="font-bold uppercase whitespace-nowrap">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I am an experienced web and ui/ux designer who creates memorable digital experiences for brands of all sizes.</p>
+                <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
               <div className="w-[60vw] relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
                 <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
@@ -1116,7 +1200,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
-                <p className="text-xs uppercase">Open for Work</p>
+                <p className="text-xs uppercase">Available for Work</p>
               </div>
               <div className="relative w-full h-[40vh]">
                 <div className="absolute inset-0 overflow-hidden">
@@ -1147,29 +1231,27 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               About Me
             </h2>
 
-            {/* 01 — Love */}
+            {/* 01 — Who I Am */}
             <div className="col-start-3 row-start-1 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">01</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Love</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Who I Am</p>
               <p className="text-sm uppercase leading-relaxed text-foreground/70">
-                I love bold, expressive design — clean type, motion, and interfaces that feel alive.
+                UI/UX designer and frontend developer creating thoughtful digital experiences where design, usability, and code come together.
               </p>
             </div>
 
-            {/* 02 — Past experience */}
-            <div className="col-start-2 row-start-2 max-w-[18rem]">
+            {/* 02 — My Journey */}
+            <div className="col-start-2 row-start-2 max-w-[24rem]">
               <p className="font-mono text-sm text-primary-color mb-3">02</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Past Experience</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">My Journey</p>
               <p className="text-sm uppercase leading-relaxed text-foreground/70">
-                I&apos;ve crafted websites and brand experiences for clients across very different industries.
+                I started my design journey in 2022, and have since grown across UI/UX, web design, and frontend development — turning ideas into real digital products.
               </p>
             </div>
 
-            {/* Asterisk motif */}
-            <div className="col-start-1 row-start-3 self-center flex gap-1 text-primary-color text-3xl">
-              <LiaAsteriskSolid />
-              <LiaAsteriskSolid />
-              <LiaAsteriskSolid />
+            {/* Tagline motif */}
+            <div className="col-start-1 row-start-3 self-center">
+              <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
             </div>
 
             {/* 03 — Approach */}
@@ -1177,7 +1259,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               <p className="font-mono text-sm text-primary-color mb-3">03</p>
               <p className="text-sm font-bold uppercase mb-2 text-foreground">Approach</p>
               <p className="text-sm uppercase leading-relaxed text-foreground/70">
-                I blend UI/UX thinking with hands-on frontend, so the work looks sharp and ships fast.
+                I design with development in mind — balancing visual detail, usability, and technical feasibility to create experiences that work beyond the mockup.
               </p>
             </div>
 
@@ -1195,21 +1277,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               />
             </div>
 
-            {/* 04 — Current experience */}
+            {/* 04 — Experience */}
             <div className="col-start-1 row-start-4 self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">04</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Current Experience</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Experience</p>
               <p className="text-sm uppercase leading-relaxed text-foreground/70">
-                I work as a freelance web &amp; UI/UX designer, building memorable sites for brands of all sizes.
+                I&apos;ve worked across websites and digital products for organisations in education, agriculture, technology, and other industries.
               </p>
             </div>
 
-            {/* 05 — Inspiration */}
+            {/* 05 — Off Screen */}
             <div className="col-start-3 row-start-4 self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">05</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Inspiration</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Off Screen</p>
               <p className="text-sm uppercase leading-relaxed text-foreground/70">
-                I&apos;m inspired by motion, editorial layouts, and the energy of great brand storytelling.
+                When I&apos;m not designing or building, I&apos;m usually exploring new ideas, experimenting with motion, or finding inspiration far away from Figma.
               </p>
             </div>
           </div>
@@ -1217,9 +1299,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         {/* Projects Section */}
         <section id="work" className="w-auto h-screen -mr-[20vw] shrink-0  flex flex-col justify-end items-end pl-25  p-20 gap-0 z-1">
-          <div className = "flex flex-col h-full ">
-            <h2 className="font-bold uppercase ">Creative</h2>
-            <h2 className="font-bold uppercase ">Showcase</h2>
+          <div className = "flex flex-col gap-5 h-full ">
+            <div className="flex flex-col gap-0">
+              <h2 className="font-bold uppercase ">Selected</h2>
+              <h2 className="font-bold uppercase ">Work</h2>
+            </div>
+            <p className="uppercase leading-relaxed text-foreground/70">
+                Selected projects across UI/UX, web design and creative development.
+            </p>
           </div>
         </section>
         <section ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
@@ -1232,9 +1319,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="project-description absolute left-3/5 top-3/10 -translate-y-7/10 text-black opacity-0 pointer-events-none">
-            <h3 className="text-xl uppercase mb-2"></h3>
-            <p className="text-base"></p>
+          <div className="project-description absolute left-3/5 top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+            <h3></h3>
+            <p></p>
           </div>
         </section>
         

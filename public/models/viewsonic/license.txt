@@ -1,0 +1,11 @@
+Model Information:
+* title:	Viewsonic 15 1546 CRT Monitor
+* source:	https://sketchfab.com/3d-models/viewsonic-15-1546-crt-monitor-f42b0f44d8aa411b8ad6990d13841495
+* author:	Moomo0802 (https://sketchfab.com/thing2x22)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Viewsonic 15 1546 CRT Monitor" (https://sketchfab.com/3d-models/viewsonic-15-1546-crt-monitor-f42b0f44d8aa411b8ad6990d13841495) by Moomo0802 (https://sketchfab.com/thing2x22) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
