@@ -437,19 +437,27 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
       directionalLight.position.set(15, 10, -5);
-      directionalLight.castShadow = true;
-      directionalLight.shadow.mapSize.set(2048, 2048);
-      directionalLight.shadow.radius = 20;
-      directionalLight.shadow.bias = -1e-4;
-      directionalLight.shadow.normalBias = 0.02;
-      directionalLight.shadow.camera.near = 0.1;
-      directionalLight.shadow.camera.far = 30;
-      directionalLight.shadow.camera.left = -3;
-      directionalLight.shadow.camera.right = 3;
-      directionalLight.shadow.camera.top = 3;
-      directionalLight.shadow.camera.bottom = -3;
-
       scene.add(directionalLight);
+
+      // Dedicated, near-overhead light purely for the cast shadow — kept
+      // separate from directionalLight (which comes in from a steep side
+      // angle for its rim-light look, and would cast the shadow well off
+      // to the side of the model instead of directly beneath it).
+      const shadowLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      shadowLight.position.set(0, 10, -1);
+      shadowLight.castShadow = true;
+      shadowLight.shadow.mapSize.set(2048, 2048);
+      shadowLight.shadow.radius = 28;
+      shadowLight.shadow.bias = -1e-4;
+      shadowLight.shadow.normalBias = 0.02;
+      shadowLight.shadow.camera.near = 0.1;
+      shadowLight.shadow.camera.far = 30;
+      shadowLight.shadow.camera.left = -1;
+      shadowLight.shadow.camera.right = 1;
+      shadowLight.shadow.camera.top = 1;
+      shadowLight.shadow.camera.bottom = -1;
+
+      scene.add(shadowLight);
 
       const topLight = new THREE.DirectionalLight(0xffffff, 1);
       topLight.position.set(-5, -2.5, 0);
@@ -459,52 +467,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       monitorGroupRef.current = monitorGroup;
       scene.add(monitorGroup);
 
-      // Soft "fade" ground plane, matching the toddham.com technique: a
-      // procedurally generated radial-alpha texture (used as both map and
-      // alphaMap) so the plane itself is invisible except where the
-      // directional light's shadow darkens it — a floating soft shadow with
-      // no visible floor edge. Sits in the scene root (not monitorGroup) so
-      // it stays put while the model tilts on hover.
-      function createShadowFadeTexture(size = 1024) {
-        const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = size;
-        const ctx = canvas.getContext("2d")!;
-        ctx.fillStyle = "#f5f5f5";
-        ctx.fillRect(0, 0, size, size);
-
-        const cx = 0.5 * size;
-        const cy = 0.55 * size;
-        const radius = 0.55 * size;
-        const imageData = ctx.getImageData(0, 0, size, size);
-        const data = imageData.data;
-
-        for (let y = 0; y < size; y++) {
-          for (let x = 0; x < size; x++) {
-            const dx = x - cx;
-            const dy = 1.2 * (y - cy);
-            let t = 1 - Math.sqrt(dx * dx + dy * dy) / radius;
-            t = Math.max(0, Math.min(1, t));
-            const smooth = t * t * t * (t * (6 * t - 15) + 10);
-            data[4 * (y * size + x) + 3] = Math.floor(255 * smooth);
-          }
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
-        texture.needsUpdate = true;
-        return texture;
-      }
-
-      const shadowFadeTexture = createShadowFadeTexture();
+      // Ground "shadow catcher": THREE.ShadowMaterial renders transparent
+      // everywhere except where an actual shadow lands on it, and — unlike
+      // MeshLambertMaterial — it's not lit by scene lights at all (ambient
+      // included), so the model's own lighting can stay untouched while this
+      // plane only ever shows the soft shadow itself. Sits in the scene root
+      // (not monitorGroup) so it stays put while the model tilts on hover.
       const shadowFloor = new THREE.Mesh(
-        new THREE.PlaneGeometry(8, 8),
-        new THREE.MeshLambertMaterial({
-          map: shadowFadeTexture,
-          alphaMap: shadowFadeTexture,
-          transparent: true,
-          side: THREE.DoubleSide,
-        })
+        new THREE.PlaneGeometry(1.8, 1.8),
+        new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.35 })
       );
       shadowFloor.rotation.x = -Math.PI / 2;
       shadowFloor.position.y = -0.9;
@@ -557,6 +528,23 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         const model = gltf.scene;
         normalizeModel(model, 1.5);
         model.position.y -= 0.2;
+        // The source model's baked-in orientation is yawed toward camera-right
+        // (its left side panel is visible alongside the front); rotate it back
+        // toward straight-on.
+        model.rotation.y -= THREE.MathUtils.degToRad(25);
+
+        // normalizeModel centered the model's *pre-rotation* bounding box —
+        // under perspective, a yawed object's near corner reads larger than
+        // its receding far corner, so re-centering only in X/Z (not Y, which
+        // is already correct) after the rotation keeps its visual silhouette
+        // — not just its pivot — aligned with the horizontally-centered UI
+        // below it (the project list).
+        model.updateMatrixWorld(true);
+        const yawedBox = new THREE.Box3().setFromObject(model);
+        const yawedCenter = new THREE.Vector3();
+        yawedBox.getCenter(yawedCenter);
+        model.position.x -= yawedCenter.x;
+        model.position.z -= yawedCenter.z;
 
         monitorGroup.add(model);
         model.updateMatrixWorld(true);
@@ -565,16 +553,22 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // be named "Plane.001_0", so GLTFLoader's name-dedup renames the
         // node to "Plane.001_0_1" when building the scene graph. Matching
         // on the material name instead sidesteps that.
-        let screenMesh: THREE.Mesh | null = null;
+        let foundScreenMesh: THREE.Mesh | null = null;
         model.traverse((child) => {
           const mesh = child as THREE.Mesh;
           if (!mesh.isMesh) return;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           if (!Array.isArray(mesh.material) && mesh.material.name === "Material.006") {
-            screenMesh = mesh;
+            foundScreenMesh = mesh;
           }
         });
+        // TS narrows a `let` mutated only inside a closure back to its
+        // pre-call type (null) rather than widening to THREE.Mesh | null,
+        // and treats a bare `const x = foundScreenMesh` as a transparent
+        // alias that inherits that same bad narrowing — the `as` cast
+        // (not just the copy) is what breaks the alias tracking.
+        const screenMesh = foundScreenMesh as THREE.Mesh | null;
 
         // Drop the fade-floor to sit exactly under the model's base now that
         // its real (post-normalize, post-offset) bounding box is known.
@@ -631,13 +625,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
         lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
-        monitorGroup.rotation.x = lerpedMouse.y * 0.15;
+        monitorGroup.rotation.x = lerpedMouse.y * 0.35;
         monitorGroup.rotation.y = lerpedMouse.x * 0.3;
+        monitorGroup.position.x = lerpedMouse.x * 0.15;
+        shadowFloor.position.x = monitorGroup.position.x;
 
         // Apply same mouse tracking to description element
         const descElement = document.querySelector('.project-description') as HTMLElement;
         if (descElement) {
-          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.15}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
+          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.35}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
         }
 
         renderer.render(scene, camera);
@@ -645,13 +641,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       animateThree();
 
-      window.addEventListener("mousemove", (e) => {
+      // Scoped to the section itself (not window) so the model rests
+      // centered by default and only tracks the cursor while it's actually
+      // over this section.
+      container.addEventListener("mousemove", (e) => {
         const rect = container.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width - 0.5;
         const y = (e.clientY - rect.top) / rect.height - 0.5;
-        
+
         mouse.x = x * 2;
         mouse.y = y * 1;
+      });
+
+      container.addEventListener("mouseleave", () => {
+        mouse.x = 0;
+        mouse.y = 0;
       });
 
       window.addEventListener("resize", () => {
@@ -1319,7 +1323,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="project-description absolute left-3/5 top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+          <div className="project-description absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
             <h3></h3>
             <p></p>
           </div>

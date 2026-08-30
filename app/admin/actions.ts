@@ -57,6 +57,7 @@ export async function saveProject(
       published: formData.get('published') === 'on',
       cover_image,
       gallery,
+      tags,
     };
 
     const result = id
