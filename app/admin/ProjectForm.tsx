@@ -14,6 +14,7 @@ const input =
 const labelText = 'uppercase opacity-55 text-xs tracking-wide';
 const card = 'rounded-xl border border-foreground/12 bg-white/70 p-6 flex flex-col gap-5';
 const legend = 'text-xs uppercase tracking-widest opacity-40 font-medium';
+const help = 'text-xs opacity-45';
 
 const BUCKET = 'project-images';
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
@@ -48,6 +49,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
   const [, startTransition] = useTransition();
 
   const busy = pending || uploading;
+  const caseStudy = project?.case_study;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -170,8 +172,57 @@ export default function ProjectForm({ project }: { project?: Project }) {
 
       {/* Case study */}
       <section className={card}>
-        <p className={legend}>Case study</p>
+        <p className={legend}>Project overview</p>
         <RichTextEditor name="body" defaultValue={project?.body} />
+        <p className={help}>Optional rich-text introduction. The structured fields below control the editorial page sections.</p>
+      </section>
+
+      <section className={card}>
+        <p className={legend}>01 — Snapshot</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field name="case_industry" label="Industry" value={caseStudy?.industry} />
+          <Field name="case_timeline" label="Timeline" value={caseStudy?.timeline} placeholder="e.g. 8 weeks" />
+        </div>
+        <Area name="case_overview" label="Project overview" value={caseStudy?.overview} />
+        <div className="grid grid-cols-2 gap-4">
+          <Area name="case_responsibilities" label="Responsibilities — one per line" value={caseStudy?.responsibilities.join('\n')} rows={5} />
+          <Area name="case_tools" label="Tools / technology — one per line" value={caseStudy?.tools.join('\n')} rows={5} />
+        </div>
+      </section>
+
+      <section className={card}>
+        <p className={legend}>02–05 — Problem and process</p>
+        <Field name="case_challenge_question" label="Challenge question" value={caseStudy?.challenge_question} placeholder="How might we…?" />
+        <Area name="case_challenge" label="Challenge explanation" value={caseStudy?.challenge} />
+        <Area name="case_understanding" label="Understanding the problem / users" value={caseStudy?.understanding} />
+        <Area name="case_insights" label="Key insights — one per line" value={caseStudy?.insights.join('\n')} />
+        <Area name="case_process_steps" label="Information architecture / process steps — one per line" value={caseStudy?.process_steps.join('\n')} placeholder={'Registration\nOnboarding\nDashboard\nCompletion'} />
+        <Area name="case_exploration" label="Exploration / wireframes explanation" value={caseStudy?.exploration} />
+      </section>
+
+      <section className={card}>
+        <p className={legend}>06–07 — Solution and key experiences</p>
+        <Area name="case_solution" label="Solution introduction" value={caseStudy?.solution} />
+        {[0, 1, 2].map((index) => <div key={index} className="grid gap-3 border-t border-foreground/10 pt-4">
+          <Field name={`case_feature_${index + 1}_title`} label={`Feature ${index + 1} title`} value={caseStudy?.features[index]?.title} />
+          <Area name={`case_feature_${index + 1}_description`} label={`Feature ${index + 1} explanation`} value={caseStudy?.features[index]?.description} rows={3} />
+        </div>)}
+      </section>
+
+      <section className={card}>
+        <p className={legend}>08–10 — System and build</p>
+        <Area name="case_design_system" label="Design system" value={caseStudy?.design_system} />
+        <Area name="case_development" label="Development involvement" value={caseStudy?.development} />
+        <Area name="case_responsive" label="Responsive design" value={caseStudy?.responsive} />
+      </section>
+
+      <section className={card}>
+        <p className={legend}>11 — Outcome and reflection</p>
+        <Area name="case_outcome" label="Outcome" value={caseStudy?.outcome} />
+        <div className="grid grid-cols-2 gap-4">
+          <Area name="case_what_worked" label="What worked — one per line" value={caseStudy?.what_worked.join('\n')} />
+          <Area name="case_improvements" label="What I’d improve — one per line" value={caseStudy?.improvements.join('\n')} />
+        </div>
       </section>
 
       {/* Media */}
@@ -291,4 +342,12 @@ export default function ProjectForm({ project }: { project?: Project }) {
       </div>
     </form>
   );
+}
+
+function Field({ name, label, value, placeholder }: { name: string; label: string; value?: string; placeholder?: string }) {
+  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><input name={name} defaultValue={value} placeholder={placeholder} className={input} /></label>;
+}
+
+function Area({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value?: string; placeholder?: string; rows?: number }) {
+  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><textarea name={name} defaultValue={value} placeholder={placeholder} rows={rows} className={`${input} resize-y`} /></label>;
 }

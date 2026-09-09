@@ -11,11 +11,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
 import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from "./components/squiggle";
 import { IoIosMail } from "react-icons/io";
-import { MdPhoneEnabled } from "react-icons/md";
 import { IoLogoLinkedin } from "react-icons/io";
 import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
-import { FaArrowRight } from "react-icons/fa";
+import { FaArrowRight, FaGithub } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin);
 
@@ -36,17 +35,22 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const monitorGroupRef  = useRef<THREE.Group | null>(null);
 
 
-  function normalizeModel(model: THREE.Object3D, targetSize: number = 2) {
-    const box = new THREE.Box3().setFromObject(model);
+  function normalizeModel(
+    model: THREE.Object3D,
+    targetSize: number = 2,
+    focus: THREE.Object3D = model
+  ) {
+    const box = new THREE.Box3().setFromObject(focus);
     const size = box.getSize(new THREE.Vector3());
     
     const maxDim = Math.max(size.x, size.y, size.z);
     const scale = targetSize / maxDim;
     
     model.scale.multiplyScalar(scale);
+    model.updateMatrixWorld(true);
     
     const center = new THREE.Vector3();
-    new THREE.Box3().setFromObject(model).getCenter(center);
+    new THREE.Box3().setFromObject(focus).getCenter(center);
     model.position.sub(center);
     
   }
@@ -93,6 +97,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     const shaderRippleCleanups: Array<() => void> = [];
 
     const xPos = { target: 0, current: 0 };
+    const scrollMultiplier = 1.5;
+    const scrollEase = 0.08;
     const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
 
@@ -118,6 +124,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     }
 
     const aboutSection = sections.find((s) => s.id === 'about') as HTMLElement | undefined;
+    const workSection = sections.find((s) => s.id === 'work') as HTMLElement | undefined;
+    let workEntryState: 'idle' | 'settling' | 'released' = 'idle';
 
     const handleWheel = (event: WheelEvent) => {
       // Hand the wheel to the About panel's vertical scroll only once the panel
@@ -129,6 +137,41 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // panel without its vertical scroll ever engaging.
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
 
+      // On every entry, stop exactly at Work's leading edge so its full
+      // 100vw is presented before later wheel input moves onward.
+      if (workSection) {
+        const workStart = workSection.offsetLeft;
+
+        if (
+          workEntryState === 'released' &&
+          Math.abs(xPos.target - workStart) > 1
+        ) {
+          workEntryState = 'idle';
+        }
+
+        if (workEntryState === 'settling') {
+          if (Math.abs(xPos.current - workStart) > 1) {
+            xPos.target = workStart;
+            event.preventDefault();
+            return;
+          }
+          workEntryState = 'released';
+        } else if (workEntryState === 'idle') {
+          const prospective = xPos.target + delta * scrollMultiplier;
+          const enteringForward =
+            delta > 0 && xPos.target < workStart && prospective >= workStart;
+          const enteringBackward =
+            delta < 0 && xPos.target > workStart && prospective <= workStart;
+
+          if (enteringForward || enteringBackward) {
+            workEntryState = 'settling';
+            xPos.target = workStart;
+            event.preventDefault();
+            return;
+          }
+        }
+      }
+
       if (aboutSection) {
         const aboutStart = aboutSection.offsetLeft;
         const atTop = aboutSection.scrollTop <= 0;
@@ -137,11 +180,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
 
         if (canScrollY) {
-          const prospective = xPos.target + delta * 1.5;
+          const prospective = xPos.target + delta * scrollMultiplier;
           const enteringForward =
-            event.deltaY > 0 && xPos.target <= aboutStart && prospective > aboutStart && !atBottom;
+            delta > 0 && xPos.target <= aboutStart && prospective > aboutStart && !atBottom;
           const enteringBackward =
-            event.deltaY < 0 && xPos.target >= aboutStart && prospective < aboutStart && !atTop;
+            delta < 0 && xPos.target >= aboutStart && prospective < aboutStart && !atTop;
 
           if (enteringForward || enteringBackward) {
             xPos.target = aboutStart; // clamp — never let one event skip past the panel
@@ -149,20 +192,28 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               event.preventDefault(); // still easing in; hold off native scroll until settled
               return;
             }
-            return; // fully settled — let the vertical scroll happen natively
+            // Drive the panel explicitly once settled. This is reliable even
+            // for diagonal trackpad gestures or when the wheel event target
+            // is a fixed navigation element rather than the About panel.
+            event.preventDefault();
+            aboutSection.scrollTop += delta;
+            return;
           }
         }
       }
 
       event.preventDefault();
-      xPos.target = Math.max(0, Math.min(getMaxScroll(), xPos.target + delta * 1.5));
+      xPos.target = Math.max(
+        0,
+        Math.min(getMaxScroll(), xPos.target + delta * scrollMultiplier)
+      );
     };
 
     const totalSections = sections.length;
 
     let lerpRafId: number;
     const lerpScroll = () => {
-      xPos.current += (xPos.target - xPos.current) * 0.08;
+      xPos.current += (xPos.target - xPos.current) * scrollEase;
       if (Math.abs(xPos.target - xPos.current) < 0.05) {
         xPos.current = xPos.target;
       }
@@ -412,7 +463,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         1000
       );
       camera.position.set(0, 0, 3);
-      camera.lookAt(0, -0.25, 0);
+      camera.lookAt(0, 0, 0);
 
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
       threeCamera.current   = camera;
@@ -439,23 +490,23 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       directionalLight.position.set(15, 10, -5);
       scene.add(directionalLight);
 
-      // Dedicated, near-overhead light purely for the cast shadow — kept
+      // Dedicated light purely for the cast shadow — kept
       // separate from directionalLight (which comes in from a steep side
-      // angle for its rim-light look, and would cast the shadow well off
-      // to the side of the model instead of directly beneath it).
-      const shadowLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      shadowLight.position.set(0, 10, -1);
+      // angle for its rim-light look). This light sits to camera-right, so
+      // the model's projected shadow falls naturally toward the left.
+      const shadowLight = new THREE.DirectionalLight(0xffffff, 1.4);
+      shadowLight.position.set(5, 10, 2);
       shadowLight.castShadow = true;
       shadowLight.shadow.mapSize.set(2048, 2048);
-      shadowLight.shadow.radius = 28;
+      shadowLight.shadow.radius = 18;
       shadowLight.shadow.bias = -1e-4;
       shadowLight.shadow.normalBias = 0.02;
       shadowLight.shadow.camera.near = 0.1;
       shadowLight.shadow.camera.far = 30;
-      shadowLight.shadow.camera.left = -1;
-      shadowLight.shadow.camera.right = 1;
-      shadowLight.shadow.camera.top = 1;
-      shadowLight.shadow.camera.bottom = -1;
+      shadowLight.shadow.camera.left = -4;
+      shadowLight.shadow.camera.right = 4;
+      shadowLight.shadow.camera.top = 4;
+      shadowLight.shadow.camera.bottom = -4;
 
       scene.add(shadowLight);
 
@@ -467,20 +518,85 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       monitorGroupRef.current = monitorGroup;
       scene.add(monitorGroup);
 
-      // Ground "shadow catcher": THREE.ShadowMaterial renders transparent
-      // everywhere except where an actual shadow lands on it, and — unlike
-      // MeshLambertMaterial — it's not lit by scene lights at all (ambient
-      // included), so the model's own lighting can stay untouched while this
-      // plane only ever shows the soft shadow itself. Sits in the scene root
-      // (not monitorGroup) so it stays put while the model tilts on hover.
+      // Radial alpha map gives the circular tabletop a soft edge so it fades
+      // away before the horizontal scroll reaches the next section.
+      const floorAlphaCanvas = document.createElement('canvas');
+      floorAlphaCanvas.width = 256;
+      floorAlphaCanvas.height = 256;
+      const floorAlphaContext = floorAlphaCanvas.getContext('2d');
+      if (floorAlphaContext) {
+        const floorFade = floorAlphaContext.createRadialGradient(
+          128, 128, 128 * 0.62,
+          128, 128, 128
+        );
+        floorFade.addColorStop(0, '#ffffff');
+        floorFade.addColorStop(1, '#000000');
+        floorAlphaContext.fillStyle = floorFade;
+        floorAlphaContext.fillRect(0, 0, 256, 256);
+      }
+      const floorAlphaMap = new THREE.CanvasTexture(floorAlphaCanvas);
+
+      // Visible circular tabletop surface and shadow receiver. It stays in
+      // the scene root so it remains level while the monitor tilts on hover.
       const shadowFloor = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.8, 1.8),
-        new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.35 })
+        new THREE.CircleGeometry(1.9, 128),
+        new THREE.MeshStandardMaterial({
+          color: 0xd9dcde,
+          roughness: 1,
+          metalness: 0,
+          alphaMap: floorAlphaMap,
+          opacity: 0.85,
+          transparent: true,
+          depthWrite: false,
+        })
       );
+      // Fill the viewport horizontally and extend toward the camera. The
+      // radial alpha map is transparent where the surface meets the section
+      // edges, avoiding a hard cutoff during horizontal scrolling.
+      const floorRadius = 1.9;
+      const updateFloorSize = () => {
+        const cameraDistance = Math.abs(
+          camera.position.z - shadowFloor.position.z
+        );
+        const visibleHeight =
+          2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * cameraDistance;
+        const visibleWidth = visibleHeight * camera.aspect;
+
+        shadowFloor.scale.set(visibleWidth / (floorRadius * 2), 1.15, 1);
+      };
+      updateFloorSize();
       shadowFloor.rotation.x = -Math.PI / 2;
       shadowFloor.position.y = -0.9;
       shadowFloor.receiveShadow = true;
       scene.add(shadowFloor);
+
+      let modelIsLoaded = false;
+      let restingModelY = 0;
+
+      const updateModelScale = () => {
+        // Build the replacement screen while the group is still at its
+        // identity scale. Its geometry and transform are measured in world
+        // space, so scaling the parent beforehand would apply that scale a
+        // second time when the screen is added to monitorGroup.
+        if (!modelIsLoaded) return;
+
+        const cssScale = Number.parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--project-model-scale')
+        );
+        const cssY = Number.parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--project-model-y')
+        );
+
+        monitorGroup.scale.setScalar(Number.isFinite(cssScale) ? cssScale : 1);
+        restingModelY = Number.isFinite(cssY) ? cssY : 0;
+        monitorGroup.position.y = restingModelY;
+        monitorGroup.updateMatrixWorld(true);
+
+        const scaledModelBox = new THREE.Box3().setFromObject(monitorGroup);
+        shadowFloor.position.y = scaledModelBox.min.y - 0.01;
+      };
 
 
       const textureLoader = new THREE.TextureLoader();
@@ -524,42 +640,67 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       });
 
       // Load model FIRST
-      new GLTFLoader().load("/models/macintosh/scene.gltf", (gltf) => {
+      new GLTFLoader().load("/models/macintosh_128k_computer_1984/scene.gltf", (gltf) => {
         const model = gltf.scene;
-        normalizeModel(model, 1.5);
-        model.position.y -= 0.2;
-        // The source model's baked-in orientation is yawed toward camera-right
-        // (its left side panel is visible alongside the front); rotate it back
-        // toward straight-on.
-        model.rotation.y -= THREE.MathUtils.degToRad(25);
 
-        // normalizeModel centered the model's *pre-rotation* bounding box —
-        // under perspective, a yawed object's near corner reads larger than
-        // its receding far corner, so re-centering only in X/Z (not Y, which
-        // is already correct) after the rotation keeps its visual silhouette
-        // — not just its pivot — aligned with the horizontally-centered UI
-        // below it (the project list).
-        model.updateMatrixWorld(true);
-        const yawedBox = new THREE.Box3().setFromObject(model);
-        const yawedCenter = new THREE.Vector3();
-        yawedBox.getCenter(yawedCenter);
-        model.position.x -= yawedCenter.x;
-        model.position.z -= yawedCenter.z;
+        // The keyboard body, cable, and individual keys are exported as
+        // separate meshes. Remove all of them before sizing and centering the
+        // remaining computer setup.
+        const keyboardMeshes: THREE.Object3D[] = [];
+        model.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh) return;
+
+          const materials = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          const usesKeyMaterial = materials.some(
+            (material) => material.name.toLowerCase() === 'keys'
+          );
+          const isKeyboardPart =
+            mesh.name.toLowerCase().startsWith('keyboard') || usesKeyMaterial;
+
+          if (isKeyboardPart) keyboardMeshes.push(mesh);
+        });
+        keyboardMeshes.forEach((mesh) => mesh.parent?.remove(mesh));
+
+        // Pull the mouse assembly inward and slightly back toward the
+        // computer. Moving the top-level groups keeps the mouse, cable, and
+        // plug aligned with one another.
+        const mousePartNames = new Set(['Mouse', 'Mousechord', 'Mouseplug']);
+        model.traverse((child) => {
+          if (!mousePartNames.has(child.name)) return;
+          child.position.x -= 10;
+          child.position.z -= 15;
+        });
+
+        // Keep the computer—not the movable mouse/cables—as the fixed sizing
+        // and camera anchor. Mouse coordinate edits no longer shift or zoom
+        // the computer indirectly through the combined bounding box.
+        const computer = model.getObjectByName('Computer') ?? model;
+        normalizeModel(model, 1.5, computer);
 
         monitorGroup.add(model);
         model.updateMatrixWorld(true);
 
-        // Not looked up by name: the glTF node and its mesh both happen to
-        // be named "Plane.001_0", so GLTFLoader's name-dedup renames the
-        // node to "Plane.001_0_1" when building the scene graph. Matching
-        // on the material name instead sidesteps that.
+        // Locate this model's dedicated screen mesh without using a generic
+        // texture-map fallback (all of this asset's materials are textured).
         let foundScreenMesh: THREE.Mesh | null = null;
         model.traverse((child) => {
           const mesh = child as THREE.Mesh;
           if (!mesh.isMesh) return;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
-          if (!Array.isArray(mesh.material) && mesh.material.name === "Material.006") {
+          const materials = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          const isScreen = materials.some((material) => {
+            const materialName = material.name.toLowerCase();
+            return materialName === 'screen' ||
+              materialName.includes('screen') ||
+              mesh.name.toLowerCase().includes('screen');
+          });
+          if (!foundScreenMesh && isScreen) {
             foundScreenMesh = mesh;
           }
         });
@@ -576,39 +717,57 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         shadowFloor.position.y = modelBox.min.y - 0.01;
 
         if (screenMesh && displayMaterial) {
-          // 1. Get the dimensions of the screen — Plane.001_0 is already a
-          // small, nearly-flat plane matching the screen cutout, so no
-          // shrink margin is needed here (unlike the old curved-glass mesh)
-          const box = new THREE.Box3().setFromObject(screenMesh);
-          const size = new THREE.Vector3();
-          box.getSize(size);
+          // Apply the shader directly so the authored curved CRT geometry,
+          // UVs, position, and bezel fit remain intact.
+          // This asset stores its display UVs rotated: V runs horizontally
+          // and reversed U runs vertically. Normalize the partial atlas range
+          // and rotate it back before sampling project images.
+          screenMesh.geometry = screenMesh.geometry.clone();
+          const screenUv = screenMesh.geometry.getAttribute('uv');
+          if (screenUv) {
+            let minU = Infinity;
+            let maxU = -Infinity;
+            let minV = Infinity;
+            let maxV = -Infinity;
 
-          // 2. Create the Plane
-          const customGeometry = new THREE.PlaneGeometry(size.x, size.y);
-          const customScreen = new THREE.Mesh(customGeometry, displayMaterial);
+            for (let index = 0; index < screenUv.count; index += 1) {
+              minU = Math.min(minU, screenUv.getX(index));
+              maxU = Math.max(maxU, screenUv.getX(index));
+              minV = Math.min(minV, screenUv.getY(index));
+              maxV = Math.max(maxV, screenUv.getY(index));
+            }
 
-          // 3. Match Position and Rotation locally
-          // We get the world position/rotation but convert it so it fits in the group
-          const worldPos = new THREE.Vector3();
-          const worldQuat = new THREE.Quaternion();
-          screenMesh.getWorldPosition(worldPos);
-          screenMesh.getWorldQuaternion(worldQuat);
+            const rangeU = maxU - minU || 1;
+            const rangeV = maxV - minV || 1;
+            for (let index = 0; index < screenUv.count; index += 1) {
+              const normalizedU = (screenUv.getX(index) - minU) / rangeU;
+              const normalizedV = (screenUv.getY(index) - minV) / rangeV;
+              screenUv.setXY(index, normalizedV, 1 - normalizedU);
+            }
+            screenUv.needsUpdate = true;
+          }
 
-          customScreen.position.copy(worldPos);
-          customScreen.quaternion.copy(worldQuat);
+          screenMesh.geometry.computeBoundingBox();
+          const screenBounds = screenMesh.geometry.boundingBox;
+          if (!screenBounds) return;
 
-          // 4. Small forward nudge along the mesh's own normal to prevent
-          // Z-fighting with the original (now-hidden) screen mesh
-          customScreen.translateZ(0.02);
+          const localSize = screenBounds.getSize(new THREE.Vector3());
+          displayMaterial.side = THREE.DoubleSide;
+          screenMesh.material = displayMaterial;
+          monitorScreen.current = screenMesh;
 
-          // 5. Hide the old and add the new to the monitorGroup
-          screenMesh.visible = false;
-          monitorGroup.add(customScreen);
-          monitorScreen.current = customScreen;
-
-          // Update aspect ratio
-          displayMaterial.uniforms.planeAspect.value = size.x / size.y;
+          const worldScale = screenMesh.getWorldScale(new THREE.Vector3());
+          // This screen's broad axes are local X/Y; local Z is only its CRT
+          // curvature depth. Account for inherited scale in the image ratio.
+          if (localSize.y !== 0 && worldScale.y !== 0) {
+            displayMaterial.uniforms.planeAspect.value =
+              (localSize.x * Math.abs(worldScale.x)) /
+              (localSize.y * Math.abs(worldScale.y));
+          }
         }
+
+        modelIsLoaded = true;
+        updateModelScale();
       });
       
       const mouse = { x: 0, y: 0 };
@@ -627,8 +786,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
         monitorGroup.rotation.x = lerpedMouse.y * 0.35;
         monitorGroup.rotation.y = lerpedMouse.x * 0.3;
-        monitorGroup.position.x = lerpedMouse.x * 0.15;
-        shadowFloor.position.x = monitorGroup.position.x;
+        monitorGroup.position.x = 0;
+        monitorGroup.position.y = restingModelY;
+        shadowFloor.position.x = 0;
+        // Follow only vertical pointer movement. The tabletop does not inherit
+        // the monitor's left/right rotation.
+        shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
 
         // Apply same mouse tracking to description element
         const descElement = document.querySelector('.project-description') as HTMLElement;
@@ -667,6 +830,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         camera.aspect = newWidth / newHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(newWidth, newHeight);
+        updateFloorSize();
+        updateModelScale();
       });
       
       const glitchState = { intensity: 0 };
@@ -702,12 +867,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.querySelectorAll('.projects li').forEach(li => {
         li.addEventListener('mouseover', (e) => {
           const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
-          const description = (e.currentTarget as HTMLElement).getAttribute('data-description');
-          const projectName = (e.currentTarget as HTMLElement).textContent;
+          const item = e.currentTarget as HTMLElement;
+          const projectName = item.getAttribute('data-name');
+          const projectType = item.getAttribute('data-project-type');
+          const disciplines = item.getAttribute('data-disciplines');
+          const year = item.getAttribute('data-year');
+          const position = item.getAttribute('data-position');
           if (imgSrc) setDisplayImage(imgSrc);
 
           const titleElement = document.querySelector('.project-description h3') as HTMLElement;
-          const descElement = document.querySelector('.project-description p') as HTMLElement;
+          const positionElement = document.querySelector<HTMLElement>('.project-description [data-project-position]');
+          const detailElements = document.querySelectorAll<HTMLElement>('.project-description [data-project-detail]');
+
+          if (positionElement) positionElement.textContent = position || '';
 
           if (titleElement && projectName) {
             titleElement.textContent = projectName;
@@ -727,36 +899,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             });
           }
 
-          if (descElement && description) {
-            descElement.textContent = description;
-
-            // Split description into characters for typing animation
-            const descSplit = SplitText.create(descElement, {
-              type: "chars",
-              charsClass: "char"
-            });
-
-            gsap.set(descSplit.chars, { opacity: 0 });
-            gsap.to(descSplit.chars, {
-              opacity: 1,
-              duration: 0.05,
-              stagger: 0.02,
-              onComplete: () => descSplit.revert()
-            });
-
-            gsap.to('.project-description', {
-              opacity: 1,
-              duration: 0.3,
-              ease: "power2.out"
-            });
-          }
+          [projectType, disciplines, year].forEach((value, index) => {
+            if (detailElements[index]) detailElements[index].textContent = value || '—';
+          });
+          gsap.to('.project-description', { opacity: 1, duration: 0.3, ease: "power2.out" });
         });
 
         li.addEventListener('mouseout', () => {
           setDisplayImage(defaultDisplayImage);
 
           // Kill any ongoing character animations
-          gsap.killTweensOf('.project-description h3 .char, .project-description p .char');
+          gsap.killTweensOf('.project-description h3 .char');
 
           gsap.to('.project-description', {
             opacity: 0,
@@ -830,48 +983,68 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const animateHeroEntrance = () => {
         const heroHeadings = Array.from(document.querySelectorAll<HTMLElement>(".hero h1"));
         const heroTexts    = Array.from(document.querySelectorAll<HTMLElement>(".hero p:not(.skill-pill)"));
-        const heroImg      = document.querySelector<HTMLElement>(".hero img");
+        const heroImageReveal = document.querySelector<HTMLElement>('.hero-image-reveal');
+        const heroImage = heroImageReveal?.querySelector<HTMLElement>('img');
 
         const tl = gsap.timeline();
 
-        // h1s: reveal lines, then hand off to char hover
+        // h1s: stagger characters, then hand off to char hover
         heroHeadings.forEach((heading, i) => {
           gsap.set(heading, { autoAlpha: 1 });
-          const split = SplitText.create(heading, { type: "lines", mask: "lines" });
-          const lines = split.lines as HTMLElement[];
-          gsap.set(lines, { yPercent: 110 });
-          tl.to(lines, {
-            yPercent: 0,
+          const split = SplitText.create(heading, { type: "chars" });
+          const chars = split.chars as HTMLElement[];
+          gsap.set(chars, { y: 50, autoAlpha: 0 });
+          tl.to(chars, {
+            y: 0,
+            autoAlpha: 1,
             duration: 0.9,
-            ease: "power3.out",
-            stagger: 0.1,
+            ease: "back.out(1.7)",
+            stagger: 0.07,
             onComplete: () => { split.revert(); setupCharHover(heading); },
           }, i * 0.2);
-          shaderRippleCleanups.push(() => { gsap.killTweensOf(lines); split.revert(); });
+          shaderRippleCleanups.push(() => { gsap.killTweensOf(chars); split.revert(); });
         });
 
-        // paragraphs: reveal lines
-        heroTexts.forEach((el, i) => {
+        // Let both title staggers finish before introducing supporting copy,
+        // the portrait, or skill pills. Their simultaneous motion previously
+        // made the heading entrance feel rushed.
+        const heroSupportStart = tl.duration() + 0.15;
+
+        // Paragraphs: split into rendered lines and stagger each line.
+        const heroTextSplits = heroTexts.map((el) => {
           gsap.set(el, { autoAlpha: 1 });
-          const split = SplitText.create(el, { type: "lines", mask: "lines" });
+          const split = SplitText.create(el, { type: 'lines' });
           const lines = split.lines as HTMLElement[];
-          gsap.set(lines, { yPercent: 110 });
-          tl.to(lines, {
-            yPercent: 0,
-            duration: 0.7,
-            ease: "power3.out",
-            stagger: 0.06,
-          }, 0.3 + i * 0.1);
-          shaderRippleCleanups.push(() => { gsap.killTweensOf(lines); split.revert(); });
+          gsap.set(lines, { y: 30, autoAlpha: 0 });
+          return { split, lines };
+        });
+        const heroTextLines = heroTextSplits.flatMap(({ lines }) => lines);
+        tl.to(heroTextLines, {
+          y: 0,
+          autoAlpha: 1,
+          stagger: 0.2,
+          duration: 0.8,
+          ease: 'power2.out',
+          onComplete: () => {
+            heroTextSplits.forEach(({ split }) => split.revert());
+          },
+        }, heroSupportStart);
+        shaderRippleCleanups.push(() => {
+          gsap.killTweensOf(heroTextLines);
+          heroTextSplits.forEach(({ split }) => split.revert());
         });
 
-        // image: clip-path wipe-in
-        if (heroImg) {
-          tl.to(heroImg, { clipPath: "inset(0% 0% 0% 0%)", scale: 1, duration: 1.1, ease: "power3.out" }, 0.1);
-          shaderRippleCleanups.push(() => {
-            gsap.killTweensOf(heroImg);
-            gsap.set(heroImg, { clearProps: "clipPath,scale" });
-          });
+        if (heroImageReveal && heroImage) {
+          tl.to(heroImageReveal, {
+            clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
+            duration: 1,
+            ease: 'hop',
+          }, heroSupportStart);
+          tl.to(heroImage, {
+            scale: 1,
+            duration: 1.5,
+            ease: 'hop',
+          }, heroSupportStart);
         }
 
         // skill pills: clip-path inset reveal from bottom (bottom edge
@@ -883,7 +1056,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             duration: 0.7,
             ease: "power3.out",
             stagger: 0.1,
-          }, 0.45);
+          }, heroSupportStart + 0.25);
         }
       };
 
@@ -899,7 +1072,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         // Pre-hide hero content so it's invisible until the preloader exits
         gsap.set([".hero h1", ".hero p:not(.skill-pill)"], { autoAlpha: 0 });
-        gsap.set(".hero img", { clipPath: "inset(0% 0% 100% 0%)", scale: 1.1 });
+        gsap.set('.hero-image-reveal', {
+          clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)',
+        });
+        gsap.set('.hero-image-reveal img', { scale: 1.2 });
         // Skill pill lines were already pre-hidden (yPercent 110) above, right
         // after the SplitText split.
 
@@ -1004,23 +1180,26 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // ── Entrance + hover animations ──────────────────────────────────────────
 
-      // Non-hero headings: line-mask slide-up reveal, then char hover once done
+      // Non-hero headings: staggered character reveal, then char hover once done
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
       ));
       entranceHeadings.forEach((heading) => {
-        const split = SplitText.create(heading, { type: "lines", mask: "lines" });
-        const lines = split.lines as HTMLElement[];
-        gsap.set(lines, { yPercent: 110 });
+        gsap.set(heading, { autoAlpha: 0 });
+        const split = SplitText.create(heading, { type: "chars" });
+        const chars = split.chars as HTMLElement[];
+        gsap.set(chars, { y: 50, autoAlpha: 0 });
 
         const obs = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
           obs.disconnect();
-          gsap.to(lines, {
-            yPercent: 0,
+          gsap.set(heading, { autoAlpha: 1 });
+          gsap.to(chars, {
+            y: 0,
+            autoAlpha: 1,
             duration: 0.9,
-            ease: "power3.out",
-            stagger: 0.12,
+            ease: "back.out(1.7)",
+            stagger: 0.07,
             onComplete: () => {
               split.revert();
               setupCharHover(heading);
@@ -1031,80 +1210,120 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         shaderRippleCleanups.push(() => {
           obs.disconnect();
-          gsap.killTweensOf(lines);
+          gsap.killTweensOf(chars);
           split.revert();
         });
       });
 
-      // Paragraphs and list items: line-mask slide-up reveal
+      // Paragraphs and list items: stagger their rendered lines per section.
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) p, main > section:not(.hero) li"
-      ));
-      entranceTexts.forEach((el) => {
-        const split = SplitText.create(el, { type: "lines", mask: "lines" });
+      )).filter(
+        (el) => !el.closest('.projects') && !el.matches('#about p.font-mono')
+      );
+      const entranceTextSplits = entranceTexts.map((el) => {
+        gsap.set(el, { autoAlpha: 0 });
+        const split = SplitText.create(el, { type: 'lines' });
         const lines = split.lines as HTMLElement[];
-        gsap.set(lines, { yPercent: 110 });
-
+        gsap.set(lines, { y: 30, autoAlpha: 0 });
+        return { el, split, lines };
+      });
+      const textSections = Array.from(
+        new Set(entranceTexts.map((el) => el.closest('section')).filter(Boolean))
+      ) as HTMLElement[];
+      textSections.forEach((section) => {
+        const sectionEntries = entranceTextSplits.filter(
+          ({ el }) => el.closest('section') === section
+        );
+        const sectionLines = sectionEntries.flatMap(({ lines }) => lines);
         const obs = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
           obs.disconnect();
-          gsap.to(lines, {
-            yPercent: 0,
-            duration: 0.7,
-            ease: "power3.out",
-            stagger: 0.06,
-            onComplete: () => split.revert(),
+          gsap.set(sectionEntries.map(({ el }) => el), { autoAlpha: 1 });
+          gsap.to(sectionLines, {
+            y: 0,
+            autoAlpha: 1,
+            stagger: 0.2,
+            duration: 0.8,
+            ease: 'power2.out',
+            onComplete: () => {
+              sectionEntries.forEach(({ split }) => split.revert());
+            },
           });
         }, { threshold: 0.15 });
-        obs.observe(el);
+        obs.observe(section);
 
         shaderRippleCleanups.push(() => {
           obs.disconnect();
-          gsap.killTweensOf(lines);
-          split.revert();
+          gsap.killTweensOf(sectionLines);
+          sectionEntries.forEach(({ split }) => split.revert());
         });
       });
 
-      // Images: clip-path wipe-in from bottom + descale; about portrait keeps
-      // extra scale (1.12) as headroom for the parallax yPercent shift below.
-      // A timeout safety net guarantees the image is never left permanently
-      // hidden if the observer never fires for any reason.
-      const entranceImages = Array.from(document.querySelectorAll<HTMLElement>(
-        "main > section:not(.hero) img"
-      ));
-      entranceImages.forEach((el) => {
-        const isAboutPortrait = !!el.closest("#about");
-        const endScale = isAboutPortrait ? 1.12 : 1;
-        gsap.set(el, { clipPath: "inset(0% 0% 100% 0%)", scale: 1.15 });
-
-        let revealed = false;
-        const reveal = () => {
-          if (revealed) return;
-          revealed = true;
-          gsap.to(el, {
-            clipPath: "inset(0% 0% 0% 0%)",
-            scale: endScale,
-            duration: 1.1,
-            ease: "power3.out",
-          });
-        };
+      // About section numbers use a compact horizontal entrance so labels,
+      // body copy, and headings do not all share the same motion.
+      const aboutLabels = Array.from(
+        document.querySelectorAll<HTMLElement>('#about p.font-mono')
+      );
+      aboutLabels.forEach((label) => {
+        gsap.set(label, { x: -12, autoAlpha: 0 });
 
         const obs = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
           obs.disconnect();
-          reveal();
-        }, { threshold: 0.1 });
-        obs.observe(el);
-
-        const safetyTimer = window.setTimeout(reveal, 3000);
+          gsap.to(label, {
+            x: 0,
+            autoAlpha: 1,
+            duration: 0.5,
+            ease: 'power2.out',
+          });
+        }, { threshold: 0.25 });
+        obs.observe(label);
 
         shaderRippleCleanups.push(() => {
           obs.disconnect();
-          window.clearTimeout(safetyTimer);
-          gsap.killTweensOf(el);
-          gsap.set(el, { clearProps: "clipPath,scale" });
+          gsap.killTweensOf(label);
+          gsap.set(label, { clearProps: 'transform,opacity,visibility' });
         });
       });
+
+      // About portrait: match the preloader's upward polygon wipe and inner
+      // image descale, triggered when the portrait enters the viewport.
+      const aboutImageReveal = document.querySelector<HTMLElement>(
+        '.about-image-reveal'
+      );
+      const aboutImage = aboutImageReveal?.querySelector<HTMLElement>('img');
+      if (aboutImageReveal && aboutImage) {
+        gsap.set(aboutImageReveal, {
+          clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)',
+        });
+        gsap.set(aboutImage, { scale: 1.2 });
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          const tl = gsap.timeline();
+          tl.to(aboutImageReveal, {
+            clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
+            duration: 1,
+            ease: 'hop',
+          });
+          tl.to(aboutImage, {
+            scale: 1,
+            duration: 1.5,
+            ease: 'hop',
+          }, 0);
+        }, { threshold: 0.15 });
+        obs.observe(aboutImageReveal);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf([aboutImageReveal, aboutImage]);
+          gsap.set([aboutImageReveal, aboutImage], {
+            clearProps: 'clipPath,scale',
+          });
+        });
+      }
 
     }, root);
 
@@ -1194,11 +1413,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
               <div className="w-[60vw] relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-lg py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
@@ -1207,7 +1426,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
               <div className="relative w-full h-[40vh]">
-                <div className="absolute inset-0 overflow-hidden">
+                <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
                     src="/images/contact.jpg"
@@ -1270,7 +1489,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* Centered portrait — spans the middle column; taller than its
                 cell, anchored to the top so it grows downward (the side
                 columns hold 04/05, so the extra height never overlaps text). */}
-            <div className="col-start-2 row-start-3 row-span-2 self-start relative min-h-175 overflow-hidden">
+            <div className="about-image-reveal col-start-2 row-start-3 row-span-2 self-start relative min-h-175 overflow-hidden will-change-[clip-path]">
               <Image
                 className="object-cover grayscale will-change-transform"
                 src="/images/brandon4.jpg"
@@ -1302,21 +1521,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section id="work" className="w-auto h-screen -mr-[20vw] shrink-0  flex flex-col justify-end items-end pl-25  p-20 gap-0 z-1">
-          <div className = "flex flex-col gap-5 h-full ">
+        <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
+          <div className="absolute left-20 top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="font-bold uppercase ">Selected</h2>
               <h2 className="font-bold uppercase ">Work</h2>
             </div>
+            {/** 
             <p className="uppercase leading-relaxed text-foreground/70">
                 Selected projects across UI/UX, web design and creative development.
             </p>
+            */}
           </div>
-        </section>
-        <section ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
-            {projects.map((project) => (
-              <li key={project.name} data-img={project.cover_image} data-description={project.description}>
+            {projects.map((project, index) => (
+              <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/projects/${project.slug}`}>
                   {project.name}
                 </Link>
@@ -1324,59 +1543,67 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             ))}
           </ul>
           <div className="project-description absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+            <p data-project-position></p>
             <h3></h3>
-            <p></p>
+            <p data-project-detail></p>
+            <p data-project-detail></p>
+            <p data-project-detail></p>
           </div>
         </section>
         
         <section id="say-hello" className="w-screen h-screen shrink-0 flex flex-col gap-30 justify-center items-center">
-          <div className="w-full flex items-center justify-center gap-0">
-            <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Say</h2>
-            <div className="w-[20vw] h-40 rounded-full relative overflow-hidden ring-5 rotate-10 ring-secondary-color">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/contact.jpg"
-                  alt="Placeholder"
-                  priority
-                  fill
-                  sizes="20vw"
-                />
+          <div className="flex flex-col gap-8 items-center">
+            <div className="w-full flex items-center justify-center gap-2">
+              <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Say</h2>
+              <div className="w-[20vw] h-35 rounded-full relative overflow-hidden ring-5 rotate-10 ring-secondary-color">
+                  <Image
+                    className="img object-cover will-change-transform"
+                    src="/images/contact.jpg"
+                    alt="Placeholder"
+                    priority
+                    fill
+                    sizes="20vw"
+                  />
+              </div>
+              <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Hello</h2>
             </div>
-            <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Hello</h2>
+            <p className="max-w-2xl text-center uppercase leading-relaxed text-foreground/70">
+              Have a project, opportunity, or idea in mind? I&apos;m always open to a good conversation — let&apos;s talk.
+            </p>
           </div>
           <div className="w-full flex flex-wrap xl:flex-row  justify-center  items-center gap-5 xl:gap-1.25">
 
             {/*Email */}
             <div className="w-full md:w-auto border-2 border-foreground rounded-full hover:bg-accent">
               <div className="w-full md:w-auto p-1 animate-rotate-border rounded-full bg-conic/[from_var(--border-angle)] from-transparent via-primary-color to-transparent from-80% via-90% to-100%">
-                  <a 
+                  <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-3 bg-background uppercase items-center text-lg md:text-2xl  flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl  flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white">
                   Drop me a line
-                  <IoIosMail className="text-[30px] md:text-[40px]" />
+                  <IoIosMail className="text-[28px] xl:text-[40px]" />
                   </a>
               </div>
             </div>
 
-            {/*Phone */}
+            {/*Github */}
             <div className="w-full md:w-auto xl:rotate-[-14deg] origin-left border-2 border-foreground rounded-full hover:bg-accent">
               <div className="p-1.25 w-full md:w-auto ">
-                  <a href="tel:+263776382111" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
-                  Ring me up
-                  <MdPhoneEnabled className="text-[30px] md:text-[40px]" />
+                  <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white">
+                  Github
+                  <FaGithub className="text-[24px] xl:text-[40px]" />
                   </a>
               </div>
             </div>
                     
             {/*Linkedin */}
-            <div className="w-full md:w-auto border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-7.5 ">
+            <div className="w-full md:w-auto border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-2.5 ">
               <div className="p-1.25 w-full md:w-auto ">
                   <a 
                   href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Linkedin
-                  <IoLogoLinkedin  className="text-[30px] md:text-[40px]" />
+                  <IoLogoLinkedin  className="text-[28px] xl:text-[40px]" />
                   </a>
               </div>
             </div>
@@ -1386,9 +1613,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               <div className="p-1.25 w-full md:w-auto">
                 <a 
                   href="https://dribbble.com/OGA_01" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Dribbble
-                  <PiDribbbleLogoFill className="text-[30px] md:text-[40px]" />
+                  <PiDribbbleLogoFill className="text-[28px] xl:text-[40px]" />
                 </a>
               </div>
             </div>

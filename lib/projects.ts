@@ -10,6 +10,7 @@ export type Project = {
   name: string;
   description: string;
   body: string;
+  case_study: CaseStudy;
   cover_image: string;
   gallery: string[];
   year: string;
@@ -22,10 +23,65 @@ export type Project = {
   updated_at: string;
 };
 
+export type CaseStudyFeature = { title: string; description: string };
+
+export type CaseStudy = {
+  industry: string;
+  timeline: string;
+  responsibilities: string[];
+  tools: string[];
+  overview: string;
+  challenge_question: string;
+  challenge: string;
+  understanding: string;
+  insights: string[];
+  process_steps: string[];
+  exploration: string;
+  solution: string;
+  features: CaseStudyFeature[];
+  design_system: string;
+  development: string;
+  responsive: string;
+  outcome: string;
+  what_worked: string[];
+  improvements: string[];
+};
+
+const emptyCaseStudy: CaseStudy = {
+  industry: '', timeline: '', responsibilities: [], tools: [], overview: '',
+  challenge_question: '', challenge: '', understanding: '', insights: [],
+  process_steps: [], exploration: '', solution: '', features: [],
+  design_system: '', development: '', responsive: '', outcome: '',
+  what_worked: [], improvements: [],
+};
+
+function normalizeCaseStudy(value: unknown): CaseStudy {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { ...emptyCaseStudy };
+  const source = value as Record<string, unknown>;
+  const text = (key: keyof CaseStudy) => String(source[key] ?? '');
+  const list = (key: keyof CaseStudy) => Array.isArray(source[key]) ? (source[key] as unknown[]).map(String).filter(Boolean) : [];
+  const features = Array.isArray(source.features) ? source.features.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const feature = item as Record<string, unknown>;
+    return [{ title: String(feature.title ?? ''), description: String(feature.description ?? '') }];
+  }).filter((item) => item.title || item.description) : [];
+  return {
+    industry: text('industry'), timeline: text('timeline'),
+    responsibilities: list('responsibilities'), tools: list('tools'),
+    overview: text('overview'), challenge_question: text('challenge_question'),
+    challenge: text('challenge'), understanding: text('understanding'),
+    insights: list('insights'), process_steps: list('process_steps'),
+    exploration: text('exploration'), solution: text('solution'), features,
+    design_system: text('design_system'), development: text('development'),
+    responsive: text('responsive'), outcome: text('outcome'),
+    what_worked: list('what_worked'), improvements: list('improvements'),
+  };
+}
+
 // Shape used by the homepage's 3D monitor list — kept minimal on purpose.
 export type ProjectCard = Pick<
   Project,
-  'slug' | 'name' | 'description' | 'cover_image'
+  'slug' | 'name' | 'description' | 'cover_image' | 'role' | 'tags' | 'year'
 >;
 
 function normalize(row: Record<string, unknown>): Project {
@@ -35,6 +91,7 @@ function normalize(row: Record<string, unknown>): Project {
     name: String(row.name ?? ''),
     description: String(row.description ?? ''),
     body: String(row.body ?? ''),
+    case_study: normalizeCaseStudy(row.case_study),
     cover_image: String(row.cover_image ?? ''),
     gallery: Array.isArray(row.gallery) ? (row.gallery as string[]) : [],
     year: String(row.year ?? ''),
@@ -56,7 +113,7 @@ export async function getPublishedProjects(): Promise<ProjectCard[]> {
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from('projects')
-    .select('slug, name, description, cover_image')
+    .select('slug, name, description, cover_image, role, tags, year')
     .eq('published', true)
     .order('display_order', { ascending: true });
 
@@ -66,6 +123,9 @@ export async function getPublishedProjects(): Promise<ProjectCard[]> {
     name: row.name,
     description: row.description,
     cover_image: row.cover_image,
+    role: row.role,
+    tags: row.tags ?? [],
+    year: row.year,
   }));
 }
 

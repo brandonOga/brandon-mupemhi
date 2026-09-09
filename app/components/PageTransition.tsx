@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { TransitionRouter } from 'next-transition-router';
 import gsap from 'gsap';
 import { DrawSVGPlugin } from 'gsap/DrawSVGPlugin';
@@ -13,6 +14,8 @@ function prefersReducedMotion() {
 }
 
 export function TransitionProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith('/admin');
   const overlayRef = useRef<HTMLDivElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
 
@@ -25,7 +28,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
   // Leave: the squiggle draws itself in while thickening into a blob that
   // swallows the outgoing page.
   const handleLeave = useCallback((next: () => void) => {
-    if (prefersReducedMotion()) {
+    if (isAdmin || prefersReducedMotion()) {
       next();
       return;
     }
@@ -48,12 +51,12 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
     );
 
     return () => tl.kill();
-  }, []);
+  }, [isAdmin]);
 
   // Enter: the blob thins back into a line and erases from its start,
   // uncovering the new page as it goes.
   const handleEnter = useCallback((next: () => void) => {
-    if (prefersReducedMotion()) {
+    if (isAdmin || prefersReducedMotion()) {
       if (pathRef.current) gsap.set(pathRef.current, { drawSVG: '0%', strokeWidth: SQUIGGLE_STROKE_THIN });
       if (overlayRef.current) gsap.set(overlayRef.current, { opacity: 0 });
       next();
@@ -83,7 +86,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
       });
 
     return () => tl.kill();
-  }, []);
+  }, [isAdmin]);
 
   return (
     <TransitionRouter auto leave={handleLeave} enter={handleEnter}>

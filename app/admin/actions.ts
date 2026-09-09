@@ -45,11 +45,30 @@ export async function saveProject(
       .map((t) => t.trim())
       .filter(Boolean);
 
+    const text = (name: string) => (formData.get(name) as string)?.trim() ?? '';
+    const lines = (name: string) => text(name).split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+    const case_study = {
+      industry: text('case_industry'), timeline: text('case_timeline'),
+      responsibilities: lines('case_responsibilities'), tools: lines('case_tools'),
+      overview: text('case_overview'), challenge_question: text('case_challenge_question'),
+      challenge: text('case_challenge'), understanding: text('case_understanding'),
+      insights: lines('case_insights'), process_steps: lines('case_process_steps'),
+      exploration: text('case_exploration'), solution: text('case_solution'),
+      features: [1, 2, 3].map((index) => ({
+        title: text(`case_feature_${index}_title`),
+        description: text(`case_feature_${index}_description`),
+      })).filter((feature) => feature.title || feature.description),
+      design_system: text('case_design_system'), development: text('case_development'),
+      responsive: text('case_responsive'), outcome: text('case_outcome'),
+      what_worked: lines('case_what_worked'), improvements: lines('case_improvements'),
+    };
+
     const row = {
       slug,
       name,
       description: (formData.get('description') as string)?.trim() ?? '',
       body: (formData.get('body') as string) ?? '',
+      case_study,
       year: (formData.get('year') as string)?.trim() ?? '',
       role: (formData.get('role') as string)?.trim() ?? '',
       url: ((formData.get('url') as string)?.trim() || null) as string | null,
