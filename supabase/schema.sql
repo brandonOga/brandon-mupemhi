@@ -11,6 +11,7 @@ create table if not exists public.projects (
   name          text not null,
   description   text not null default '',      -- short blurb (monitor hover + card)
   body          text not null default '',      -- long-form case study (markdown)
+  case_study    jsonb not null default '{}'::jsonb, -- structured editorial modules
   cover_image   text not null default '',      -- public URL of the cover image
   gallery       jsonb not null default '[]',   -- array of image URL strings
   year          text not null default '',
@@ -22,6 +23,10 @@ create table if not exists public.projects (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+-- Adds the structured fields safely when upgrading an existing installation.
+alter table public.projects
+  add column if not exists case_study jsonb not null default '{}'::jsonb;
 
 create index if not exists projects_published_order_idx
   on public.projects (published, display_order);

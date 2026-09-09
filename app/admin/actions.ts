@@ -2,10 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-
-const BUCKET = 'project-images';
 
 function slugify(input: string): string {
   return input
@@ -13,20 +10,6 @@ function slugify(input: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-}
-
-async function uploadImage(
-  supabase: SupabaseClient,
-  file: File
-): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type || 'image/jpeg',
-    upsert: false,
-  });
-  if (error) throw new Error(`Image upload failed: ${error.message}`);
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 export type SaveState = { error?: string };
@@ -51,32 +34,41 @@ export async function saveProject(
   if (!slug) return { error: 'Could not derive a slug — add one manually.' };
 
   try {
-    // Cover image: new upload wins, otherwise keep the current URL.
-    let cover_image = (formData.get('cover_image_current') as string) || '';
-    const coverFile = formData.get('cover_file') as File | null;
-    if (coverFile && coverFile.size > 0) {
-      cover_image = await uploadImage(supabase, coverFile);
-    }
-
-    // Gallery: kept existing URLs + any newly uploaded files.
-    const kept = (formData.getAll('gallery_keep') as string[]).filter(Boolean);
-    const galleryFiles = (formData.getAll('gallery_files') as File[]).filter(
-      (f) => f && f.size > 0
-    );
-    const uploaded: string[] = [];
-    for (const f of galleryFiles) uploaded.push(await uploadImage(supabase, f));
-    const gallery = [...kept, ...uploaded];
+    // Images are uploaded client-side directly to Supabase Storage (so large
+    // files never pass through the server action / Vercel's 4.5MB function
+    // body limit); the form only sends the resulting public URLs here.
+    const cover_image = (formData.get('cover_image_current') as string) || '';
+    const gallery = (formData.getAll('gallery_keep') as string[]).filter(Boolean);
 
     const tags = ((formData.get('tags') as string) || '')
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
 
+    const text = (name: string) => (formData.get(name) as string)?.trim() ?? '';
+    const lines = (name: string) => text(name).split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+    const case_study = {
+      industry: text('case_industry'), timeline: text('case_timeline'),
+      responsibilities: lines('case_responsibilities'), tools: lines('case_tools'),
+      overview: text('case_overview'), challenge_question: text('case_challenge_question'),
+      challenge: text('case_challenge'), understanding: text('case_understanding'),
+      insights: lines('case_insights'), process_steps: lines('case_process_steps'),
+      exploration: text('case_exploration'), solution: text('case_solution'),
+      features: [1, 2, 3].map((index) => ({
+        title: text(`case_feature_${index}_title`),
+        description: text(`case_feature_${index}_description`),
+      })).filter((feature) => feature.title || feature.description),
+      design_system: text('case_design_system'), development: text('case_development'),
+      responsive: text('case_responsive'), outcome: text('case_outcome'),
+      what_worked: lines('case_what_worked'), improvements: lines('case_improvements'),
+    };
+
     const row = {
       slug,
       name,
       description: (formData.get('description') as string)?.trim() ?? '',
       body: (formData.get('body') as string) ?? '',
+      case_study,
       year: (formData.get('year') as string)?.trim() ?? '',
       role: (formData.get('role') as string)?.trim() ?? '',
       url: ((formData.get('url') as string)?.trim() || null) as string | null,
@@ -84,6 +76,7 @@ export async function saveProject(
       published: formData.get('published') === 'on',
       cover_image,
       gallery,
+      tags,
     };
 
     const result = id

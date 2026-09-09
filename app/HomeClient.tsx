@@ -1,112 +1,222 @@
 'use client';
 import Image from "next/image";
 import Link from "next/link";
-import { usePageTransition } from "./components/TransitionOverlay";
 import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
-import {ScrollTrigger} from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
+import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
+import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from "./components/squiggle";
 import { IoIosMail } from "react-icons/io";
-import { MdPhoneEnabled } from "react-icons/md";
 import { IoLogoLinkedin } from "react-icons/io";
 import { PiDribbbleLogoFill } from "react-icons/pi";
 import { LiaAsteriskSolid } from "react-icons/lia";
-import { FaArrowRight } from "react-icons/fa";
+import { FaArrowRight, FaGithub } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
-gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
+gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin);
+
+let preloaderHasPlayed = false;
 
 export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
-  const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const heroRingRef = useRef<HTMLDivElement>(null);
   const projectsRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
+  const preloaderSquiggleRef = useRef<HTMLDivElement>(null);
+  const preloaderSquigglePathRef = useRef<SVGPathElement>(null);
 
   const threeCamera      = useRef<THREE.PerspectiveCamera | null>(null);
   const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
   const monitorScreen    = useRef<THREE.Mesh | null>(null);
   const monitorGroupRef  = useRef<THREE.Group | null>(null);
-  const isZoomingRef     = useRef(false);
-  const scrollPosRef     = useRef(0);
 
-  const firstText = useRef(null);
-  const secondText = useRef(null);
-  const slider = useRef(null);
-  const xPercent = useRef(0);
-  const direction = useRef(-1);
 
-  
-
-  function normalizeModel(model: THREE.Object3D, targetSize: number = 2) {
-    const box = new THREE.Box3().setFromObject(model);
+  function normalizeModel(
+    model: THREE.Object3D,
+    targetSize: number = 2,
+    focus: THREE.Object3D = model
+  ) {
+    const box = new THREE.Box3().setFromObject(focus);
     const size = box.getSize(new THREE.Vector3());
     
     const maxDim = Math.max(size.x, size.y, size.z);
     const scale = targetSize / maxDim;
     
     model.scale.multiplyScalar(scale);
+    model.updateMatrixWorld(true);
     
     const center = new THREE.Vector3();
-    new THREE.Box3().setFromObject(model).getCenter(center);
+    new THREE.Box3().setFromObject(focus).getCenter(center);
     model.position.sub(center);
     
-    console.log(`Model normalized: Scale factor=${scale.toFixed(3)}, Size=[${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}]`);
   }
   
   useLayoutEffect(() => {
     if (!projectsRef.current || !scrollRef.current) return;
 
-    const animate = () => {
-      if (xPercent.current < -100) {
-        xPercent.current = 0;
-      } else if (xPercent.current > 0) {
-        xPercent.current = -100;
+    const createCounterDigits = () => {
+      const counter1 = document.querySelector(".counter-1") as Element;
+      const num0 = document.createElement("div");
+      num0.className = "num";
+      num0.textContent = "0";
+      counter1.appendChild(num0);
+
+      const num1 = document.createElement("div");
+      num1.className = "num num1offset1";
+      num1.textContent = "1";
+      counter1.appendChild(num1);
+
+      const counter2 = document.querySelector(".counter-2") as Element;
+      for (let i = 0; i <= 10; i++) {
+        const numDiv = document.createElement("div");
+        numDiv.className = i === 10 ? "num num1offset2" : "num";
+        numDiv.textContent = i === 10 ? "0" : String(i);
+        counter2.appendChild(numDiv)
       }
 
-      gsap.set(firstText.current, { xPercent: xPercent.current });
-      gsap.set(secondText.current, { xPercent: xPercent.current });
-      requestAnimationFrame(animate);
-      xPercent.current += 0.1 * direction.current;
+      const counter3 = document.querySelector(".counter-3") as Element;
+      for (let i = 0; i < 30; i++) {
+        const numDiv = document.createElement("div");
+        numDiv.className = "num";
+        numDiv.textContent = String(i % 10);
+        counter3.appendChild(numDiv)
+      }
+
+      const finalNum = document.createElement("div");
+      finalNum.className = "num";
+      finalNum.textContent = "0";
+      counter3.appendChild(finalNum);
     };
 
     const scrollContainer = scrollRef.current;
     const projectsContainer = projectsRef.current;
-    let cleanupOrbitLabels: (() => void) | null = null;
     const shaderRippleCleanups: Array<() => void> = [];
 
-    const cameFromProject = sessionStorage.getItem('return-from-project') === 'true';
-    const savedScroll     = cameFromProject ? parseFloat(sessionStorage.getItem('return-scroll-pos') || '0') : 0;
-    if (cameFromProject) {
-      sessionStorage.removeItem('return-from-project');
-      sessionStorage.removeItem('return-scroll-pos');
-    }
-
-    const xPos = { target: savedScroll, current: savedScroll };
+    const xPos = { target: 0, current: 0 };
+    const scrollMultiplier = 1.5;
+    const scrollEase = 0.08;
     const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
 
+    // Header nav: scroll to a section by id. Dispatched from the Header when
+    // already on the homepage, or stashed in sessionStorage when navigating
+    // home from another page.
+    const scrollToSection = (id: string) => {
+      const target = sections.find((s) => s.id === id) as HTMLElement | undefined;
+      if (target) {
+        xPos.target = Math.max(0, Math.min(getMaxScroll(), target.offsetLeft));
+      }
+    };
+
+    const handleSectionNav = (event: Event) => {
+      scrollToSection((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener('navigate-section', handleSectionNav);
+
+    const pendingSection = sessionStorage.getItem('scroll-to-section');
+    if (pendingSection) {
+      sessionStorage.removeItem('scroll-to-section');
+      scrollToSection(pendingSection);
+    }
+
+    const aboutSection = sections.find((s) => s.id === 'about') as HTMLElement | undefined;
+    const workSection = sections.find((s) => s.id === 'work') as HTMLElement | undefined;
+    let workEntryState: 'idle' | 'settling' | 'released' = 'idle';
+
     const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
+      // Hand the wheel to the About panel's vertical scroll only once the panel
+      // has actually settled into full view. Detected as a *crossing* of the
+      // panel's boundary (this event's delta would carry the target from one
+      // side of it to the other) rather than a proximity check on the eased
+      // xPos.current — a proximity check can be blown past entirely by one
+      // large/fast wheel event before easing ever catches up, skipping the
+      // panel without its vertical scroll ever engaging.
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-      xPos.target = Math.max(0, Math.min(getMaxScroll(), xPos.target + delta * 1.5));
+
+      // On every entry, stop exactly at Work's leading edge so its full
+      // 100vw is presented before later wheel input moves onward.
+      if (workSection) {
+        const workStart = workSection.offsetLeft;
+
+        if (
+          workEntryState === 'released' &&
+          Math.abs(xPos.target - workStart) > 1
+        ) {
+          workEntryState = 'idle';
+        }
+
+        if (workEntryState === 'settling') {
+          if (Math.abs(xPos.current - workStart) > 1) {
+            xPos.target = workStart;
+            event.preventDefault();
+            return;
+          }
+          workEntryState = 'released';
+        } else if (workEntryState === 'idle') {
+          const prospective = xPos.target + delta * scrollMultiplier;
+          const enteringForward =
+            delta > 0 && xPos.target < workStart && prospective >= workStart;
+          const enteringBackward =
+            delta < 0 && xPos.target > workStart && prospective <= workStart;
+
+          if (enteringForward || enteringBackward) {
+            workEntryState = 'settling';
+            xPos.target = workStart;
+            event.preventDefault();
+            return;
+          }
+        }
+      }
+
+      if (aboutSection) {
+        const aboutStart = aboutSection.offsetLeft;
+        const atTop = aboutSection.scrollTop <= 0;
+        const atBottom =
+          aboutSection.scrollTop + aboutSection.clientHeight >= aboutSection.scrollHeight - 1;
+        const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
+
+        if (canScrollY) {
+          const prospective = xPos.target + delta * scrollMultiplier;
+          const enteringForward =
+            delta > 0 && xPos.target <= aboutStart && prospective > aboutStart && !atBottom;
+          const enteringBackward =
+            delta < 0 && xPos.target >= aboutStart && prospective < aboutStart && !atTop;
+
+          if (enteringForward || enteringBackward) {
+            xPos.target = aboutStart; // clamp — never let one event skip past the panel
+            if (Math.abs(xPos.current - aboutStart) > 1) {
+              event.preventDefault(); // still easing in; hold off native scroll until settled
+              return;
+            }
+            // Drive the panel explicitly once settled. This is reliable even
+            // for diagonal trackpad gestures or when the wheel event target
+            // is a fixed navigation element rather than the About panel.
+            event.preventDefault();
+            aboutSection.scrollTop += delta;
+            return;
+          }
+        }
+      }
+
+      event.preventDefault();
+      xPos.target = Math.max(
+        0,
+        Math.min(getMaxScroll(), xPos.target + delta * scrollMultiplier)
+      );
     };
 
     const totalSections = sections.length;
 
     let lerpRafId: number;
     const lerpScroll = () => {
-      xPos.current += (xPos.target - xPos.current) * 0.08;
+      xPos.current += (xPos.target - xPos.current) * scrollEase;
       if (Math.abs(xPos.target - xPos.current) < 0.05) {
         xPos.current = xPos.target;
       }
-      scrollPosRef.current = xPos.target;
       scrollContainer.style.transform = `translateX(-${xPos.current}px)`;
 
       const maxScroll = getMaxScroll();
@@ -342,44 +452,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     window.addEventListener('pointercancel', handleSkillPointerUp);
 
     let threeRafId = 0;
-    let marqueeRafId = 0;
 
     const ctx = gsap.context(() => {
-      const heroRing = heroRingRef.current;
-      const orbitLabels = heroRing
-        ? Array.from(heroRing.querySelectorAll<HTMLElement>('.orbit-label'))
-        : [];
-
-      if (heroRing && orbitLabels.length > 0) {
-        const orbitState = { angle: 180 };
-        const angleStep = 360 / orbitLabels.length;
-        const ringStroke = 5;
-
-        const updateOrbit = () => {
-          const radiusX = heroRing.clientWidth * 0.5 - ringStroke * 0.5;
-          const radiusY = heroRing.clientHeight * 0.5 - ringStroke * 0.5;
-          orbitState.angle = (orbitState.angle + 0.12 * gsap.ticker.deltaRatio()) % 360;
-
-          orbitLabels.forEach((label, index) => {
-            const angle = orbitState.angle + index * angleStep;
-            const radians = (angle * Math.PI) / 180;
-
-            gsap.set(label, {
-              x: Math.cos(radians) * radiusX,
-              y: Math.sin(radians) * radiusY,
-              rotation: 0,
-            });
-          });
-        };
-
-        gsap.ticker.add(updateOrbit);
-        updateOrbit();
-
-        cleanupOrbitLabels = () => {
-          gsap.ticker.remove(updateOrbit);
-        };
-      }
-
       const container = projectsRef.current!;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
@@ -389,9 +463,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         1000
       );
       camera.position.set(0, 0, 3);
-      camera.lookAt(0, -0.25, 0);
-      
-      camera.position.set(0, 0, cameFromProject ? 0.8 : 3);
+      camera.lookAt(0, 0, 0);
 
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
       threeCamera.current   = camera;
@@ -400,7 +472,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.25;
-      
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.VSMShadowMap;
+
       renderer.domElement.style.position = 'absolute';
       renderer.domElement.style.top = '0';
       renderer.domElement.style.left = '0';
@@ -414,8 +488,27 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
       directionalLight.position.set(15, 10, -5);
-
       scene.add(directionalLight);
+
+      // Dedicated light purely for the cast shadow — kept
+      // separate from directionalLight (which comes in from a steep side
+      // angle for its rim-light look). This light sits to camera-right, so
+      // the model's projected shadow falls naturally toward the left.
+      const shadowLight = new THREE.DirectionalLight(0xffffff, 1.4);
+      shadowLight.position.set(5, 10, 2);
+      shadowLight.castShadow = true;
+      shadowLight.shadow.mapSize.set(2048, 2048);
+      shadowLight.shadow.radius = 18;
+      shadowLight.shadow.bias = -1e-4;
+      shadowLight.shadow.normalBias = 0.02;
+      shadowLight.shadow.camera.near = 0.1;
+      shadowLight.shadow.camera.far = 30;
+      shadowLight.shadow.camera.left = -4;
+      shadowLight.shadow.camera.right = 4;
+      shadowLight.shadow.camera.top = 4;
+      shadowLight.shadow.camera.bottom = -4;
+
+      scene.add(shadowLight);
 
       const topLight = new THREE.DirectionalLight(0xffffff, 1);
       topLight.position.set(-5, -2.5, 0);
@@ -424,6 +517,86 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const monitorGroup = new THREE.Group();
       monitorGroupRef.current = monitorGroup;
       scene.add(monitorGroup);
+
+      // Radial alpha map gives the circular tabletop a soft edge so it fades
+      // away before the horizontal scroll reaches the next section.
+      const floorAlphaCanvas = document.createElement('canvas');
+      floorAlphaCanvas.width = 256;
+      floorAlphaCanvas.height = 256;
+      const floorAlphaContext = floorAlphaCanvas.getContext('2d');
+      if (floorAlphaContext) {
+        const floorFade = floorAlphaContext.createRadialGradient(
+          128, 128, 128 * 0.62,
+          128, 128, 128
+        );
+        floorFade.addColorStop(0, '#ffffff');
+        floorFade.addColorStop(1, '#000000');
+        floorAlphaContext.fillStyle = floorFade;
+        floorAlphaContext.fillRect(0, 0, 256, 256);
+      }
+      const floorAlphaMap = new THREE.CanvasTexture(floorAlphaCanvas);
+
+      // Visible circular tabletop surface and shadow receiver. It stays in
+      // the scene root so it remains level while the monitor tilts on hover.
+      const shadowFloor = new THREE.Mesh(
+        new THREE.CircleGeometry(1.9, 128),
+        new THREE.MeshStandardMaterial({
+          color: 0xd9dcde,
+          roughness: 1,
+          metalness: 0,
+          alphaMap: floorAlphaMap,
+          opacity: 0.85,
+          transparent: true,
+          depthWrite: false,
+        })
+      );
+      // Fill the viewport horizontally and extend toward the camera. The
+      // radial alpha map is transparent where the surface meets the section
+      // edges, avoiding a hard cutoff during horizontal scrolling.
+      const floorRadius = 1.9;
+      const updateFloorSize = () => {
+        const cameraDistance = Math.abs(
+          camera.position.z - shadowFloor.position.z
+        );
+        const visibleHeight =
+          2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * cameraDistance;
+        const visibleWidth = visibleHeight * camera.aspect;
+
+        shadowFloor.scale.set(visibleWidth / (floorRadius * 2), 1.15, 1);
+      };
+      updateFloorSize();
+      shadowFloor.rotation.x = -Math.PI / 2;
+      shadowFloor.position.y = -0.9;
+      shadowFloor.receiveShadow = true;
+      scene.add(shadowFloor);
+
+      let modelIsLoaded = false;
+      let restingModelY = 0;
+
+      const updateModelScale = () => {
+        // Build the replacement screen while the group is still at its
+        // identity scale. Its geometry and transform are measured in world
+        // space, so scaling the parent beforehand would apply that scale a
+        // second time when the screen is added to monitorGroup.
+        if (!modelIsLoaded) return;
+
+        const cssScale = Number.parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--project-model-scale')
+        );
+        const cssY = Number.parseFloat(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--project-model-y')
+        );
+
+        monitorGroup.scale.setScalar(Number.isFinite(cssScale) ? cssScale : 1);
+        restingModelY = Number.isFinite(cssY) ? cssY : 0;
+        monitorGroup.position.y = restingModelY;
+        monitorGroup.updateMatrixWorld(true);
+
+        const scaledModelBox = new THREE.Box3().setFromObject(monitorGroup);
+        shadowFloor.position.y = scaledModelBox.min.y - 0.01;
+      };
 
 
       const textureLoader = new THREE.TextureLoader();
@@ -467,55 +640,134 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       });
 
       // Load model FIRST
-      new GLTFLoader().load("/models/old_pc/scene.gltf", (gltf) => {
+      new GLTFLoader().load("/models/macintosh_128k_computer_1984/scene.gltf", (gltf) => {
         const model = gltf.scene;
-        normalizeModel(model, 2);
+
+        // The keyboard body, cable, and individual keys are exported as
+        // separate meshes. Remove all of them before sizing and centering the
+        // remaining computer setup.
+        const keyboardMeshes: THREE.Object3D[] = [];
+        model.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh) return;
+
+          const materials = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          const usesKeyMaterial = materials.some(
+            (material) => material.name.toLowerCase() === 'keys'
+          );
+          const isKeyboardPart =
+            mesh.name.toLowerCase().startsWith('keyboard') || usesKeyMaterial;
+
+          if (isKeyboardPart) keyboardMeshes.push(mesh);
+        });
+        keyboardMeshes.forEach((mesh) => mesh.parent?.remove(mesh));
+
+        // Pull the mouse assembly inward and slightly back toward the
+        // computer. Moving the top-level groups keeps the mouse, cable, and
+        // plug aligned with one another.
+        const mousePartNames = new Set(['Mouse', 'Mousechord', 'Mouseplug']);
+        model.traverse((child) => {
+          if (!mousePartNames.has(child.name)) return;
+          child.position.x -= 10;
+          child.position.z -= 15;
+        });
+
+        // Keep the computer—not the movable mouse/cables—as the fixed sizing
+        // and camera anchor. Mouse coordinate edits no longer shift or zoom
+        // the computer indirectly through the combined bounding box.
+        const computer = model.getObjectByName('Computer') ?? model;
+        normalizeModel(model, 1.5, computer);
 
         monitorGroup.add(model);
+        model.updateMatrixWorld(true);
 
-        const screenMesh = model.getObjectByName("Cube124_Material001_0") as THREE.Mesh;
+        // Locate this model's dedicated screen mesh without using a generic
+        // texture-map fallback (all of this asset's materials are textured).
+        let foundScreenMesh: THREE.Mesh | null = null;
+        model.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          const materials = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          const isScreen = materials.some((material) => {
+            const materialName = material.name.toLowerCase();
+            return materialName === 'screen' ||
+              materialName.includes('screen') ||
+              mesh.name.toLowerCase().includes('screen');
+          });
+          if (!foundScreenMesh && isScreen) {
+            foundScreenMesh = mesh;
+          }
+        });
+        // TS narrows a `let` mutated only inside a closure back to its
+        // pre-call type (null) rather than widening to THREE.Mesh | null,
+        // and treats a bare `const x = foundScreenMesh` as a transparent
+        // alias that inherits that same bad narrowing — the `as` cast
+        // (not just the copy) is what breaks the alias tracking.
+        const screenMesh = foundScreenMesh as THREE.Mesh | null;
+
+        // Drop the fade-floor to sit exactly under the model's base now that
+        // its real (post-normalize, post-offset) bounding box is known.
+        const modelBox = new THREE.Box3().setFromObject(model);
+        shadowFloor.position.y = modelBox.min.y - 0.01;
 
         if (screenMesh && displayMaterial) {
-          // 1. Get the dimensions of the screen
-          const box = new THREE.Box3().setFromObject(screenMesh);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-          
-          // 2. Create the Plane
-          const customGeometry = new THREE.PlaneGeometry(size.x, size.y);
-          const customScreen = new THREE.Mesh(customGeometry, displayMaterial);
+          // Apply the shader directly so the authored curved CRT geometry,
+          // UVs, position, and bezel fit remain intact.
+          // This asset stores its display UVs rotated: V runs horizontally
+          // and reversed U runs vertically. Normalize the partial atlas range
+          // and rotate it back before sampling project images.
+          screenMesh.geometry = screenMesh.geometry.clone();
+          const screenUv = screenMesh.geometry.getAttribute('uv');
+          if (screenUv) {
+            let minU = Infinity;
+            let maxU = -Infinity;
+            let minV = Infinity;
+            let maxV = -Infinity;
 
-          // 3. Match Position and Rotation locally
-          // We get the world position/rotation but convert it so it fits in the group
-          const worldPos = new THREE.Vector3();
-          const worldQuat = new THREE.Quaternion();
-          screenMesh.getWorldPosition(worldPos);
-          screenMesh.getWorldQuaternion(worldQuat);
+            for (let index = 0; index < screenUv.count; index += 1) {
+              minU = Math.min(minU, screenUv.getX(index));
+              maxU = Math.max(maxU, screenUv.getX(index));
+              minV = Math.min(minV, screenUv.getY(index));
+              maxV = Math.max(maxV, screenUv.getY(index));
+            }
 
-          customScreen.position.copy(worldPos);
-          customScreen.quaternion.copy(worldQuat);
-          customScreen.rotateX(Math.PI / 2)
-          customScreen.position.z += 0.50;
-          customScreen.translateY(0.274);
-
-          // 4. Offset to prevent Z-Fighting (flickering)
-          customScreen.translateZ(0.01); 
-
-          // 5. Hide the old and add the new to the monitorGroup
-          screenMesh.visible = false;
-          monitorGroup.add(customScreen);
-          monitorScreen.current = customScreen;
-
-          // Zoom out from inside the screen when returning from a project page
-          if (cameFromProject) {
-            setTimeout(() => {
-              gsap.to(camera.position, { z: 3, duration: 1.0, ease: 'power3.out' });
-            }, 300);
+            const rangeU = maxU - minU || 1;
+            const rangeV = maxV - minV || 1;
+            for (let index = 0; index < screenUv.count; index += 1) {
+              const normalizedU = (screenUv.getX(index) - minU) / rangeU;
+              const normalizedV = (screenUv.getY(index) - minV) / rangeV;
+              screenUv.setXY(index, normalizedV, 1 - normalizedU);
+            }
+            screenUv.needsUpdate = true;
           }
 
-          // Update aspect ratio
-          displayMaterial.uniforms.planeAspect.value = size.x / size.y;
+          screenMesh.geometry.computeBoundingBox();
+          const screenBounds = screenMesh.geometry.boundingBox;
+          if (!screenBounds) return;
+
+          const localSize = screenBounds.getSize(new THREE.Vector3());
+          displayMaterial.side = THREE.DoubleSide;
+          screenMesh.material = displayMaterial;
+          monitorScreen.current = screenMesh;
+
+          const worldScale = screenMesh.getWorldScale(new THREE.Vector3());
+          // This screen's broad axes are local X/Y; local Z is only its CRT
+          // curvature depth. Account for inherited scale in the image ratio.
+          if (localSize.y !== 0 && worldScale.y !== 0) {
+            displayMaterial.uniforms.planeAspect.value =
+              (localSize.x * Math.abs(worldScale.x)) /
+              (localSize.y * Math.abs(worldScale.y));
+          }
         }
+
+        modelIsLoaded = true;
+        updateModelScale();
       });
       
       const mouse = { x: 0, y: 0 };
@@ -532,13 +784,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
         lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
-        monitorGroup.rotation.x = lerpedMouse.y * 0.15;
+        monitorGroup.rotation.x = lerpedMouse.y * 0.35;
         monitorGroup.rotation.y = lerpedMouse.x * 0.3;
+        monitorGroup.position.x = 0;
+        monitorGroup.position.y = restingModelY;
+        shadowFloor.position.x = 0;
+        // Follow only vertical pointer movement. The tabletop does not inherit
+        // the monitor's left/right rotation.
+        shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
 
         // Apply same mouse tracking to description element
         const descElement = document.querySelector('.project-description') as HTMLElement;
         if (descElement) {
-          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.15}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
+          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.35}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
         }
 
         renderer.render(scene, camera);
@@ -546,13 +804,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       animateThree();
 
-      window.addEventListener("mousemove", (e) => {
+      // Scoped to the section itself (not window) so the model rests
+      // centered by default and only tracks the cursor while it's actually
+      // over this section.
+      container.addEventListener("mousemove", (e) => {
         const rect = container.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width - 0.5;
         const y = (e.clientY - rect.top) / rect.height - 0.5;
-        
+
         mouse.x = x * 2;
         mouse.y = y * 1;
+      });
+
+      container.addEventListener("mouseleave", () => {
+        mouse.x = 0;
+        mouse.y = 0;
       });
 
       window.addEventListener("resize", () => {
@@ -564,6 +830,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         camera.aspect = newWidth / newHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(newWidth, newHeight);
+        updateFloorSize();
+        updateModelScale();
       });
       
       const glitchState = { intensity: 0 };
@@ -599,12 +867,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.querySelectorAll('.projects li').forEach(li => {
         li.addEventListener('mouseover', (e) => {
           const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
-          const description = (e.currentTarget as HTMLElement).getAttribute('data-description');
-          const projectName = (e.currentTarget as HTMLElement).textContent;
+          const item = e.currentTarget as HTMLElement;
+          const projectName = item.getAttribute('data-name');
+          const projectType = item.getAttribute('data-project-type');
+          const disciplines = item.getAttribute('data-disciplines');
+          const year = item.getAttribute('data-year');
+          const position = item.getAttribute('data-position');
           if (imgSrc) setDisplayImage(imgSrc);
 
           const titleElement = document.querySelector('.project-description h3') as HTMLElement;
-          const descElement = document.querySelector('.project-description p') as HTMLElement;
+          const positionElement = document.querySelector<HTMLElement>('.project-description [data-project-position]');
+          const detailElements = document.querySelectorAll<HTMLElement>('.project-description [data-project-detail]');
+
+          if (positionElement) positionElement.textContent = position || '';
 
           if (titleElement && projectName) {
             titleElement.textContent = projectName;
@@ -624,36 +899,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             });
           }
 
-          if (descElement && description) {
-            descElement.textContent = description;
-
-            // Split description into characters for typing animation
-            const descSplit = SplitText.create(descElement, {
-              type: "chars",
-              charsClass: "char"
-            });
-
-            gsap.set(descSplit.chars, { opacity: 0 });
-            gsap.to(descSplit.chars, {
-              opacity: 1,
-              duration: 0.05,
-              stagger: 0.02,
-              onComplete: () => descSplit.revert()
-            });
-
-            gsap.to('.project-description', {
-              opacity: 1,
-              duration: 0.3,
-              ease: "power2.out"
-            });
-          }
+          [projectType, disciplines, year].forEach((value, index) => {
+            if (detailElements[index]) detailElements[index].textContent = value || '—';
+          });
+          gsap.to('.project-description', { opacity: 1, duration: 0.3, ease: "power2.out" });
         });
 
         li.addEventListener('mouseout', () => {
           setDisplayImage(defaultDisplayImage);
 
           // Kill any ongoing character animations
-          gsap.killTweensOf('.project-description h3 .char, .project-description p .char');
+          gsap.killTweensOf('.project-description h3 .char');
 
           gsap.to('.project-description', {
             opacity: 0,
@@ -663,236 +919,23 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       });
 
-      // GSAP animations (rest of your code remains the same...)
       customEase.create("hop", "0.9, 0, 0.1, 1");
 
-      const createSplit = (selector: string, type: string, className: string) => {
-        return SplitText.create(selector, {
-          type: type,
-          [type + "ClassName"]: className,
-          mask: type === "lines" ? "lines" : undefined,
-        });
-      }
-
-      const hasSeenPreloader = sessionStorage.getItem('preloader-shown');
-
-      if (hasSeenPreloader) {
-        gsap.set(".preloader", { autoAlpha: 0 });
-        gsap.set(".preloader-header", { autoAlpha: 0 });
-        const skipHeaderRow = createSplit(".header-row h1", "lines", "line");
-        gsap.set(skipHeaderRow.lines, { yPercent: 0 });
-      } else {
-        sessionStorage.setItem('preloader-shown', 'true');
-
-      const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
-      const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
-      const splitHeaderRow = createSplit(".header-row h1", "lines", "line");
-
-      const chars = preLoaderHeader.chars;
-      const lines = splitPreLoaderCopy.lines;
-      const headerLines = splitHeaderRow.lines;
-      const initialChar = chars[0];
-      const lastChar = chars[7];
-
-      chars.forEach((char, index) => {
-        gsap.set(char, {
-          yPercent: index % 2 === 0 ? -100 : 100,
-        });
-      });
-
-      gsap.set(lines, {yPercent: 100});
-      gsap.set(headerLines, {yPercent: 100});
-
-      const preLoaderImages = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap");
-      const preLoaderImagesInner = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap .img");
-
-      gsap.set(".preloader-images", {
-        clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", 
-        autoAlpha: 1
-      });
-
-      gsap.set(".preloader", {
-        autoAlpha: 1,
-      });
-
-      gsap.set(".preloader-header", {
-        autoAlpha: 1,
-      })
-
-      gsap.set(".preloader-copy", {
-        opacity: 1,
-      });
-
-      gsap.set(preLoaderImages, {
-        clipPath: "polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)"
-      });
-
-      gsap.set(preLoaderImagesInner, {
-        scale: 2
-      });
-
-      const preloaderTL = gsap.timeline({ delay: 0.25 });
-
-      preloaderTL
-        .to(".progress-bar", {
-          scaleX: 1,
-          duration: 4,
-          ease: "power3.inOut"
-        })
-        .to(".progress-bar", {
-          scaleX: 0,
-          duration: 1,
-          ease: "power3.in"
-        })
-
-      preLoaderImages.forEach((imgWrap, i) => {
-        preloaderTL.to(imgWrap, {
-          clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)",
-          ease: "hop",
-          duration: 1,
-          delay: i * 1, 
-        }, "-=5");
-      });
-
-      preLoaderImagesInner.forEach((imgWrap, i) => {
-        preloaderTL.to(imgWrap, {
-          scale: 1,
-          ease: "hop",
-          duration: 1.5,
-          delay: i * 1, 
-        }, "-=5.5");
-      });
-
-      preloaderTL.to(lines, {
-        yPercent: 0,
-        duration: 2,
-        ease: "hop",
-        stagger: 0.1,
-      }, "-=5.5");
-
-      preloaderTL.to(chars, {
-        yPercent: 0,
-        duration: 1,
-        ease: "hop",
-        stagger: 0.025,
-      }, "-=5");
-
-      preloaderTL.to(".preloader-images", {
-        clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)",
-        duration: 1,
-        ease: "hop"
-      }, "exit");
-
-      preloaderTL.to(lines, {
-        y: "125%",
-        duration: 2,
-        ease: "hop",
-        stagger: 0.1,
-      }, "exit")
-
-      preloaderTL.to(chars, {
-        yPercent: (index) => {
-          if (index === 0 || index === 7) {
-            return 0;
-          }
-          return index % 2 === 0 ? 100 : -100 
-        },
-        duration: 1,
-        ease: "hop",
-        stagger: 0.025,
-        delay: 0.5,
-        onStart: () => {
-          const initialCharMask = initialChar.parentElement;
-
-          if (
-            initialCharMask && 
-            initialCharMask.classList.contains("char-mask")
-          ) {
-            initialCharMask.style.overflow = "visible";
-          }
-
-          const viewportWidth = window.innerWidth;
-          const centerX = viewportWidth / 2;
-          const initialCharRect = initialChar.getBoundingClientRect();
-          const lastCharRect = lastChar.getBoundingClientRect();
-
-          gsap.to([initialChar, lastChar], {
-            duration: 1,
-            ease: "hop",
-            delay: 0.5,
-            x: (i) => {
-              if (i === 0) {
-                return centerX - initialCharRect.left - initialCharRect.width
-              }else{
-                return centerX - lastCharRect.left
-              }
-            },
-            onComplete: () => {
-              gsap.set(".preloader-header", {mixBlendMode: "difference"});
-              gsap.to(".preloader-header", {
-                y: 0,
-                x: "0",
-                top: "2rem",
-                left: "50%",
-                scale: 0.35,
-                duration: 1.75,
-                ease: "hop"
-              });
-            },
-          });
-        },
-      }, "-=2.5");
-
-      preloaderTL.to(".preloader", {
-        scaleY: 0,
-        duration: 1.75,
-        ease: "hop",
-        transformOrigin: "top center",
-      }, "-=0.5");
-
-      preloaderTL.to(headerLines, {
-        yPercent: 0,
-        duration: 1.2,
-        ease: "power4.out",
-        stagger: 0.1,
-      });
-
-      } // end preloader
-
-      if (slider.current) {
-        gsap.to(slider.current, {
-          scrollTrigger: {
-            trigger: document.documentElement,
-            scrub: 0.25,
-            start: 0,
-            end: window.innerHeight,
-            onUpdate: (e) => (direction.current = e.direction * -1),
-          },
-          x: "-500px",
-        });
-      }
-
-      // ── Per-character slide hover on headings ──────────────────────────
-      const slideEls = Array.from(document.querySelectorAll<HTMLElement>(
-        ".hero h1, .hero h2, main > section h1, main > section h2"
-      ));
-
-      slideEls.forEach((heading) => {
+      // ── Char hover helper (defined early so animateHeroEntrance can call it) ──
+      const setupCharHover = (heading: HTMLElement) => {
         const split = SplitText.create(heading, {
-          type: "chars,words,lines",
+          type: "chars,words",
           charsClass: "slide-char",
           mask: "chars",
         });
-
         const splitChars = split.chars as HTMLElement[];
         gsap.set(splitChars, { display: "inline-block" });
 
         const charHandlers: Array<{ char: HTMLElement; onEnter: () => void }> = [];
 
-        const animateCharEntrance = (char: HTMLElement) => {
+        const animateChar = (char: HTMLElement) => {
           if (char.dataset.animating === "1") return;
           char.dataset.animating = "1";
-
           gsap.killTweensOf(char);
           gsap.to(char, {
             xPercent: -110,
@@ -904,9 +947,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 xPercent: 0,
                 duration: 0.4,
                 ease: "power3.out",
-                onComplete: () => {
-                  delete char.dataset.animating;
-                },
+                onComplete: () => { delete char.dataset.animating; },
               });
             },
           });
@@ -914,7 +955,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         splitChars.forEach((char) => {
           if (!char.textContent || char.textContent.trim().length === 0) return;
-          const onEnter = () => animateCharEntrance(char);
+          const onEnter = () => animateChar(char);
           char.addEventListener("mouseenter", onEnter);
           charHandlers.push({ char, onEnter });
         });
@@ -927,20 +968,372 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           gsap.killTweensOf(splitChars);
           split.revert();
         });
+      };
+
+      // Skill pills: clip-path inset reveal directly on .skill-pill — clip-path
+      // doesn't touch `transform`, so it's safe even though the drag physics
+      // loop writes style.transform on the same element every frame. Each
+      // pill's JSX default state is already clipped (inset(100% ...)) so
+      // there's no flash before this code runs. Collected once up front so
+      // both the first-load entrance and the later scroll-into-view observer
+      // can reuse the same `pillSlides`.
+      const pillSlides = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
+
+      // ── Hero entrance (called from preloader timeline on first visit) ─────────
+      const animateHeroEntrance = () => {
+        const heroHeadings = Array.from(document.querySelectorAll<HTMLElement>(".hero h1"));
+        const heroTexts    = Array.from(document.querySelectorAll<HTMLElement>(".hero p:not(.skill-pill)"));
+        const heroImageReveal = document.querySelector<HTMLElement>('.hero-image-reveal');
+        const heroImage = heroImageReveal?.querySelector<HTMLElement>('img');
+
+        const tl = gsap.timeline();
+
+        // h1s: stagger characters, then hand off to char hover
+        heroHeadings.forEach((heading, i) => {
+          gsap.set(heading, { autoAlpha: 1 });
+          const split = SplitText.create(heading, { type: "chars" });
+          const chars = split.chars as HTMLElement[];
+          gsap.set(chars, { y: 50, autoAlpha: 0 });
+          tl.to(chars, {
+            y: 0,
+            autoAlpha: 1,
+            duration: 0.9,
+            ease: "back.out(1.7)",
+            stagger: 0.07,
+            onComplete: () => { split.revert(); setupCharHover(heading); },
+          }, i * 0.2);
+          shaderRippleCleanups.push(() => { gsap.killTweensOf(chars); split.revert(); });
+        });
+
+        // Let both title staggers finish before introducing supporting copy,
+        // the portrait, or skill pills. Their simultaneous motion previously
+        // made the heading entrance feel rushed.
+        const heroSupportStart = tl.duration() + 0.15;
+
+        // Paragraphs: split into rendered lines and stagger each line.
+        const heroTextSplits = heroTexts.map((el) => {
+          gsap.set(el, { autoAlpha: 1 });
+          const split = SplitText.create(el, { type: 'lines' });
+          const lines = split.lines as HTMLElement[];
+          gsap.set(lines, { y: 30, autoAlpha: 0 });
+          return { split, lines };
+        });
+        const heroTextLines = heroTextSplits.flatMap(({ lines }) => lines);
+        tl.to(heroTextLines, {
+          y: 0,
+          autoAlpha: 1,
+          stagger: 0.2,
+          duration: 0.8,
+          ease: 'power2.out',
+          onComplete: () => {
+            heroTextSplits.forEach(({ split }) => split.revert());
+          },
+        }, heroSupportStart);
+        shaderRippleCleanups.push(() => {
+          gsap.killTweensOf(heroTextLines);
+          heroTextSplits.forEach(({ split }) => split.revert());
+        });
+
+        if (heroImageReveal && heroImage) {
+          tl.to(heroImageReveal, {
+            clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
+            duration: 1,
+            ease: 'hop',
+          }, heroSupportStart);
+          tl.to(heroImage, {
+            scale: 1,
+            duration: 1.5,
+            ease: 'hop',
+          }, heroSupportStart);
+        }
+
+        // skill pills: clip-path inset reveal from bottom (bottom edge
+        // appears first, then upward), staggered individually.
+        if (pillSlides.length) {
+          gsap.set(pillSlides, { clipPath: "inset(100% 0% 0% 0%)" });
+          tl.to(pillSlides, {
+            clipPath: "inset(0% 0% 0% 0%)",
+            duration: 0.7,
+            ease: "power3.out",
+            stagger: 0.1,
+          }, heroSupportStart + 0.25);
+        }
+      };
+
+      if (preloaderHasPlayed) {
+        gsap.set(".preloader", { autoAlpha: 0 });
+        // On return visits skip the entrance reveal — instantly show the
+        // pills (default JSX state hides them via inline style for the
+        // first-load case) and just wire up hover.
+        gsap.set(pillSlides, { clipPath: "inset(0% 0% 0% 0%)" });
+        Array.from(document.querySelectorAll<HTMLElement>(".hero h1")).forEach(setupCharHover);
+      } else {
+        preloaderHasPlayed = true;
+
+        // Pre-hide hero content so it's invisible until the preloader exits
+        gsap.set([".hero h1", ".hero p:not(.skill-pill)"], { autoAlpha: 0 });
+        gsap.set('.hero-image-reveal', {
+          clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)',
+        });
+        gsap.set('.hero-image-reveal img', { scale: 1.2 });
+        // Skill pill lines were already pre-hidden (yPercent 110) above, right
+        // after the SplitText split.
+
+        createCounterDigits();
+
+        const preLoaderImages = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap");
+        const preLoaderImagesInner = gsap.utils.toArray<HTMLElement>(".preloader-images .img-wrap .img");
+
+        gsap.set(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", autoAlpha: 1 });
+        gsap.set(preLoaderImages, { clipPath: "polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)" });
+        gsap.set(preLoaderImagesInner, { scale: 2 });
+
+        const scrollDist = (el: HTMLElement) => {
+          const h = (el.querySelector(".num") as HTMLElement).clientHeight;
+          return (el.querySelectorAll(".num").length - 1) * h;
+        };
+
+        const c1 = document.querySelector(".counter-1") as HTMLElement;
+        const c2 = document.querySelector(".counter-2") as HTMLElement;
+        const c3 = document.querySelector(".counter-3") as HTMLElement;
+
+        // counter-1 sits at position 1.5 with duration 2 → finishes at t=3.5 within the timeline
+        const counterEnd = 3.5;
+
+        const preloaderTL = gsap.timeline({ delay: 0.25, timeScale: 0.6 });
+
+        // counters — wired into the timeline so they're in sync with everything else
+        preloaderTL.to(c3, { y: -scrollDist(c3), duration: 2.5, ease: "power2.inOut" }, 0);
+        preloaderTL.to(c2, { y: -scrollDist(c2), duration: 3,   ease: "power2.inOut" }, 0);
+        preloaderTL.to(c1, { y: -scrollDist(c1), duration: 2,   ease: "power2.inOut" }, 1.5);
+
+        // images staggered so the last one finishes exactly at counterEnd
+        // 4 images × 1s duration: last starts at counterEnd-1=2.5 → stagger 2.5/3 ≈ 0.833
+        preLoaderImages.forEach((imgWrap, i) => {
+          preloaderTL.to(imgWrap, { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", ease: "hop", duration: 1 }, i * 0.833);
+        });
+
+        // 4 inner images × 1.5s duration: last starts at counterEnd-1.5=2 → stagger 2/3 ≈ 0.667
+        preLoaderImagesInner.forEach((imgWrap, i) => {
+          preloaderTL.to(imgWrap, { scale: 1, ease: "hop", duration: 1.5 }, i * 0.667);
+        });
+
+        // exit fires the moment counter reads 100 — the preloader's own
+        // curtain-close (image stack collapsing away) plays out fully first.
+        preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1, ease: "hop" }, counterEnd);
+
+        // Squiggle exit — only starts once the preloader has fully closed,
+        // not layered on top of it. Starts already fully formed (swapped in
+        // for the preloader instantly), then only animates the erase that
+        // reveals the hero.
+        const squiggleStart = counterEnd + 1;
+        preloaderTL.set(preloaderSquigglePathRef.current, {
+          drawSVG: "100%",
+          strokeWidth: SQUIGGLE_STROKE_THICK,
+        }, squiggleStart);
+        preloaderTL.set(preloaderSquiggleRef.current, { opacity: 1 }, squiggleStart);
+        preloaderTL.set(".preloader", { autoAlpha: 0 }, squiggleStart);
+        preloaderTL.to(preloaderSquigglePathRef.current, {
+          drawSVG: "100% 100%",
+          strokeWidth: SQUIGGLE_STROKE_THIN,
+          duration: 2.6,
+          ease: "power2.inOut",
+        }, squiggleStart);
+        preloaderTL.to(preloaderSquiggleRef.current, {
+          opacity: 0,
+          duration: 1.5,
+          ease: "power2.inOut",
+        }, squiggleStart + 1.2);
+        // Fire hero entrance 0.5 timeline-seconds before the squiggle finishes erasing
+        preloaderTL.call(animateHeroEntrance, [], ">-0.5");
+      } // end preloader
+
+      // Skill pills: clip-path inset reveal whenever they scroll into view.
+      const pillWrapperEl = document.querySelector<HTMLElement>(".skill-pill-wrapper");
+      if (pillWrapperEl && pillSlides.length) {
+        let firstEntryHandled = false;
+        const pillObserver = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          if (!firstEntryHandled) {
+            firstEntryHandled = true;
+            return;
+          }
+          gsap.killTweensOf(pillSlides);
+          gsap.fromTo(
+            pillSlides,
+            { clipPath: "inset(100% 0% 0% 0%)" },
+            {
+              clipPath: "inset(0% 0% 0% 0%)",
+              duration: 0.7,
+              ease: "power3.out",
+              stagger: 0.1,
+            }
+          );
+        }, { threshold: 0.3 });
+        pillObserver.observe(pillWrapperEl);
+
+        shaderRippleCleanups.push(() => {
+          pillObserver.disconnect();
+          gsap.killTweensOf(pillSlides);
+        });
+      }
+
+      // ── Entrance + hover animations ──────────────────────────────────────────
+
+      // Non-hero headings: staggered character reveal, then char hover once done
+      const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
+        "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
+      ));
+      entranceHeadings.forEach((heading) => {
+        gsap.set(heading, { autoAlpha: 0 });
+        const split = SplitText.create(heading, { type: "chars" });
+        const chars = split.chars as HTMLElement[];
+        gsap.set(chars, { y: 50, autoAlpha: 0 });
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.set(heading, { autoAlpha: 1 });
+          gsap.to(chars, {
+            y: 0,
+            autoAlpha: 1,
+            duration: 0.9,
+            ease: "back.out(1.7)",
+            stagger: 0.07,
+            onComplete: () => {
+              split.revert();
+              setupCharHover(heading);
+            },
+          });
+        }, { threshold: 0.2 });
+        obs.observe(heading);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf(chars);
+          split.revert();
+        });
       });
+
+      // Paragraphs and list items: stagger their rendered lines per section.
+      const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
+        "main > section:not(.hero) p, main > section:not(.hero) li"
+      )).filter(
+        (el) => !el.closest('.projects') && !el.matches('#about p.font-mono')
+      );
+      const entranceTextSplits = entranceTexts.map((el) => {
+        gsap.set(el, { autoAlpha: 0 });
+        const split = SplitText.create(el, { type: 'lines' });
+        const lines = split.lines as HTMLElement[];
+        gsap.set(lines, { y: 30, autoAlpha: 0 });
+        return { el, split, lines };
+      });
+      const textSections = Array.from(
+        new Set(entranceTexts.map((el) => el.closest('section')).filter(Boolean))
+      ) as HTMLElement[];
+      textSections.forEach((section) => {
+        const sectionEntries = entranceTextSplits.filter(
+          ({ el }) => el.closest('section') === section
+        );
+        const sectionLines = sectionEntries.flatMap(({ lines }) => lines);
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.set(sectionEntries.map(({ el }) => el), { autoAlpha: 1 });
+          gsap.to(sectionLines, {
+            y: 0,
+            autoAlpha: 1,
+            stagger: 0.2,
+            duration: 0.8,
+            ease: 'power2.out',
+            onComplete: () => {
+              sectionEntries.forEach(({ split }) => split.revert());
+            },
+          });
+        }, { threshold: 0.15 });
+        obs.observe(section);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf(sectionLines);
+          sectionEntries.forEach(({ split }) => split.revert());
+        });
+      });
+
+      // About section numbers use a compact horizontal entrance so labels,
+      // body copy, and headings do not all share the same motion.
+      const aboutLabels = Array.from(
+        document.querySelectorAll<HTMLElement>('#about p.font-mono')
+      );
+      aboutLabels.forEach((label) => {
+        gsap.set(label, { x: -12, autoAlpha: 0 });
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          gsap.to(label, {
+            x: 0,
+            autoAlpha: 1,
+            duration: 0.5,
+            ease: 'power2.out',
+          });
+        }, { threshold: 0.25 });
+        obs.observe(label);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf(label);
+          gsap.set(label, { clearProps: 'transform,opacity,visibility' });
+        });
+      });
+
+      // About portrait: match the preloader's upward polygon wipe and inner
+      // image descale, triggered when the portrait enters the viewport.
+      const aboutImageReveal = document.querySelector<HTMLElement>(
+        '.about-image-reveal'
+      );
+      const aboutImage = aboutImageReveal?.querySelector<HTMLElement>('img');
+      if (aboutImageReveal && aboutImage) {
+        gsap.set(aboutImageReveal, {
+          clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)',
+        });
+        gsap.set(aboutImage, { scale: 1.2 });
+
+        const obs = new IntersectionObserver(([entry]) => {
+          if (!entry.isIntersecting) return;
+          obs.disconnect();
+          const tl = gsap.timeline();
+          tl.to(aboutImageReveal, {
+            clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
+            duration: 1,
+            ease: 'hop',
+          });
+          tl.to(aboutImage, {
+            scale: 1,
+            duration: 1.5,
+            ease: 'hop',
+          }, 0);
+        }, { threshold: 0.15 });
+        obs.observe(aboutImageReveal);
+
+        shaderRippleCleanups.push(() => {
+          obs.disconnect();
+          gsap.killTweensOf([aboutImageReveal, aboutImage]);
+          gsap.set([aboutImageReveal, aboutImage], {
+            clearProps: 'clipPath,scale',
+          });
+        });
+      }
 
     }, root);
 
-    marqueeRafId = requestAnimationFrame(animate);
-
     return () => {
       cancelAnimationFrame(threeRafId);
-      cancelAnimationFrame(marqueeRafId);
       shaderRippleCleanups.forEach(fn => fn());
-      cleanupOrbitLabels?.();
       ctx.revert();
       cancelAnimationFrame(lerpRafId);
       window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener('navigate-section', handleSectionNav);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
       window.removeEventListener('pointercancel', handleSkillPointerUp);
@@ -953,117 +1346,58 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
   }, []);
 
-  const zoomIntoScreen = (href: string) => {
-    if (isZoomingRef.current) return;
-    const cam = threeCamera.current;
-    const grp = monitorGroupRef.current;
-
-    if (!cam || !grp) {
-      navigateTo(href, 'enter-zoomed');
-      return;
-    }
-
-    isZoomingRef.current = true;
-    sessionStorage.setItem('return-from-project', 'true');
-    sessionStorage.setItem('return-scroll-pos', scrollPosRef.current.toString());
-
-    // Straighten the monitor so the zoom flies straight in
-    gsap.to(grp.rotation, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' });
-
-    // Fly the camera toward the screen — stop before entering the model geometry
-    gsap.to(cam.position, { z: 0.8, duration: 0.7, ease: 'power3.in' });
-
-    // Halfway through the zoom, fade the overlay in to cover the entry moment
-    gsap.delayedCall(0.42, () => {
-      showOverlay();
-      gsap.delayedCall(0.3, () => {
-        isZoomingRef.current = false;
-        navigateTo(href, 'enter-zoomed');
-      });
-    });
-  };
-
-  const getMonitorScreenRect = (): DOMRect | null => {
-    const cam  = threeCamera.current;
-    const ren  = threeRenderer.current;
-    const mesh = monitorScreen.current;
-    if (!cam || !ren || !mesh) return null;
-
-    mesh.updateMatrixWorld(true);
-    const geo = mesh.geometry as THREE.BufferGeometry;
-    const pos = geo.attributes.position;
-    const canvasRect = ren.domElement.getBoundingClientRect();
-    const xs: number[] = [];
-    const ys: number[] = [];
-
-    for (let i = 0; i < pos.count; i++) {
-      const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
-      v.applyMatrix4(mesh.matrixWorld).project(cam);
-      xs.push((v.x + 1) / 2 * canvasRect.width  + canvasRect.left);
-      ys.push(-(v.y - 1) / 2 * canvasRect.height + canvasRect.top);
-    }
-
-    const left   = Math.min(...xs);
-    const top    = Math.min(...ys);
-    const right  = Math.max(...xs);
-    const bottom = Math.max(...ys);
-    return new DOMRect(left, top, right - left, bottom - top);
-  };
-
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
         {/* Preloader */}
-        <section className="preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
-          <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 bg-red scale-x-0 origin-left will-change-transform"></div>
+        <section className={`preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
             <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon.jpg"
-                  alt="Brandon"
-                  priority
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon2.jpg"
-                  alt="Brandon"
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon2.jpg" alt="Brandon" fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon3.jpg"
-                  alt="Brandon"
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon3.jpg" alt="Brandon" fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/brandon5.jpg"
-                  alt="Brandon"
-                  fill
-                  sizes="300px"
-                />
+                <Image className="img object-cover will-change-transform" src="/images/brandon5.jpg" alt="Brandon" fill sizes="300px" />
               </div>
             </div>
           </div>
-          <div className="preloader-copy w-150 opacity-0 mt-12 will-change-opacity">
-            <p className="text-white uppercase text-center">I design memorable, user-centered digital experiences that help brands of all sizes stand out and perform.</p>
+          <div className="counter absolute right-10 bottom-10 flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase text-white">
+            <div className="counter-1 digit"></div>
+            <div className="counter-2 digit"></div>
+            <div className="counter-3 digit"></div>
           </div>
         </section>
 
-        {/* Preloader Header */}
-        <div className="preloader-header fixed top-63/100 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 overflow-hidden z-50">
-          <a href="#" className="text-white font-heading font-bold text-8xl uppercase whitespace-nowrap">Brandon Mupemhi </a>
+        {/* Preloader exit squiggle — draws/erases the same shape as the page transition */}
+        <div
+          ref={preloaderSquiggleRef}
+          aria-hidden
+          className="fixed inset-0 z-[51] flex items-center justify-center opacity-0 pointer-events-none"
+        >
+          <svg
+            width="100%"
+            height="100%"
+            viewBox={SQUIGGLE_VIEWBOX}
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-full h-full"
+            style={{ transform: 'scale(1.3)' }}
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <path
+              ref={preloaderSquigglePathRef}
+              d={SQUIGGLE_PATH_D}
+              stroke="#000000"
+              strokeWidth={SQUIGGLE_STROKE_THIN}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
 
       <main
@@ -1071,29 +1405,28 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="flex flex-row will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero  w-screen h-screen shrink-0 flex flex-col overflow-hidden relative" ref={heroRef}>
+        <section id="home" className="hero w-screen h-screen shrink-0 flex flex-col overflow-hidden relative">
           <div className="h-full w-full flex items-end pb-15 pt-20 gap-5">
             <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
               <div className="flex flex-col gap-5">
-                <h1 className=" font-bold uppercase">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I’m an experienced Web & UI/UX Designer who creates memorable digital experiences for brands of all sizes.</p>
+                <h1 className="font-bold uppercase whitespace-nowrap">Creative <br/> Designer</h1>
+                <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
-              <div className="w-[60vw] relative flex justify-start items-center gap-3 touch-none skill-pill-wrapper">
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">UI/UX Designer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase"><LiaAsteriskSolid className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-2xl uppercase">Frontend Developer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase"><FaArrowRight className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing text-xl py-3 px-5 border bg-background rounded-full uppercase">Wordpress Developer</p>
+              <div className="w-[60vw] relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
+                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
+                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
-                <p className="text-xs uppercase">Open for Work</p>
+                <p className="text-xs uppercase">Available for Work</p>
               </div>
               <div className="relative w-full h-[40vh]">
-                {/* Image clipped to pill shape */}
-                <div className="absolute inset-0  overflow-hidden">
+                <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
                     src="/images/contact.jpg"
@@ -1104,103 +1437,173 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   />
                 </div>
               </div>
-              <h1 className=" font-bold uppercase text-right">Mupemhi<br/>Brandon</h1>
+              <h1 className="font-bold uppercase text-right whitespace-nowrap">Mupemhi<br/>Brandon</h1>
             </div>
           </div>
         </section>
 
-        {/*About Section */}
-        <section id="about" className="w-[130vw] h-screen pb-15 pt-20 pl-37.5 flex flex-col shrink-0 relative overflow-hidden">
-          {/* Content: image floated left, large text wraps around + below */}
-          <div className="flex-1 mt-4">
-            <div className="float-left w-100 h-100 relative mr-14">
+        {/*About Section — numbered grid around a centered portrait. Scrolls
+            vertically when its content is taller than the viewport (see the
+            wheel handler, which yields to it before resuming horizontal). */}
+        <section id="about" className="w-screen h-screen shrink-0 relative overflow-x-hidden overflow-y-auto  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
+              cell/item span. Remove this row of outline-* utilities when done. */}
+          <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-16 pt-24 pb-16 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/70">
+            {/* Headline */}
+            <h2 className="col-span-2 row-start-1 self-start font-heading font-bold uppercase leading-none whitespace-nowrap  text-foreground">
+              About Me
+            </h2>
+
+            {/* 01 — Who I Am */}
+            <div className="col-start-3 row-start-1 max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">01</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Who I Am</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                UI/UX designer and frontend developer creating thoughtful digital experiences where design, usability, and code come together.
+              </p>
+            </div>
+
+            {/* 02 — My Journey */}
+            <div className="col-start-2 row-start-2 max-w-[24rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">02</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">My Journey</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I started my design journey in 2022, and have since grown across UI/UX, web design, and frontend development — turning ideas into real digital products.
+              </p>
+            </div>
+
+            {/* Tagline motif */}
+            <div className="col-start-1 row-start-3 self-center">
+              <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
+            </div>
+
+            {/* 03 — Approach */}
+            <div className="col-start-3 row-start-3 max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">03</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Approach</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I design with development in mind — balancing visual detail, usability, and technical feasibility to create experiences that work beyond the mockup.
+              </p>
+            </div>
+
+            {/* Centered portrait — spans the middle column; taller than its
+                cell, anchored to the top so it grows downward (the side
+                columns hold 04/05, so the extra height never overlaps text). */}
+            <div className="about-image-reveal col-start-2 row-start-3 row-span-2 self-start relative min-h-175 overflow-hidden will-change-[clip-path]">
               <Image
-                className="img object-cover will-change-transform"
+                className="object-cover grayscale will-change-transform"
                 src="/images/brandon4.jpg"
-                alt="Brandon"
+                alt="Brandon Mupemhi"
+                priority
                 fill
-                sizes="36vw"
+                sizes="34vw"
               />
             </div>
-            <p className="text-2xl leading-[1.15] font-bold">
-              I&apos;m Brandon, a passionate visual storyteller dedicated to crafting memorable digital experiences. With bold design, engaging visuals, and thoughtful user-focused interactions, I create work that feels alive, cinematic, and impossible to ignore.
-            </p>
+
+            {/* 04 — Experience */}
+            <div className="col-start-1 row-start-4 self-end max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">04</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Experience</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                I&apos;ve worked across websites and digital products for organisations in education, agriculture, technology, and other industries.
+              </p>
+            </div>
+
+            {/* 05 — Off Screen */}
+            <div className="col-start-3 row-start-4 self-end max-w-[20rem]">
+              <p className="font-mono text-sm text-primary-color mb-3">05</p>
+              <p className="text-sm font-bold uppercase mb-2 text-foreground">Off Screen</p>
+              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+                When I&apos;m not designing or building, I&apos;m usually exploring new ideas, experimenting with motion, or finding inspiration far away from Figma.
+              </p>
+            </div>
           </div>
         </section>
 
         {/* Projects Section */}
-        <section className="w-auto h-screen -mr-[20vw] shrink-0  flex flex-col justify-end items-end pl-25  p-20 gap-0 z-1">
-          <div className = "flex flex-col h-full ">
-            <h2 className="font-bold uppercase ">Creative</h2>
-            <h2 className="font-bold uppercase ">Showcase</h2>
-          </div>
-        </section>
         <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
+          <div className="absolute left-20 top-20 z-10 flex flex-col gap-5">
+            <div className="flex flex-col gap-0">
+              <h2 className="font-bold uppercase ">Selected</h2>
+              <h2 className="font-bold uppercase ">Work</h2>
+            </div>
+            {/** 
+            <p className="uppercase leading-relaxed text-foreground/70">
+                Selected projects across UI/UX, web design and creative development.
+            </p>
+            */}
+          </div>
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
-            {projects.map((project) => (
-              <li key={project.name} data-img={project.cover_image} data-description={project.description}>
-                <a
-                  href={`/projects/${project.slug}`}
-                  onClick={(e) => { e.preventDefault(); zoomIntoScreen(`/projects/${project.slug}`); }}
-                >
+            {projects.map((project, index) => (
+              <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
+                <Link href={`/projects/${project.slug}`}>
                   {project.name}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
-          <div className="project-description absolute left-3/5 top-3/10 -translate-y-7/10 text-black opacity-0 pointer-events-none">
-            <h3 className="text-xl uppercase mb-2"></h3>
-            <p className="text-base"></p>
+          <div className="project-description absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+            <p data-project-position></p>
+            <h3></h3>
+            <p data-project-detail></p>
+            <p data-project-detail></p>
+            <p data-project-detail></p>
           </div>
         </section>
         
         <section id="say-hello" className="w-screen h-screen shrink-0 flex flex-col gap-30 justify-center items-center">
-          <div className="w-full flex items-center justify-center gap-0">
-            <h2 className="text-[250px] uppercase">Say</h2>
-            <div className="w-[20vw] h-40 rounded-full relative overflow-hidden ring-5 rotate-10 ring-secondary-color">
-                <Image
-                  className="img object-cover will-change-transform"
-                  src="/images/contact.jpg"
-                  alt="Placeholder"
-                  fill
-                  sizes="20vw"
-                />
+          <div className="flex flex-col gap-8 items-center">
+            <div className="w-full flex items-center justify-center gap-2">
+              <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Say</h2>
+              <div className="w-[20vw] h-35 rounded-full relative overflow-hidden ring-5 rotate-10 ring-secondary-color">
+                  <Image
+                    className="img object-cover will-change-transform"
+                    src="/images/contact.jpg"
+                    alt="Placeholder"
+                    priority
+                    fill
+                    sizes="20vw"
+                  />
+              </div>
+              <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Hello</h2>
             </div>
-            <h2 className="text-[250px] uppercase">Hello</h2>
+            <p className="max-w-2xl text-center uppercase leading-relaxed text-foreground/70">
+              Have a project, opportunity, or idea in mind? I&apos;m always open to a good conversation — let&apos;s talk.
+            </p>
           </div>
           <div className="w-full flex flex-wrap xl:flex-row  justify-center  items-center gap-5 xl:gap-1.25">
 
             {/*Email */}
             <div className="w-full md:w-auto border-2 border-foreground rounded-full hover:bg-accent">
               <div className="w-full md:w-auto p-1 animate-rotate-border rounded-full bg-conic/[from_var(--border-angle)] from-transparent via-primary-color to-transparent from-80% via-90% to-100%">
-                  <a 
+                  <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-3 bg-background uppercase items-center text-lg md:text-2xl  flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl  flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white">
                   Drop me a line
-                  <IoIosMail className="text-[30px] md:text-[40px]" />
+                  <IoIosMail className="text-[28px] xl:text-[40px]" />
                   </a>
               </div>
             </div>
 
-            {/*Phone */}
+            {/*Github */}
             <div className="w-full md:w-auto xl:rotate-[-14deg] origin-left border-2 border-foreground rounded-full hover:bg-accent">
               <div className="p-1.25 w-full md:w-auto ">
-                  <a href="tel:+263776382111" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
-                  Ring me up
-                  <MdPhoneEnabled className="text-[30px] md:text-[40px]" />
+                  <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white">
+                  Github
+                  <FaGithub className="text-[24px] xl:text-[40px]" />
                   </a>
               </div>
             </div>
                     
             {/*Linkedin */}
-            <div className="w-full md:w-auto border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-7.5 ">
+            <div className="w-full md:w-auto border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-2.5 ">
               <div className="p-1.25 w-full md:w-auto ">
                   <a 
                   href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Linkedin
-                  <IoLogoLinkedin  className="text-[30px] md:text-[40px]" />
+                  <IoLogoLinkedin  className="text-[28px] xl:text-[40px]" />
                   </a>
               </div>
             </div>
@@ -1210,9 +1613,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               <div className="p-1.25 w-full md:w-auto">
                 <a 
                   href="https://dribbble.com/OGA_01" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-6.25 py-2.5 bg-background uppercase items-center text-lg md:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
+                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
                   Dribbble
-                  <PiDribbbleLogoFill className="text-[30px] md:text-[40px]" />
+                  <PiDribbbleLogoFill className="text-[28px] xl:text-[40px]" />
                 </a>
               </div>
             </div>

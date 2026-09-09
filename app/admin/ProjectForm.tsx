@@ -1,18 +1,42 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { saveProject, type SaveState } from './actions';
 import RichTextEditor from './RichTextEditor';
 import FileInput from './FileInput';
 import type { Project } from '@/lib/projects';
+import { createClient } from '@/lib/supabase/client';
 
 const input =
   'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px]';
 const labelText = 'uppercase opacity-55 text-xs tracking-wide';
 const card = 'rounded-xl border border-foreground/12 bg-white/70 p-6 flex flex-col gap-5';
 const legend = 'text-xs uppercase tracking-widest opacity-40 font-medium';
+const help = 'text-xs opacity-45';
+
+const BUCKET = 'project-images';
+const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
+const MAX_UPLOAD_LABEL = 'Max 1MB per image';
+
+// Uploads directly to Supabase Storage from the browser so large images never
+// pass through the server action — Vercel caps serverless function request
+// bodies at 4.5MB regardless of Next.js's bodySizeLimit config.
+async function uploadImage(file: File): Promise<string> {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`"${file.name}" is too large — ${MAX_UPLOAD_LABEL}.`);
+  }
+  const supabase = createClient();
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: false,
+  });
+  if (error) throw new Error(`Image upload failed: ${error.message}`);
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
 
 export default function ProjectForm({ project }: { project?: Project }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(
@@ -20,10 +44,47 @@ export default function ProjectForm({ project }: { project?: Project }) {
     {}
   );
   const [gallery, setGallery] = useState<string[]>(project?.gallery ?? []);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [, startTransition] = useTransition();
+
+  const busy = pending || uploading;
+  const caseStudy = project?.case_study;
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setUploadError('');
+    const form = e.currentTarget;
+    const raw = new FormData(form);
+
+    setUploading(true);
+    try {
+      const coverFile = raw.get('cover_file') as File | null;
+      if (coverFile && coverFile.size > 0) {
+        raw.set('cover_image_current', await uploadImage(coverFile));
+      }
+      raw.delete('cover_file');
+
+      const galleryFiles = (raw.getAll('gallery_files') as File[]).filter(
+        (f) => f && f.size > 0
+      );
+      raw.delete('gallery_files');
+      for (const f of galleryFiles) {
+        raw.append('gallery_keep', await uploadImage(f));
+      }
+    } catch (err) {
+      setUploading(false);
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
+      return;
+    }
+    setUploading(false);
+
+    startTransition(() => formAction(raw));
+  }
 
   return (
     <form
-      action={formAction}
+      onSubmit={handleSubmit}
       className="flex flex-col gap-6 max-w-3xl mx-auto px-4 py-10"
     >
       {/* Header */}
@@ -111,8 +172,57 @@ export default function ProjectForm({ project }: { project?: Project }) {
 
       {/* Case study */}
       <section className={card}>
-        <p className={legend}>Case study</p>
+        <p className={legend}>Project overview</p>
         <RichTextEditor name="body" defaultValue={project?.body} />
+        <p className={help}>Optional rich-text introduction. The structured fields below control the editorial page sections.</p>
+      </section>
+
+      <section className={card}>
+        <p className={legend}>01 — Snapshot</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field name="case_industry" label="Industry" value={caseStudy?.industry} />
+          <Field name="case_timeline" label="Timeline" value={caseStudy?.timeline} placeholder="e.g. 8 weeks" />
+        </div>
+        <Area name="case_overview" label="Project overview" value={caseStudy?.overview} />
+        <div className="grid grid-cols-2 gap-4">
+          <Area name="case_responsibilities" label="Responsibilities — one per line" value={caseStudy?.responsibilities.join('\n')} rows={5} />
+          <Area name="case_tools" label="Tools / technology — one per line" value={caseStudy?.tools.join('\n')} rows={5} />
+        </div>
+      </section>
+
+      <section className={card}>
+        <p className={legend}>02–05 — Problem and process</p>
+        <Field name="case_challenge_question" label="Challenge question" value={caseStudy?.challenge_question} placeholder="How might we…?" />
+        <Area name="case_challenge" label="Challenge explanation" value={caseStudy?.challenge} />
+        <Area name="case_understanding" label="Understanding the problem / users" value={caseStudy?.understanding} />
+        <Area name="case_insights" label="Key insights — one per line" value={caseStudy?.insights.join('\n')} />
+        <Area name="case_process_steps" label="Information architecture / process steps — one per line" value={caseStudy?.process_steps.join('\n')} placeholder={'Registration\nOnboarding\nDashboard\nCompletion'} />
+        <Area name="case_exploration" label="Exploration / wireframes explanation" value={caseStudy?.exploration} />
+      </section>
+
+      <section className={card}>
+        <p className={legend}>06–07 — Solution and key experiences</p>
+        <Area name="case_solution" label="Solution introduction" value={caseStudy?.solution} />
+        {[0, 1, 2].map((index) => <div key={index} className="grid gap-3 border-t border-foreground/10 pt-4">
+          <Field name={`case_feature_${index + 1}_title`} label={`Feature ${index + 1} title`} value={caseStudy?.features[index]?.title} />
+          <Area name={`case_feature_${index + 1}_description`} label={`Feature ${index + 1} explanation`} value={caseStudy?.features[index]?.description} rows={3} />
+        </div>)}
+      </section>
+
+      <section className={card}>
+        <p className={legend}>08–10 — System and build</p>
+        <Area name="case_design_system" label="Design system" value={caseStudy?.design_system} />
+        <Area name="case_development" label="Development involvement" value={caseStudy?.development} />
+        <Area name="case_responsive" label="Responsive design" value={caseStudy?.responsive} />
+      </section>
+
+      <section className={card}>
+        <p className={legend}>11 — Outcome and reflection</p>
+        <Area name="case_outcome" label="Outcome" value={caseStudy?.outcome} />
+        <div className="grid grid-cols-2 gap-4">
+          <Area name="case_what_worked" label="What worked — one per line" value={caseStudy?.what_worked.join('\n')} />
+          <Area name="case_improvements" label="What I’d improve — one per line" value={caseStudy?.improvements.join('\n')} />
+        </div>
       </section>
 
       {/* Media */}
@@ -137,7 +247,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
           <span className="text-xs opacity-45">
             {project?.cover_image
               ? 'Leave empty to keep the current image.'
-              : 'Shown on the project card and as the page header.'}
+              : 'Shown on the project card and as the page header.'}{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
 
@@ -177,7 +288,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
             buttonLabel="Add images"
           />
           <span className="text-xs opacity-45">
-            Selected files are added to the gallery on save.
+            Selected files are added to the gallery on save.{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
       </section>
@@ -207,19 +319,19 @@ export default function ProjectForm({ project }: { project?: Project }) {
         </div>
       </section>
 
-      {state.error && (
+      {(state.error || uploadError) && (
         <p className="text-sm text-warning bg-warning/5 border border-warning/30 rounded-md px-3 py-2">
-          {state.error}
+          {uploadError || state.error}
         </p>
       )}
 
       <div className="flex gap-3 sticky bottom-0 bg-background/90 backdrop-blur py-3">
         <button
           type="submit"
-          disabled={pending}
+          disabled={busy}
           className="bg-foreground! text-white! disabled:opacity-50"
         >
-          {pending ? 'Saving…' : 'Save project'}
+          {uploading ? 'Uploading…' : pending ? 'Saving…' : 'Save project'}
         </button>
         <Link
           href="/admin"
@@ -230,4 +342,12 @@ export default function ProjectForm({ project }: { project?: Project }) {
       </div>
     </form>
   );
+}
+
+function Field({ name, label, value, placeholder }: { name: string; label: string; value?: string; placeholder?: string }) {
+  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><input name={name} defaultValue={value} placeholder={placeholder} className={input} /></label>;
+}
+
+function Area({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value?: string; placeholder?: string; rows?: number }) {
+  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><textarea name={name} defaultValue={value} placeholder={placeholder} rows={rows} className={`${input} resize-y`} /></label>;
 }
