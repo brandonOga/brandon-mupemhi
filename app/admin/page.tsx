@@ -6,6 +6,8 @@ import { getAllProjectsForAdmin } from '@/lib/projects';
 import { signOut } from './actions';
 import DeleteButton from './DeleteButton';
 import ImportProjects from './ImportProjects';
+import CvUpload from './CvUpload';
+import { CV_BUCKET, CV_PATH } from '@/lib/cv';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,14 @@ export default async function AdminDashboard({
 
   const projects = await getAllProjectsForAdmin();
   const notice = await searchParams;
+
+  const { data: cvFiles } = await supabase.storage
+    .from(CV_BUCKET)
+    .list('', { search: CV_PATH });
+  const cvFile = cvFiles?.find((file) => file.name === CV_PATH);
+  const cvUpdatedAt = cvFile?.updated_at
+    ? new Date(cvFile.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+    : null;
 
   return (
     <div className="min-h-screen bg-background px-6 py-10 max-w-5xl mx-auto">
@@ -62,6 +72,30 @@ export default async function AdminDashboard({
           {notice.import_error}
         </p>
       )}
+
+      <section className="mb-10 rounded-xl border border-foreground/12 bg-white/70 p-6 flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-widest opacity-40 font-medium">CV</p>
+            <p className="text-sm opacity-60 mt-1">
+              {cvUpdatedAt
+                ? `Last updated ${cvUpdatedAt}. Linked from the Say Hello section.`
+                : 'No CV uploaded yet. The CV link on the site won’t work until you upload one.'}
+            </p>
+          </div>
+          {cvFile && (
+            <a
+              href="/cv.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-foreground/20 px-4 py-2 text-sm no-underline"
+            >
+              View CV ↗
+            </a>
+          )}
+        </div>
+        <CvUpload hasCv={Boolean(cvFile)} />
+      </section>
 
       {projects.length === 0 ? (
         <p className="opacity-60 text-sm">

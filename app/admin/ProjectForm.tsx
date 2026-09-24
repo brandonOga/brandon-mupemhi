@@ -10,11 +10,20 @@ import type { Project } from '@/lib/projects';
 import { createClient } from '@/lib/supabase/client';
 
 const input =
-  'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px]';
-const labelText = 'uppercase opacity-55 text-xs tracking-wide';
-const card = 'rounded-xl border border-foreground/12 bg-white/70 p-6 flex flex-col gap-5';
-const legend = 'text-xs uppercase tracking-widest opacity-40 font-medium';
-const help = 'text-xs opacity-45';
+  'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px] text-[#1d2327]';
+const labelText = 'text-[13.5px] font-semibold text-[#1d2327]/90';
+const card = 'rounded-[10px] border border-foreground/12 bg-white px-7 py-6 flex flex-col gap-5';
+const sidebarCard = 'rounded-[10px] border border-foreground/12 bg-white px-5 py-5 flex flex-col gap-4';
+const legend = 'text-[19px] font-[650] leading-snug text-[#1d2327]';
+const help = 'text-[12.5px] text-[#1d2327]/55';
+// The site's `font-sans` token is Geist Mono, so the editor names its own sans stack.
+const editorFont = "[font-family:system-ui,-apple-system,'Segoe_UI',Roboto,'Helvetica_Neue',Arial,sans-serif]";
+
+const sectionLinks = [
+  ['project-intro', 'Intro'], ['snapshot', 'Overview'], ['problem', 'Problem'],
+  ['solution', 'Solution'], ['system-build', 'Build'], ['outcome', 'Outcome'],
+  ['media', 'Media'], ['settings', 'Publish'],
+];
 
 const BUCKET = 'project-images';
 const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
@@ -86,16 +95,46 @@ export default function ProjectForm({ project }: { project?: Project }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-6 max-w-5xl mx-auto px-4 py-10"
+      className={`${editorFont} text-[#1d2327] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-x-7 gap-y-6 items-start max-w-[1320px] mx-auto px-4 pt-[calc(60px+2.5rem)] pb-10`}
     >
+      {/* Fixed action bar */}
+      <div className="fixed top-0 inset-x-0 z-50 bg-white border-b border-foreground/12 shadow-sm px-6 py-2.5 flex items-center justify-between gap-4">
+        <p className="text-[15px] font-semibold text-[#1d2327] truncate">
+          {project ? `Editing: ${project.name}` : 'New project'}
+        </p>
+        <div className="flex items-center gap-3 min-w-0">
+          {(state.error || uploadError) && (
+            <p
+              className="text-[13px] text-warning truncate"
+              title={uploadError || state.error}
+            >
+              {uploadError || state.error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={busy}
+            className="shrink-0 bg-foreground! text-white! rounded-md text-sm px-[18px] py-2 disabled:opacity-50"
+          >
+            {uploading ? 'Uploading…' : pending ? 'Saving…' : 'Save project'}
+          </button>
+          <Link
+            href="/admin"
+            className="shrink-0 rounded-md border border-foreground/20 text-sm px-[18px] py-2 no-underline text-[#1d2327]"
+          >
+            Cancel
+          </Link>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="lg:col-span-2 flex items-center justify-between">
         <div>
-          <p className="text-2xl font-bold uppercase leading-none">
+          <p className="text-[23px] font-semibold leading-tight text-[#1d2327]">
             {project ? 'Edit project' : 'New project'}
           </p>
           {project && (
-            <p className="text-xs opacity-50 mt-1">/{project.slug}</p>
+            <p className="text-[13px] opacity-50 mt-1">/{project.slug}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -105,14 +144,6 @@ export default function ProjectForm({ project }: { project?: Project }) {
         </Link></div>
       </div>
 
-      <nav className="sticky top-3 z-20 flex gap-2 overflow-x-auto rounded-full border border-foreground/10 bg-background/95 p-2 shadow-sm backdrop-blur">
-        {[
-          ['project-intro', 'Intro'], ['snapshot', 'Overview'], ['problem', 'Problem'],
-          ['solution', 'Solution'], ['system-build', 'Build'], ['outcome', 'Outcome'],
-          ['media', 'Media'], ['settings', 'Settings'],
-        ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full px-3 py-1 text-xs uppercase no-underline text-foreground">{label}</a>)}
-      </nav>
-
       {project && <input type="hidden" name="id" value={project.id} />}
       <input
         type="hidden"
@@ -120,13 +151,15 @@ export default function ProjectForm({ project }: { project?: Project }) {
         value={project?.cover_image ?? ''}
       />
 
+      {/* Main column */}
+      <div className="flex flex-col gap-6 min-w-0">
       {/* Details */}
       <section id="project-intro" className={card}>
         <SectionHeading title="Project card and hero" required note="Controls the homepage hover panel and the opening of the project page." />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Name *</span>
-          <input name="name" required defaultValue={project?.name} className={input} />
+          <input name="name" required defaultValue={project?.name} className={`${input} text-[28px] font-[650] px-4 py-3.5`} />
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
@@ -135,7 +168,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
             name="slug"
             defaultValue={project?.slug}
             placeholder="e.g. ferrari"
-            className={input}
+            className={`${input} font-mono text-[13px] text-[#555]`}
           />
         </label>
 
@@ -260,7 +293,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
             </div>
           )}
           <FileInput name="cover_file" buttonLabel="Upload cover" />
-          <span className="text-xs opacity-45">
+          <span className={help}>
             {project?.cover_image
               ? 'Leave empty to keep the current image.'
               : 'Shown on the project card and as the page header.'}{' '}
@@ -303,14 +336,14 @@ export default function ProjectForm({ project }: { project?: Project }) {
             multiple
             buttonLabel="Add images"
           />
-          <span className="text-xs opacity-45">
+          <span className={help}>
             Selected files are added to the gallery on save.{' '}
             <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
 
         {(gallery.length > 0 || project?.cover_image) && (
-          <div className="grid grid-cols-1 gap-4 border-t border-foreground/10 pt-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 border-t border-foreground/10 pt-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ['challenge_1', 'Challenge image 1'], ['challenge_2', 'Challenge image 2'],
               ['exploration_1', 'Exploration image 1'], ['exploration_2', 'Exploration image 2'], ['exploration_3', 'Exploration image 3'],
@@ -323,11 +356,12 @@ export default function ProjectForm({ project }: { project?: Project }) {
           </div>
         )}
       </section>
+      </div>
 
-      {/* Settings */}
-      <section id="settings" className={card}>
-        <SectionHeading title="Publishing settings" required />
-        <div className="grid grid-cols-2 gap-4 items-end">
+      {/* Sidebar — self-stretch so the Sections card can stay sticky */}
+      <aside className="flex flex-col gap-6 self-stretch">
+        <section id="settings" className={sidebarCard}>
+          <SectionHeading title="Publish" required />
           <label className="flex flex-col gap-1 text-sm">
             <span className={labelText}>Display order (lower = first)</span>
             <input
@@ -337,39 +371,30 @@ export default function ProjectForm({ project }: { project?: Project }) {
               className={input}
             />
           </label>
-          <label className="flex items-center gap-2 text-sm pb-2">
+          <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               name="published"
               defaultChecked={project ? project.published : true}
               className="w-4 h-4"
             />
-            <span className="uppercase">Published</span>
+            <span className={labelText}>Published</span>
           </label>
-        </div>
-      </section>
+        </section>
 
-      {(state.error || uploadError) && (
-        <p className="text-sm text-warning bg-warning/5 border border-warning/30 rounded-md px-3 py-2">
-          {uploadError || state.error}
-        </p>
-      )}
-
-      <div className="flex gap-3 sticky bottom-0 bg-background/90 backdrop-blur py-3">
-        <button
-          type="submit"
-          disabled={busy}
-          className="bg-foreground! text-white! disabled:opacity-50"
-        >
-          {uploading ? 'Uploading…' : pending ? 'Saving…' : 'Save project'}
-        </button>
-        <Link
-          href="/admin"
-          className="rounded-full border border-foreground/20 px-5 py-2.5 text-sm no-underline self-center"
-        >
-          Cancel
-        </Link>
-      </div>
+        <nav className={`${sidebarCard} gap-1 sticky top-[76px]`}>
+          <p className={`${legend} border-b border-foreground/10 pb-3 mb-2`}>Sections</p>
+          {sectionLinks.map(([id, label]) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              className="rounded-md px-2.5 py-2 text-[14px] no-underline text-[#1d2327] hover:bg-black/5 hover:text-[#1d2327]"
+            >
+              {label}
+            </a>
+          ))}
+        </nav>
+      </aside>
     </form>
   );
 }
@@ -379,11 +404,11 @@ function Field({ name, label, value, placeholder }: { name: string; label: strin
 }
 
 function Area({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value?: string; placeholder?: string; rows?: number }) {
-  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><textarea name={name} defaultValue={value} placeholder={placeholder} rows={rows} className={`${input} resize-y`} /></label>;
+  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><textarea name={name} defaultValue={value} placeholder={placeholder} rows={rows} className={`${input} resize-y leading-relaxed`} /></label>;
 }
 
 function SectionHeading({ title, note, required = false }: { title: string; note?: string; required?: boolean }) {
-  return <div className="border-b border-foreground/10 pb-4"><div className="flex items-center justify-between gap-4"><p className={legend}>{title}</p><span className={`rounded-full px-2 py-1 text-[10px] uppercase ${required ? 'bg-foreground text-white' : 'bg-foreground/5 text-foreground/60'}`}>{required ? 'Core' : 'Optional'}</span></div>{note && <p className="mt-2 text-xs opacity-55">{note}</p>}</div>;
+  return <div className="border-b border-foreground/10 pb-4"><div className="flex items-center justify-between gap-4"><p className={legend}>{title}</p><span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] ${required ? 'bg-foreground text-white' : 'bg-foreground/5 text-foreground/60'}`}>{required ? 'Core' : 'Optional'}</span></div>{note && <p className="mt-2 text-[13.5px] opacity-65">{note}</p>}</div>;
 }
 
 function MediaSelect({ name, label, value, cover, gallery }: { name: string; label: string; value?: string; cover?: string; gallery: string[] }) {
