@@ -97,6 +97,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     const scrollContainer = scrollRef.current;
     const pinContainer = pinRef.current;
+    // The page scrolls natively but the progress bar shows position, so hide
+    // the scrollbar on the homepage only (see .hide-scrollbar in globals.css).
+    document.documentElement.classList.add('hide-scrollbar');
     const projectsContainer = projectsRef.current;
     const shaderRippleCleanups: Array<() => void> = [];
 
@@ -1440,6 +1443,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       gsap.ticker.remove(onTick);
       gsap.ticker.lagSmoothing(500, 33);
       lenis.destroy();
+      document.documentElement.classList.remove('hide-scrollbar');
       window.removeEventListener('navigate-section', handleSectionNav);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
