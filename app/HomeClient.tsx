@@ -181,7 +181,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       );
       const fromBackground = sectionBackgrounds[fromIndex] ?? inheritedBackground;
       const toBackground = sectionBackgrounds[toIndex] ?? fromBackground;
-      const backgroundBoundary = (1 - mix) * 100;
+      // In px, not %: the fixed header excludes the scrollbar while the sections
+      // are 100vw, so a percentage would put the edge in a different place.
+      const backgroundBoundary = (1 - mix) * window.innerWidth;
       const fromBorder = sectionBorderColors[fromIndex] ?? [229, 231, 235, 1];
       const toBorder = sectionBorderColors[toIndex] ?? fromBorder;
       const footerBorder = fromBorder.map((channel, index) =>
@@ -191,7 +193,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.documentElement.style.setProperty('--header-color', `rgb(${headerColor.join(', ')})`);
       document.documentElement.style.setProperty(
         '--footer-background',
-        `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}%, rgb(${toBackground.join(', ')}) ${backgroundBoundary}%, rgb(${toBackground.join(', ')}) 100%)`
+        `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) 100%)`
       );
       document.documentElement.style.setProperty(
         '--footer-border-color',
