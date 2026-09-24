@@ -21,6 +21,13 @@ const nextConfig: NextConfig = {
       ? { exclude: ["error", "warn"] }
       : false,
   },
+  experimental: {
+    serverActions: {
+      // Images upload client-side straight to Supabase Storage. The extra
+      // allowance covers CSV project imports plus multipart form overhead.
+      bodySizeLimit: "3mb",
+    },
+  },
 };
 
 export default nextConfig;

@@ -5,10 +5,15 @@ import { createClient } from '@/lib/supabase/server';
 import { getAllProjectsForAdmin } from '@/lib/projects';
 import { signOut } from './actions';
 import DeleteButton from './DeleteButton';
+import ImportProjects from './ImportProjects';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ imported?: string; import_error?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -16,6 +21,7 @@ export default async function AdminDashboard() {
   if (!user) redirect('/admin/login');
 
   const projects = await getAllProjectsForAdmin();
+  const notice = await searchParams;
 
   return (
     <div className="min-h-screen bg-background px-6 py-10 max-w-5xl mx-auto">
@@ -24,7 +30,14 @@ export default async function AdminDashboard() {
           <p className="text-2xl font-bold uppercase">Projects</p>
           <p className="text-sm opacity-60">{user.email}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          <a
+            href="/admin/projects/export"
+            className="rounded-full border border-foreground/20 px-4 py-2.5 text-sm no-underline"
+          >
+            Export CSV
+          </a>
+          <ImportProjects />
           <Link
             href="/admin/projects/new"
             className="rounded-full bg-foreground! text-white! px-5 py-2.5 text-sm no-underline"
@@ -38,6 +51,17 @@ export default async function AdminDashboard() {
           </form>
         </div>
       </div>
+
+      {notice.imported && (
+        <p className="mb-6 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
+          Imported {notice.imported} project{notice.imported === '1' ? '' : 's'} successfully.
+        </p>
+      )}
+      {notice.import_error && (
+        <p className="mb-6 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+          {notice.import_error}
+        </p>
+      )}
 
       {projects.length === 0 ? (
         <p className="opacity-60 text-sm">
