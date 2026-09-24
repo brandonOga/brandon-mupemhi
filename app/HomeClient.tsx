@@ -7,6 +7,8 @@ import gsap from "gsap";
 import {ScrollTrigger} from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
+import Lenis from "lenis";
+import "lenis/dist/lenis.css";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
@@ -22,6 +24,7 @@ gsap.registerPlugin(customEase, ScrollTrigger, SplitText);
 export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const { navigateTo, showOverlay } = usePageTransition();
   const root = useRef<HTMLDivElement>(null);
+  const pinRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const heroRingRef = useRef<HTMLDivElement>(null);
@@ -61,7 +64,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   }
   
   useLayoutEffect(() => {
-    if (!projectsRef.current || !scrollRef.current) return;
+    if (!projectsRef.current || !scrollRef.current || !pinRef.current) return;
 
     const animate = () => {
       if (xPercent.current < -100) {
@@ -77,6 +80,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
 
     const scrollContainer = scrollRef.current;
+    const pinContainer = pinRef.current;
     const projectsContainer = projectsRef.current;
     let cleanupOrbitLabels: (() => void) | null = null;
     const shaderRippleCleanups: Array<() => void> = [];
@@ -88,45 +92,88 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       sessionStorage.removeItem('return-scroll-pos');
     }
 
-    const xPos = { target: savedScroll, current: savedScroll };
-    const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
+    const sections = Array.from(scrollContainer.querySelectorAll<HTMLElement>(':scope > section'));
+    const navSections = sections.filter((section) => section.id);
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-      xPos.target = Math.max(0, Math.min(getMaxScroll(), xPos.target + delta * 1.5));
-    };
+    let horizontalTrigger: ScrollTrigger | undefined;
 
-    const totalSections = sections.length;
+    // Smooth native scrolling. Vertical scroll drives the horizontal track below;
+    // horizontal trackpad swipes are mapped onto the same scroll.
+    const lenis = new Lenis({
+      duration: 1.1,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      gestureOrientation: 'both',
+      wheelMultiplier: 1.5,
+      smoothWheel: !reduceMotion,
+    });
+    lenis.on('scroll', ScrollTrigger.update);
+    lenis.on('scroll', () => { scrollPosRef.current = lenis.scroll - (horizontalTrigger?.start ?? 0); });
+    const onTick = (time: number) => lenis.raf(time * 1000);
+    gsap.ticker.add(onTick);
+    gsap.ticker.lagSmoothing(0);
 
-    let lerpRafId: number;
-    const lerpScroll = () => {
-      xPos.current += (xPos.target - xPos.current) * 0.08;
-      if (Math.abs(xPos.target - xPos.current) < 0.05) {
-        xPos.current = xPos.target;
-      }
-      scrollPosRef.current = xPos.target;
-      scrollContainer.style.transform = `translateX(-${xPos.current}px)`;
-
-      const maxScroll = getMaxScroll();
-      const progress = maxScroll > 0 ? xPos.current / maxScroll : 0;
+    const updateScrollUI = (progress: number) => {
       if (scrollBarRef.current) {
         scrollBarRef.current.style.transform = `scaleX(${progress})`;
       }
       if (sectionCountRef.current) {
-        const idx = Math.min(
-          Math.round(xPos.current / window.innerWidth) + 1,
-          totalSections
+        const x = progress * getMaxScroll();
+        const idx = navSections.reduce(
+          (current, section, i) => (section.offsetLeft <= x + window.innerWidth / 2 ? i : current),
+          0
         );
-        sectionCountRef.current.textContent = String(idx).padStart(2, '0');
+        sectionCountRef.current.textContent = String(idx + 1).padStart(2, '0');
       }
-
-      lerpRafId = requestAnimationFrame(lerpScroll);
     };
-    lerpRafId = requestAnimationFrame(lerpScroll);
 
-    window.addEventListener("wheel", handleWheel, { passive: false });
+    // Pin the viewport and translate the track sideways by exactly as many pixels
+    // as the page scrolls down — the pin spacer adds that much scrollable height.
+    const scrollCtx = gsap.context(() => {
+      const tween = gsap.to(scrollContainer, {
+        x: () => -getMaxScroll(),
+        ease: 'none',
+        onUpdate() { updateScrollUI(this.progress()); },
+        scrollTrigger: {
+          trigger: pinContainer,
+          pin: true,
+          start: 'top top',
+          end: () => `+=${getMaxScroll()}`,
+          scrub: reduceMotion ? true : 0.6,
+          invalidateOnRefresh: true,
+        },
+      });
+      horizontalTrigger = tween.scrollTrigger;
+    });
+
+    const scrollToX = (x: number, immediate = false) => {
+      lenis.resize(); // pick up the height the pin spacer added
+      const start = horizontalTrigger?.start ?? 0;
+      lenis.scrollTo(start + Math.min(Math.max(0, x), getMaxScroll()), {
+        immediate,
+        force: true,
+        duration: 1.6,
+      });
+    };
+
+    const scrollToSection = (id: string, immediate = false) => {
+      const section = navSections.find((s) => s.id === id);
+      if (section) scrollToX(section.offsetLeft, immediate);
+    };
+
+    const handleNavigateSection = (event: Event) => {
+      scrollToSection((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener('navigate-section', handleNavigateSection);
+
+    const pendingSection = sessionStorage.getItem('scroll-to-section');
+    if (pendingSection) {
+      sessionStorage.removeItem('scroll-to-section');
+      scrollToSection(pendingSection, true);
+    } else if (savedScroll) {
+      scrollToX(savedScroll, true);
+    }
 
     const skillPillContainer = root.current?.querySelector('.skill-pill-wrapper') as HTMLElement | null;
     const skillPillEls = skillPillContainer
@@ -683,6 +730,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         gsap.set(skipHeaderRow.lines, { yPercent: 0 });
       } else {
         sessionStorage.setItem('preloader-shown', 'true');
+        lenis.stop();
 
       const preLoaderHeader = createSplit(".preloader-header a", "chars", "char");
       const splitPreLoaderCopy = createSplit(".preloader-copy p", "lines", "line");
@@ -731,7 +779,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         scale: 2
       });
 
-      const preloaderTL = gsap.timeline({ delay: 0.25 });
+      const preloaderTL = gsap.timeline({ delay: 0.25, onComplete: () => lenis.start() });
 
       preloaderTL
         .to(".progress-bar", {
@@ -939,8 +987,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       shaderRippleCleanups.forEach(fn => fn());
       cleanupOrbitLabels?.();
       ctx.revert();
-      cancelAnimationFrame(lerpRafId);
-      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener('navigate-section', handleNavigateSection);
+      scrollCtx.revert();
+      gsap.ticker.remove(onTick);
+      gsap.ticker.lagSmoothing(500, 33);
+      lenis.destroy();
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
       window.removeEventListener('pointercancel', handleSkillPointerUp);
@@ -1011,7 +1062,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   };
 
   return (
-    <div ref={root} className="w-full h-screen overflow-hidden bg-background">
+    <div ref={root} className="w-full bg-background">
         {/* Preloader */}
         <section className="preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50">
           <div className="progress-bar absolute bg-white top-0 left-0 w-full h-2 bg-red scale-x-0 origin-left will-change-transform"></div>
@@ -1066,9 +1117,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <a href="#" className="text-white font-heading font-bold text-8xl uppercase whitespace-nowrap">Brandon Mupemhi </a>
         </div>
 
+      {/* Pinned viewport: page scrolls vertically, the track inside moves sideways */}
+      <div ref={pinRef} className="w-full h-screen overflow-hidden">
       <main
         ref={scrollRef}
-        className="flex flex-row will-change-transform"
+        className="relative flex flex-row will-change-transform"
       >
         {/* Hero Section */}
         <section id="home" className="hero  w-screen h-screen shrink-0 flex flex-col overflow-hidden relative" ref={heroRef}>
@@ -1219,6 +1272,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
       </main>
+      </div>
 
       {/* Scroll progress bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-1/5 z-40 flex items-center gap-4 px-8 py-3 pointer-events-none mix-blend-difference">
