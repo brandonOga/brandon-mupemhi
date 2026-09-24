@@ -70,6 +70,11 @@ Add the same two env vars (`NEXT_PUBLIC_SUPABASE_URL`,
   Anything you upload through the dashboard goes to Supabase Storage.
 - **Drafts**: untick "Published" to hide a project from the site while keeping
   it in the dashboard.
+- **CV**: upload your CV (PDF, max 5MB) in the CV section at the top of `/admin`.
+  It's stored in the `site-files` bucket and served at `/cv.pdf`; uploading
+  again replaces it (live within about a minute). If you set up Supabase before
+  this existed, re-run [`supabase/schema.sql`](supabase/schema.sql) once to
+  create the bucket — it's safe to re-run.
 - **Data model**: `name`, `slug`, short `description`, long-form `body`,
   `cover_image`, `gallery[]`, `year`, `role`, `tags[]`, optional `url`,
   `display_order`, `published`.

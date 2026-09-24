@@ -87,7 +87,26 @@ create policy "authenticated writes project images"
   using (bucket_id = 'project-images')
   with check (bucket_id = 'project-images');
 
--- 4. SEED — your current 5 projects (cover images still served from /public)
+-- 4. STORAGE BUCKET FOR SITE FILES (the CV, served at /cv.pdf) ------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('site-files', 'site-files', true, 5242880, array['application/pdf'])
+on conflict (id) do nothing;
+
+-- Public read of site files.
+drop policy if exists "public reads site files" on storage.objects;
+create policy "public reads site files"
+  on storage.objects for select
+  using (bucket_id = 'site-files');
+
+-- Signed-in users may upload / replace / delete site files.
+drop policy if exists "authenticated writes site files" on storage.objects;
+create policy "authenticated writes site files"
+  on storage.objects for all
+  to authenticated
+  using (bucket_id = 'site-files')
+  with check (bucket_id = 'site-files');
+
+-- 5. SEED — your current 5 projects (cover images still served from /public)
 insert into public.projects (slug, name, description, cover_image, display_order)
 values
   ('ferrari',      'Ferrari',      'Premium automotive design',   '/images/ferrari.jpg',      0),

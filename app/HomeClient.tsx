@@ -1736,11 +1736,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 </a>
                 
                 <a
-                  href="https://dribbble.com/OGA_01" target="_blank" rel="noopener noreferrer"
+                  href="/cv.pdf" target="_blank" rel="noopener noreferrer"
                   className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
-                    <span>Dribbble</span>
-                    <span aria-hidden="true" className="text-primary-color">Dribbble</span>
+                    <span>Resume</span>
+                    <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
                   <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
                 </a>
