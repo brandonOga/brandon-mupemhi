@@ -165,13 +165,30 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     // Header/footer colours, progress bar and section counter, driven by the
     // track's current horizontal offset.
+    // Each section's measured left edge within the track (fractional px).
+    // Measured rather than assumed to be multiples of window.innerWidth, which
+    // the browser rounds to a whole pixel while 100vw sections can be
+    // fractional (browser zoom, OS display scaling), so the header/footer
+    // colour edge would drift from the real section edge.
+    let sectionStarts: number[] = [];
+    const measureSectionStarts = () => {
+      const trackLeft = scrollContainer.getBoundingClientRect().left;
+      sectionStarts = sections.map((section) => section.getBoundingClientRect().left - trackLeft);
+    };
+    measureSectionStarts();
+
     const updateScrollUI = (x: number) => {
       const maxScroll = getMaxScroll();
       const progress = maxScroll > 0 ? x / maxScroll : 0;
-      const sectionProgress = window.innerWidth > 0 ? x / window.innerWidth : 0;
-      const fromIndex = Math.min(Math.floor(sectionProgress), totalSections - 1);
+      let fromIndex = 0;
+      sectionStarts.forEach((start, i) => {
+        if (start <= x + 0.5) fromIndex = i;
+      });
       const toIndex = Math.min(fromIndex + 1, totalSections - 1);
-      const mix = Math.max(0, Math.min(1, sectionProgress - fromIndex));
+      const fromStart = sectionStarts[fromIndex] ?? 0;
+      const toStart = sectionStarts[toIndex] ?? fromStart;
+      const span = toStart - fromStart;
+      const mix = span > 0 ? Math.max(0, Math.min(1, (x - fromStart) / span)) : 0;
       const fromColor = sectionTextColors[fromIndex] ?? footerThemeColors.cream;
       const toColor = sectionTextColors[toIndex] ?? fromColor;
       const footerColor = fromColor.map((channel, index) =>
@@ -184,9 +201,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       );
       const fromBackground = sectionBackgrounds[fromIndex] ?? inheritedBackground;
       const toBackground = sectionBackgrounds[toIndex] ?? fromBackground;
-      // In px, not %: the fixed header excludes the scrollbar while the sections
-      // are 100vw, so a percentage would put the edge in a different place.
-      const backgroundBoundary = (1 - mix) * window.innerWidth;
+      // Where the next section's left edge is on screen, in px (not % of the
+      // header/footer's own width, which may differ from the sections' width).
+      const backgroundBoundary = span > 0 ? toStart - x : window.innerWidth;
       const fromBorder = sectionBorderColors[fromIndex] ?? [229, 231, 235, 1];
       const toBorder = sectionBorderColors[toIndex] ?? fromBorder;
       const footerBorder = fromBorder.map((channel, index) =>
@@ -246,6 +263,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const previous = horizontalTrigger;
       const previousProgress = previous ? previous.progress : 0;
       scrollCtx?.revert();
+      measureSectionStarts();
 
       scrollCtx = gsap.context(() => {
         const tl = gsap.timeline({
