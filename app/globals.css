@@ -4,6 +4,14 @@
   display: none;
 }
 
+/* Homepage: scrolling stays native, only the bar is hidden (HomeClient toggles this) */
+html.hide-scrollbar {
+  scrollbar-width: none;
+}
+html.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Editorial project case study */
 .case-study {
   --case-line: rgba(36, 33, 36, 0.2);

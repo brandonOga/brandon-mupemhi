@@ -5,6 +5,9 @@ import {useRef, useLayoutEffect} from "react";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Lenis from "lenis";
+import "lenis/dist/lenis.css";
 import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -15,12 +18,13 @@ import { FaArrowRight } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
-gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin);
+gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 
 let preloaderHasPlayed = false;
 
 export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const root = useRef<HTMLDivElement>(null);
+  const pinRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const projectsRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   }
   
   useLayoutEffect(() => {
-    if (!projectsRef.current || !scrollRef.current) return;
+    if (!projectsRef.current || !scrollRef.current || !pinRef.current) return;
 
     const createCounterDigits = () => {
       const counter1 = document.querySelector(".counter-1") as Element;
@@ -92,123 +96,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
 
     const scrollContainer = scrollRef.current;
+    const pinContainer = pinRef.current;
+    // The page scrolls natively but the progress bar shows position, so hide
+    // the scrollbar on the homepage only (see .hide-scrollbar in globals.css).
+    document.documentElement.classList.add('hide-scrollbar');
     const projectsContainer = projectsRef.current;
     const shaderRippleCleanups: Array<() => void> = [];
 
-    const xPos = { target: 0, current: 0 };
-    const scrollMultiplier = 1.5;
-    const scrollEase = 0.08;
-    const sections = Array.from(scrollContainer.querySelectorAll(':scope > section'));
+    const sections = Array.from(scrollContainer.querySelectorAll<HTMLElement>(':scope > section'));
     const getMaxScroll = () => Math.max(0, scrollContainer.scrollWidth - window.innerWidth);
-
-    // Header nav: scroll to a section by id. Dispatched from the Header when
-    // already on the homepage, or stashed in sessionStorage when navigating
-    // home from another page.
-    const scrollToSection = (id: string) => {
-      const target = sections.find((s) => s.id === id) as HTMLElement | undefined;
-      if (target) {
-        xPos.target = Math.max(0, Math.min(getMaxScroll(), target.offsetLeft));
-      }
-    };
-
-    const handleSectionNav = (event: Event) => {
-      scrollToSection((event as CustomEvent<string>).detail);
-    };
-    window.addEventListener('navigate-section', handleSectionNav);
-
-    const pendingSection = sessionStorage.getItem('scroll-to-section');
-    if (pendingSection) {
-      sessionStorage.removeItem('scroll-to-section');
-      scrollToSection(pendingSection);
-    }
-
-    const aboutSection = sections.find((s) => s.id === 'about') as HTMLElement | undefined;
-    const workSection = sections.find((s) => s.id === 'work') as HTMLElement | undefined;
-    let workEntryState: 'idle' | 'settling' | 'released' = 'idle';
-
-    const handleWheel = (event: WheelEvent) => {
-      // Hand the wheel to the About panel's vertical scroll only once the panel
-      // has actually settled into full view. Detected as a *crossing* of the
-      // panel's boundary (this event's delta would carry the target from one
-      // side of it to the other) rather than a proximity check on the eased
-      // xPos.current — a proximity check can be blown past entirely by one
-      // large/fast wheel event before easing ever catches up, skipping the
-      // panel without its vertical scroll ever engaging.
-      // Keep the browser's wheel delta intact. In particular, multiplying
-      // line-based mouse-wheel events makes each notch leap across the track.
-      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-
-      // On every entry, stop exactly at Work's leading edge so its full
-      // 100vw is presented before later wheel input moves onward.
-      if (workSection) {
-        const workStart = workSection.offsetLeft;
-
-        if (
-          workEntryState === 'released' &&
-          Math.abs(xPos.target - workStart) > 1
-        ) {
-          workEntryState = 'idle';
-        }
-
-        if (workEntryState === 'settling') {
-          if (Math.abs(xPos.current - workStart) > 1) {
-            xPos.target = workStart;
-            event.preventDefault();
-            return;
-          }
-          workEntryState = 'released';
-        } else if (workEntryState === 'idle') {
-          const prospective = xPos.target + delta * scrollMultiplier;
-          const enteringForward =
-            delta > 0 && xPos.target < workStart && prospective >= workStart;
-          const enteringBackward =
-            delta < 0 && xPos.target > workStart && prospective <= workStart;
-
-          if (enteringForward || enteringBackward) {
-            workEntryState = 'settling';
-            xPos.target = workStart;
-            event.preventDefault();
-            return;
-          }
-        }
-      }
-
-      if (aboutSection) {
-        const aboutStart = aboutSection.offsetLeft;
-        const atTop = aboutSection.scrollTop <= 0;
-        const atBottom =
-          aboutSection.scrollTop + aboutSection.clientHeight >= aboutSection.scrollHeight - 1;
-        const canScrollY = aboutSection.scrollHeight > aboutSection.clientHeight + 1;
-
-        if (canScrollY) {
-          const prospective = xPos.target + delta * scrollMultiplier;
-          const enteringForward =
-            delta > 0 && xPos.target <= aboutStart && prospective > aboutStart && !atBottom;
-          const enteringBackward =
-            delta < 0 && xPos.target >= aboutStart && prospective < aboutStart && !atTop;
-
-          if (enteringForward || enteringBackward) {
-            xPos.target = aboutStart; // clamp — never let one event skip past the panel
-            if (Math.abs(xPos.current - aboutStart) > 1) {
-              event.preventDefault(); // still easing in; hold off native scroll until settled
-              return;
-            }
-            // Drive the panel explicitly once settled. This is reliable even
-            // for diagonal trackpad gestures or when the wheel event target
-            // is a fixed navigation element rather than the About panel.
-            event.preventDefault();
-            aboutSection.scrollTop += delta;
-            return;
-          }
-        }
-      }
-
-      event.preventDefault();
-      xPos.target = Math.max(
-        0,
-        Math.min(getMaxScroll(), xPos.target + delta * scrollMultiplier)
-      );
-    };
+    const aboutSection = sections.find((s) => s.id === 'about');
+    const workSection = sections.find((s) => s.id === 'work');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Extra scroll distance (as a fraction of the viewport height) during which
+    // the track rests on Work, so its full 100vw is presented before moving on.
+    const WORK_HOLD = 0.6;
 
     const totalSections = sections.length;
     const footerThemeColors: Record<string, [number, number, number]> = {
@@ -261,17 +163,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       return usesLightText ? [247, 246, 241, 0.3] : [229, 231, 235, 1];
     });
 
-    let lerpRafId: number;
-    const lerpScroll = () => {
-      xPos.current += (xPos.target - xPos.current) * scrollEase;
-      if (Math.abs(xPos.target - xPos.current) < 0.05) {
-        xPos.current = xPos.target;
-      }
-      scrollContainer.style.transform = `translateX(-${xPos.current}px)`;
-
+    // Header/footer colours, progress bar and section counter, driven by the
+    // track's current horizontal offset.
+    const updateScrollUI = (x: number) => {
       const maxScroll = getMaxScroll();
-      const progress = maxScroll > 0 ? xPos.current / maxScroll : 0;
-      const sectionProgress = window.innerWidth > 0 ? xPos.current / window.innerWidth : 0;
+      const progress = maxScroll > 0 ? x / maxScroll : 0;
+      const sectionProgress = window.innerWidth > 0 ? x / window.innerWidth : 0;
       const fromIndex = Math.min(Math.floor(sectionProgress), totalSections - 1);
       const toIndex = Math.min(fromIndex + 1, totalSections - 1);
       const mix = Math.max(0, Math.min(1, sectionProgress - fromIndex));
@@ -287,7 +184,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       );
       const fromBackground = sectionBackgrounds[fromIndex] ?? inheritedBackground;
       const toBackground = sectionBackgrounds[toIndex] ?? fromBackground;
-      const backgroundBoundary = (1 - mix) * 100;
+      // In px, not %: the fixed header excludes the scrollbar while the sections
+      // are 100vw, so a percentage would put the edge in a different place.
+      const backgroundBoundary = (1 - mix) * window.innerWidth;
       const fromBorder = sectionBorderColors[fromIndex] ?? [229, 231, 235, 1];
       const toBorder = sectionBorderColors[toIndex] ?? fromBorder;
       const footerBorder = fromBorder.map((channel, index) =>
@@ -297,7 +196,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.documentElement.style.setProperty('--header-color', `rgb(${headerColor.join(', ')})`);
       document.documentElement.style.setProperty(
         '--footer-background',
-        `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}%, rgb(${toBackground.join(', ')}) ${backgroundBoundary}%, rgb(${toBackground.join(', ')}) 100%)`
+        `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) 100%)`
       );
       document.documentElement.style.setProperty(
         '--footer-border-color',
@@ -308,17 +207,121 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       }
       if (sectionCountRef.current) {
         const idx = Math.min(
-          Math.round(xPos.current / window.innerWidth) + 1,
+          Math.round(x / window.innerWidth) + 1,
           totalSections
         );
         sectionCountRef.current.textContent = String(idx).padStart(2, '0');
       }
-
-      lerpRafId = requestAnimationFrame(lerpScroll);
     };
-    lerpRafId = requestAnimationFrame(lerpScroll);
 
-    window.addEventListener("wheel", handleWheel, { passive: false });
+    // Smooth native scrolling. Vertical scroll drives the pinned horizontal
+    // track below; horizontal trackpad swipes are mapped onto the same scroll.
+    const lenis = new Lenis({
+      duration: 1.1,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      gestureOrientation: 'both',
+      wheelMultiplier: 1.5,
+      smoothWheel: !reduceMotion,
+    });
+    lenis.on('scroll', ScrollTrigger.update);
+    const onTick = (time: number) => lenis.raf(time * 1000);
+    gsap.ticker.add(onTick);
+    gsap.ticker.lagSmoothing(0);
+
+    // Pin the viewport and turn vertical scroll into one scrubbed timeline:
+    // the track slides sideways, pauses on About while its content scrolls up,
+    // rests on Work, then continues. Timeline durations are in pixels of
+    // scroll, so every segment moves 1:1 with the page.
+    let scrollCtx: gsap.Context | undefined;
+    let horizontalTrigger: ScrollTrigger | undefined;
+    let layoutKey = '';
+
+    const buildHorizontalScroll = () => {
+      const maxScroll = getMaxScroll();
+      const aboutMax = aboutSection ? aboutSection.scrollHeight - aboutSection.clientHeight : 0;
+      const key = `${window.innerWidth}x${window.innerHeight}:${maxScroll}:${aboutMax}`;
+      if (key === layoutKey) return;
+      layoutKey = key;
+
+      const previous = horizontalTrigger;
+      const previousProgress = previous ? previous.progress : 0;
+      scrollCtx?.revert();
+
+      scrollCtx = gsap.context(() => {
+        const tl = gsap.timeline({
+          defaults: { ease: 'none' },
+          onUpdate: () => updateScrollUI(-(gsap.getProperty(scrollContainer, 'x') as number)),
+        });
+        let x = 0;
+        const moveTo = (target: number) => {
+          const next = Math.min(target, maxScroll);
+          if (next <= x) return;
+          tl.fromTo(scrollContainer, { x: -x }, { x: -next, duration: next - x, immediateRender: false });
+          x = next;
+        };
+
+        sections.forEach((section) => {
+          moveTo(section.offsetLeft);
+          if (section.id) tl.addLabel(section.id);
+          if (section === aboutSection && aboutMax > 1) {
+            tl.fromTo(aboutSection, { scrollTop: 0 }, { scrollTop: aboutMax, duration: aboutMax, immediateRender: false });
+          }
+          if (section === workSection) {
+            tl.to({}, { duration: window.innerHeight * WORK_HOLD });
+          }
+        });
+        moveTo(maxScroll);
+
+        horizontalTrigger = ScrollTrigger.create({
+          animation: tl,
+          trigger: pinContainer,
+          pin: true,
+          start: 'top top',
+          end: `+=${tl.duration()}`,
+          scrub: reduceMotion ? true : 0.6,
+        });
+      });
+
+      lenis.resize(); // pick up the height the pin spacer added
+      if (previous && horizontalTrigger) {
+        const { start, end } = horizontalTrigger;
+        lenis.scrollTo(start + previousProgress * (end - start), { immediate: true, force: true });
+      }
+      updateScrollUI(-(gsap.getProperty(scrollContainer, 'x') as number));
+    };
+    buildHorizontalScroll();
+
+    // Rebuild when the viewport or content size changes (fonts/images loading
+    // can change how tall the About panel is).
+    let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRebuild = () => {
+      clearTimeout(rebuildTimer);
+      rebuildTimer = setTimeout(buildHorizontalScroll, 200);
+    };
+    window.addEventListener('resize', scheduleRebuild);
+    const layoutObserver = new ResizeObserver(scheduleRebuild);
+    layoutObserver.observe(scrollContainer);
+    if (aboutSection?.firstElementChild) layoutObserver.observe(aboutSection.firstElementChild);
+
+    // Header nav: scroll to a section by id. Dispatched from the Header when
+    // already on the homepage, or stashed in sessionStorage when navigating
+    // home from another page.
+    const scrollToSection = (id: string, immediate = false) => {
+      if (!horizontalTrigger || !sections.some((s) => s.id === id)) return;
+      lenis.resize();
+      lenis.scrollTo(horizontalTrigger.labelToScroll(id), { immediate, force: true, duration: 1.6 });
+    };
+
+    const handleSectionNav = (event: Event) => {
+      scrollToSection((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener('navigate-section', handleSectionNav);
+
+    const pendingSection = sessionStorage.getItem('scroll-to-section');
+    if (pendingSection) {
+      sessionStorage.removeItem('scroll-to-section');
+      scrollToSection(pendingSection, true);
+    }
 
     const skillPillContainer = root.current?.querySelector('.skill-pill-wrapper') as HTMLElement | null;
     const skillPillEls = skillPillContainer
@@ -1151,6 +1154,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         Array.from(document.querySelectorAll<HTMLElement>(".hero h1")).forEach(setupCharHover);
       } else {
         preloaderHasPlayed = true;
+        lenis.stop(); // no scrolling until the preloader has finished
 
         // Pre-hide hero content so it's invisible until the preloader exits
         gsap.set([".hero h1", ".hero p:not(.skill-pill)"], { autoAlpha: 0 });
@@ -1182,7 +1186,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // counter-1 sits at position 1.5 with duration 2 → finishes at t=3.5 within the timeline
         const counterEnd = 3.5;
 
-        const preloaderTL = gsap.timeline({ delay: 0.25, timeScale: 0.6 });
+        const preloaderTL = gsap.timeline({ delay: 0.25, timeScale: 0.6, onComplete: () => lenis.start() });
 
         // counters — wired into the timeline so they're in sync with everything else
         preloaderTL.to(c3, { y: -scrollDist(c3), duration: 2.5, ease: "power2.inOut" }, 0);
@@ -1432,8 +1436,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       cancelAnimationFrame(threeRafId);
       shaderRippleCleanups.forEach(fn => fn());
       ctx.revert();
-      cancelAnimationFrame(lerpRafId);
-      window.removeEventListener("wheel", handleWheel);
+      clearTimeout(rebuildTimer);
+      layoutObserver.disconnect();
+      window.removeEventListener('resize', scheduleRebuild);
+      scrollCtx?.revert();
+      gsap.ticker.remove(onTick);
+      gsap.ticker.lagSmoothing(500, 33);
+      lenis.destroy();
+      document.documentElement.classList.remove('hide-scrollbar');
       window.removeEventListener('navigate-section', handleSectionNav);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
@@ -1452,7 +1462,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   }, []);
 
   return (
-    <div ref={root} className="w-full h-screen overflow-hidden bg-background">
+    <div ref={root} className="w-full bg-background">
         <Noise
           patternSize={250}
           patternScaleX={1}
@@ -1512,9 +1522,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </svg>
         </div>
 
+      {/* Pinned viewport: page scrolls vertically, the track inside moves sideways */}
+      <div ref={pinRef} className="w-full h-screen overflow-hidden">
       <main
         ref={scrollRef}
-        className="flex flex-row will-change-transform"
+        className="relative flex flex-row will-change-transform"
       >
         {/* Hero Section */}
         <section id="home" className="hero w-screen h-screen shrink-0 flex flex-col overflow-hidden relative">
@@ -1556,8 +1568,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         {/*About Section — numbered grid around a centered portrait. Scrolls
             vertically when its content is taller than the viewport (see the
-            wheel handler, which yields to it before resuming horizontal). */}
-        <section id="about" className="w-screen h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-auto  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            horizontal scroll timeline, which pauses the track here and scrubs this
+            panel's scrollTop before resuming horizontal). */}
+        <section id="about" className="w-screen h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
           <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-15 pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
@@ -1730,6 +1743,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
       </main>
+      </div>
 
       {/* Scroll progress bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-1/5 z-40 flex items-center gap-4 px-8 py-3 pointer-events-none mix-blend-difference">
