@@ -23,9 +23,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      // Images upload client-side straight to Supabase Storage now; this
-      // action body only carries form text + a rich-text body field.
-      bodySizeLimit: "2mb",
+      // Images upload client-side straight to Supabase Storage. The extra
+      // allowance covers CSV project imports plus multipart form overhead.
+      bodySizeLimit: "3mb",
     },
   },
 };

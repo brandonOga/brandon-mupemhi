@@ -9,13 +9,12 @@ import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
-import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from "./components/squiggle";
-import { IoIosMail } from "react-icons/io";
-import { IoLogoLinkedin } from "react-icons/io";
-import { PiDribbbleLogoFill } from "react-icons/pi";
+import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
-import { FaArrowRight, FaGithub } from "react-icons/fa";
+import { FaArrowRight } from "react-icons/fa";
+import { FiArrowUpRight } from "react-icons/fi";
 import type { ProjectCard } from "@/lib/projects";
+import Noise from "./components/Noise";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin);
 
 let preloaderHasPlayed = false;
@@ -135,6 +134,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // xPos.current — a proximity check can be blown past entirely by one
       // large/fast wheel event before easing ever catches up, skipping the
       // panel without its vertical scroll ever engaging.
+      // Keep the browser's wheel delta intact. In particular, multiplying
+      // line-based mouse-wheel events makes each notch leap across the track.
       const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
 
       // On every entry, stop exactly at Work's leading edge so its full
@@ -210,6 +211,55 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
 
     const totalSections = sections.length;
+    const footerThemeColors: Record<string, [number, number, number]> = {
+      cream: [101, 97, 93],
+      orange: [17, 17, 17],
+      black: [247, 246, 241],
+    };
+    const rootStyles = getComputedStyle(document.documentElement);
+    const cssColorToRgb = (value: string, fallback: [number, number, number]): [number, number, number] => {
+      const probe = document.createElement('span');
+      probe.style.color = value.trim() || `rgb(${fallback.join(', ')})`;
+      document.body.appendChild(probe);
+      const channels = getComputedStyle(probe).color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+      probe.remove();
+      return channels?.length === 3 ? channels as [number, number, number] : fallback;
+    };
+    const inheritedBackground = cssColorToRgb(
+      rootStyles.getPropertyValue('--color-background'),
+      [254, 255, 248]
+    );
+    const isTransparent = (color: string) =>
+      color === 'transparent' || /rgba\([^)]*,\s*0(?:\.0+)?\)$/.test(color);
+    const resolveBackground = (element: HTMLElement): [number, number, number] => {
+      let current: HTMLElement | null = element;
+      while (current) {
+        const background = getComputedStyle(current).backgroundColor;
+        if (!isTransparent(background)) return cssColorToRgb(background, inheritedBackground);
+        current = current.parentElement;
+      }
+      return inheritedBackground;
+    };
+    const sectionBackgrounds = sections.map((section) => {
+      return resolveBackground(section as HTMLElement);
+    });
+    const sectionTextColors = sectionBackgrounds.map((background): [number, number, number] => {
+      const luminance = background[0] * 0.299 + background[1] * 0.587 + background[2] * 0.114;
+      const distanceFromInherited = Math.sqrt(
+        background.reduce((sum, channel, index) => sum + (channel - inheritedBackground[index]) ** 2, 0)
+      );
+      if (luminance < 90) return [247, 246, 241];
+      if (distanceFromInherited < 24) return [101, 97, 93];
+      return [17, 17, 17];
+    });
+    const sectionHeaderTextColors = sectionBackgrounds.map((background): [number, number, number] => {
+      const luminance = background[0] * 0.299 + background[1] * 0.587 + background[2] * 0.114;
+      return luminance < 90 ? [255, 255, 255] : [17, 17, 17];
+    });
+    const sectionBorderColors = sectionTextColors.map((text): [number, number, number, number] => {
+      const usesLightText = text[0] > 200 && text[1] > 200 && text[2] > 200;
+      return usesLightText ? [247, 246, 241, 0.3] : [229, 231, 235, 1];
+    });
 
     let lerpRafId: number;
     const lerpScroll = () => {
@@ -221,6 +271,38 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const maxScroll = getMaxScroll();
       const progress = maxScroll > 0 ? xPos.current / maxScroll : 0;
+      const sectionProgress = window.innerWidth > 0 ? xPos.current / window.innerWidth : 0;
+      const fromIndex = Math.min(Math.floor(sectionProgress), totalSections - 1);
+      const toIndex = Math.min(fromIndex + 1, totalSections - 1);
+      const mix = Math.max(0, Math.min(1, sectionProgress - fromIndex));
+      const fromColor = sectionTextColors[fromIndex] ?? footerThemeColors.cream;
+      const toColor = sectionTextColors[toIndex] ?? fromColor;
+      const footerColor = fromColor.map((channel, index) =>
+        Math.round(channel + (toColor[index] - channel) * mix)
+      );
+      const fromHeaderColor = sectionHeaderTextColors[fromIndex] ?? [17, 17, 17];
+      const toHeaderColor = sectionHeaderTextColors[toIndex] ?? fromHeaderColor;
+      const headerColor = fromHeaderColor.map((channel, index) =>
+        Math.round(channel + (toHeaderColor[index] - channel) * mix)
+      );
+      const fromBackground = sectionBackgrounds[fromIndex] ?? inheritedBackground;
+      const toBackground = sectionBackgrounds[toIndex] ?? fromBackground;
+      const backgroundBoundary = (1 - mix) * 100;
+      const fromBorder = sectionBorderColors[fromIndex] ?? [229, 231, 235, 1];
+      const toBorder = sectionBorderColors[toIndex] ?? fromBorder;
+      const footerBorder = fromBorder.map((channel, index) =>
+        channel + (toBorder[index] - channel) * mix
+      );
+      document.documentElement.style.setProperty('--footer-color', `rgb(${footerColor.join(', ')})`);
+      document.documentElement.style.setProperty('--header-color', `rgb(${headerColor.join(', ')})`);
+      document.documentElement.style.setProperty(
+        '--footer-background',
+        `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}%, rgb(${toBackground.join(', ')}) ${backgroundBoundary}%, rgb(${toBackground.join(', ')}) 100%)`
+      );
+      document.documentElement.style.setProperty(
+        '--footer-border-color',
+        `rgba(${footerBorder.slice(0, 3).map(Math.round).join(', ')}, ${footerBorder[3]})`
+      );
       if (scrollBarRef.current) {
         scrollBarRef.current.style.transform = `scaleX(${progress})`;
       }
@@ -988,21 +1070,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         const tl = gsap.timeline();
 
-        // h1s: stagger characters, then hand off to char hover
+        // h1s: reveal masked lines, then hand off to character hover.
         heroHeadings.forEach((heading, i) => {
           gsap.set(heading, { autoAlpha: 1 });
-          const split = SplitText.create(heading, { type: "chars" });
-          const chars = split.chars as HTMLElement[];
-          gsap.set(chars, { y: 50, autoAlpha: 0 });
-          tl.to(chars, {
-            y: 0,
+          const split = SplitText.create(heading, { type: "lines", mask: "lines" });
+          const lines = split.lines as HTMLElement[];
+          gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
+          tl.to(lines, {
+            yPercent: 0,
             autoAlpha: 1,
-            duration: 0.9,
-            ease: "back.out(1.7)",
-            stagger: 0.07,
+            duration: 0.8,
+            ease: "power2.out",
+            stagger: 0.2,
             onComplete: () => { split.revert(); setupCharHover(heading); },
           }, i * 0.2);
-          shaderRippleCleanups.push(() => { gsap.killTweensOf(chars); split.revert(); });
+          shaderRippleCleanups.push(() => { gsap.killTweensOf(lines); split.revert(); });
         });
 
         // Let both title staggers finish before introducing supporting copy,
@@ -1010,17 +1092,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // made the heading entrance feel rushed.
         const heroSupportStart = tl.duration() + 0.15;
 
-        // Paragraphs: split into rendered lines and stagger each line.
+        // Paragraphs: mask each rendered line and reveal it upward.
         const heroTextSplits = heroTexts.map((el) => {
           gsap.set(el, { autoAlpha: 1 });
-          const split = SplitText.create(el, { type: 'lines' });
+          const split = SplitText.create(el, { type: 'lines', mask: 'lines' });
           const lines = split.lines as HTMLElement[];
-          gsap.set(lines, { y: 30, autoAlpha: 0 });
+          gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
           return { split, lines };
         });
         const heroTextLines = heroTextSplits.flatMap(({ lines }) => lines);
         tl.to(heroTextLines, {
-          y: 0,
+          yPercent: 0,
           autoAlpha: 1,
           stagger: 0.2,
           duration: 0.8,
@@ -1180,26 +1262,26 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // ── Entrance + hover animations ──────────────────────────────────────────
 
-      // Non-hero headings: staggered character reveal, then char hover once done
+      // Non-hero headings: masked line reveal, then character hover once done.
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
       ));
       entranceHeadings.forEach((heading) => {
         gsap.set(heading, { autoAlpha: 0 });
-        const split = SplitText.create(heading, { type: "chars" });
-        const chars = split.chars as HTMLElement[];
-        gsap.set(chars, { y: 50, autoAlpha: 0 });
+        const split = SplitText.create(heading, { type: "lines", mask: "lines" });
+        const lines = split.lines as HTMLElement[];
+        gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
 
         const obs = new IntersectionObserver(([entry]) => {
           if (!entry.isIntersecting) return;
           obs.disconnect();
           gsap.set(heading, { autoAlpha: 1 });
-          gsap.to(chars, {
-            y: 0,
+          gsap.to(lines, {
+            yPercent: 0,
             autoAlpha: 1,
-            duration: 0.9,
-            ease: "back.out(1.7)",
-            stagger: 0.07,
+            duration: 0.8,
+            ease: "power2.out",
+            stagger: 0.2,
             onComplete: () => {
               split.revert();
               setupCharHover(heading);
@@ -1210,12 +1292,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         shaderRippleCleanups.push(() => {
           obs.disconnect();
-          gsap.killTweensOf(chars);
+          gsap.killTweensOf(lines);
           split.revert();
         });
       });
 
-      // Paragraphs and list items: stagger their rendered lines per section.
+      // Paragraphs and list items: mask and stagger rendered lines per section.
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) p, main > section:not(.hero) li"
       )).filter(
@@ -1223,9 +1305,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       );
       const entranceTextSplits = entranceTexts.map((el) => {
         gsap.set(el, { autoAlpha: 0 });
-        const split = SplitText.create(el, { type: 'lines' });
+        const split = SplitText.create(el, { type: 'lines', mask: 'lines' });
         const lines = split.lines as HTMLElement[];
-        gsap.set(lines, { y: 30, autoAlpha: 0 });
+        gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
         return { el, split, lines };
       });
       const textSections = Array.from(
@@ -1241,7 +1323,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           obs.disconnect();
           gsap.set(sectionEntries.map(({ el }) => el), { autoAlpha: 1 });
           gsap.to(sectionLines, {
-            y: 0,
+            yPercent: 0,
             autoAlpha: 1,
             stagger: 0.2,
             duration: 0.8,
@@ -1299,9 +1381,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
         gsap.set(aboutImage, { scale: 1.2 });
 
-        const obs = new IntersectionObserver(([entry]) => {
-          if (!entry.isIntersecting) return;
-          obs.disconnect();
+        let aboutRevealRaf = 0;
+        let hasRevealedAboutImage = false;
+        const revealAboutImage = () => {
+          if (hasRevealedAboutImage) return;
+          hasRevealedAboutImage = true;
           const tl = gsap.timeline();
           tl.to(aboutImageReveal, {
             clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
@@ -1313,11 +1397,28 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             duration: 1.5,
             ease: 'hop',
           }, 0);
-        }, { threshold: 0.15 });
-        obs.observe(aboutImageReveal);
+        };
+
+        // The homepage moves sections with a transformed horizontal track,
+        // which can make IntersectionObserver miss this tall portrait. Check
+        // the About panel's actual viewport position until it comes into view.
+        const watchAboutImage = () => {
+          const trigger = aboutSection ?? aboutImageReveal;
+          const bounds = trigger.getBoundingClientRect();
+          const isHorizontallyVisible =
+            bounds.left < window.innerWidth * 0.85 &&
+            bounds.right > window.innerWidth * 0.15;
+
+          if (isHorizontallyVisible) {
+            revealAboutImage();
+            return;
+          }
+          aboutRevealRaf = requestAnimationFrame(watchAboutImage);
+        };
+        aboutRevealRaf = requestAnimationFrame(watchAboutImage);
 
         shaderRippleCleanups.push(() => {
-          obs.disconnect();
+          cancelAnimationFrame(aboutRevealRaf);
           gsap.killTweensOf([aboutImageReveal, aboutImage]);
           gsap.set([aboutImageReveal, aboutImage], {
             clearProps: 'clipPath,scale',
@@ -1340,6 +1441,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       skillListeners.forEach((remove) => remove());
       if (dragRafId) cancelAnimationFrame(dragRafId);
       if (physicsRafId) cancelAnimationFrame(physicsRafId);
+      document.documentElement.style.removeProperty('--footer-color');
+      document.documentElement.style.removeProperty('--header-color');
+      document.documentElement.style.removeProperty('--footer-background');
+      document.documentElement.style.removeProperty('--footer-border-color');
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
         canvas.remove();
       });
@@ -1348,8 +1453,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
   return (
     <div ref={root} className="w-full h-screen overflow-hidden bg-background">
+        <Noise
+          patternSize={250}
+          patternScaleX={1}
+          patternScaleY={1}
+          patternRefreshInterval={2}
+          patternAlpha={15}
+        />
         {/* Preloader */}
-        <section className={`preloader w-full h-screen bg-black fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
+        <section className={`preloader w-full h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
             <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -1392,7 +1504,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <path
               ref={preloaderSquigglePathRef}
               d={SQUIGGLE_PATH_D}
-              stroke="#000000"
+              stroke={SQUIGGLE_COLOR}
               strokeWidth={SQUIGGLE_STROKE_THIN}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -1406,13 +1518,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       >
         {/* Hero Section */}
         <section id="home" className="hero w-screen h-screen shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full w-full flex items-end pb-15 pt-20 gap-5">
-            <div className = "w-1/2  flex flex-col justify-between h-full gap-10 px-7">
+          <div className="h-full w-full flex items-end pb-15 pt-20 px-15 gap-5">
+            <div className = "w-1/2  flex flex-col justify-between h-full gap-10">
               <div className="flex flex-col gap-5">
-                <h1 className="font-bold uppercase whitespace-nowrap">Creative <br/> Designer</h1>
+                <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
                 <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
-              <div className="w-[60vw] relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
+              <div className="w-full relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
                 <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
                 <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
@@ -1420,7 +1532,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10 px-7">
+            <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
@@ -1437,7 +1549,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   />
                 </div>
               </div>
-              <h1 className="font-bold uppercase text-right whitespace-nowrap">Mupemhi<br/>Brandon</h1>
+              <h1 className="uppercase text-right whitespace-nowrap">Mupemhi<br/>Brandon</h1>
             </div>
           </div>
         </section>
@@ -1445,20 +1557,20 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         {/*About Section — numbered grid around a centered portrait. Scrolls
             vertically when its content is taller than the viewport (see the
             wheel handler, which yields to it before resuming horizontal). */}
-        <section id="about" className="w-screen h-screen shrink-0 relative overflow-x-hidden overflow-y-auto  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <section id="about" className="w-screen h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-auto  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-16 pt-24 pb-16 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/70">
+          <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-15 pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
             {/* Headline */}
-            <h2 className="col-span-2 row-start-1 self-start font-heading font-bold uppercase leading-none whitespace-nowrap  text-foreground">
+            <h2 className="col-span-2 row-start-1 self-start uppercase whitespace-nowrap text-white">
               About Me
             </h2>
 
             {/* 01 — Who I Am */}
             <div className="col-start-3 row-start-1 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">01</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Who I Am</p>
-              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+              <p className="text-sm font-bold uppercase mb-2 text-white">Who I Am</p>
+              <p className="text-sm uppercase leading-relaxed text-white/90">
                 UI/UX designer and frontend developer creating thoughtful digital experiences where design, usability, and code come together.
               </p>
             </div>
@@ -1466,8 +1578,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* 02 — My Journey */}
             <div className="col-start-2 row-start-2 max-w-[24rem]">
               <p className="font-mono text-sm text-primary-color mb-3">02</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">My Journey</p>
-              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+              <p className="text-sm font-bold uppercase mb-2 text-white">My Journey</p>
+              <p className="text-sm uppercase leading-relaxed text-white/90">
                 I started my design journey in 2022, and have since grown across UI/UX, web design, and frontend development — turning ideas into real digital products.
               </p>
             </div>
@@ -1480,8 +1592,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* 03 — Approach */}
             <div className="col-start-3 row-start-3 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">03</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Approach</p>
-              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+              <p className="text-sm font-bold uppercase mb-2 text-white">Approach</p>
+              <p className="text-sm uppercase leading-relaxed text-white/90">
                 I design with development in mind — balancing visual detail, usability, and technical feasibility to create experiences that work beyond the mockup.
               </p>
             </div>
@@ -1503,8 +1615,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* 04 — Experience */}
             <div className="col-start-1 row-start-4 self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">04</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Experience</p>
-              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+              <p className="text-sm font-bold uppercase mb-2 text-white">Experience</p>
+              <p className="text-sm uppercase leading-relaxed text-white/90">
                 I&apos;ve worked across websites and digital products for organisations in education, agriculture, technology, and other industries.
               </p>
             </div>
@@ -1512,8 +1624,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* 05 — Off Screen */}
             <div className="col-start-3 row-start-4 self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">05</p>
-              <p className="text-sm font-bold uppercase mb-2 text-foreground">Off Screen</p>
-              <p className="text-sm uppercase leading-relaxed text-foreground/70">
+              <p className="text-sm font-bold uppercase mb-2 text-white">Off Screen</p>
+              <p className="text-sm uppercase leading-relaxed text-white/90">
                 When I&apos;m not designing or building, I&apos;m usually exploring new ideas, experimenting with motion, or finding inspiration far away from Figma.
               </p>
             </div>
@@ -1521,11 +1633,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 relative overflow-hidden">
-          <div className="absolute left-20 top-20 z-10 flex flex-col gap-5">
+        <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 bg-background relative overflow-hidden">
+          <div className="absolute left-15 top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
-              <h2 className="font-bold uppercase ">Selected</h2>
-              <h2 className="font-bold uppercase ">Work</h2>
+              <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
             {/** 
             <p className="uppercase leading-relaxed text-foreground/70">
@@ -1537,7 +1648,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/projects/${project.slug}`}>
-                  {project.name}
+                  <span className="project-pill__flair" aria-hidden="true" />
+                  <span className="button-flair__label inline-flex items-center">
+                    {project.name}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -1551,73 +1665,67 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
         
-        <section id="say-hello" className="w-screen h-screen shrink-0 flex flex-col gap-30 justify-center items-center">
-          <div className="flex flex-col gap-8 items-center">
-            <div className="w-full flex items-center justify-center gap-2">
-              <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Say</h2>
-              <div className="w-[20vw] h-35 rounded-full relative overflow-hidden ring-5 rotate-10 ring-secondary-color">
-                  <Image
-                    className="img object-cover will-change-transform"
-                    src="/images/contact.jpg"
-                    alt="Placeholder"
-                    priority
-                    fill
-                    sizes="20vw"
-                  />
+        <section id="say-hello" className="w-screen h-screen bg-deep-teal shrink-0 flex  px-15">
+          <div className="w-1/2 h-full flex flex-col gap-10 justify-between pb-20 pt-20">
+            <div className="w-full flex flex-col gap-8 items-start">
+              <div className="w-full flex items-center justify-start gap-2">
+                <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
               </div>
-              <h2 className="text-[clamp(3rem,10vw,15.625rem)] whitespace-nowrap uppercase">Hello</h2>
             </div>
-            <p className="max-w-2xl text-center uppercase leading-relaxed text-foreground/70">
-              Have a project, opportunity, or idea in mind? I&apos;m always open to a good conversation — let&apos;s talk.
-            </p>
-          </div>
-          <div className="w-full flex flex-wrap xl:flex-row  justify-center  items-center gap-5 xl:gap-1.25">
-
-            {/*Email */}
-            <div className="w-full md:w-auto border-2 border-foreground rounded-full hover:bg-accent">
-              <div className="w-full md:w-auto p-1 animate-rotate-border rounded-full bg-conic/[from_var(--border-angle)] from-transparent via-primary-color to-transparent from-80% via-90% to-100%">
-                  <a
+            <div className="w-full flex flex-col items-start gap-5 xl:gap-15">
+              <div className="flex flex-col gap-2.5">
+                <p className="text-white uppercase">Email me</p>
+                <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl  flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white">
-                  Drop me a line
-                  <IoIosMail className="text-[28px] xl:text-[40px]" />
-                  </a>
-              </div>
-            </div>
-
-            {/*Github */}
-            <div className="w-full md:w-auto xl:rotate-[-14deg] origin-left border-2 border-foreground rounded-full hover:bg-accent">
-              <div className="p-1.25 w-full md:w-auto ">
-                  <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white">
-                  Github
-                  <FaGithub className="text-[24px] xl:text-[40px]" />
-                  </a>
-              </div>
-            </div>
-                    
-            {/*Linkedin */}
-            <div className="w-full md:w-auto border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-2.5 ">
-              <div className="p-1.25 w-full md:w-auto ">
-                  <a 
-                  href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
-                  Linkedin
-                  <IoLogoLinkedin  className="text-[28px] xl:text-[40px]" />
-                  </a>
-              </div>
-            </div>
-                    
-            {/*Dribbble */}
-            <div className="w-full md:w-auto xl:w-auto xl:rotate-18 origin-right border-2 border-(--foreground) rounded-full hover:bg-(--accent) hover:border-(--accent) xl:-ml-10 ">
-              <div className="p-1.25 w-full md:w-auto">
-                <a 
-                  href="https://dribbble.com/OGA_01" target="_blank" rel="noopener noreferrer"
-                  className="w-full md:w-auto justify-center px-5 py-1.5 xl:px-6.25 xl:py-3 bg-background uppercase items-center text-base xl:text-2xl   flex gap-5 text-foreground rounded-full hover:bg-primary-color hover:text-white"> 
-                  Dribbble
-                  <PiDribbbleLogoFill className="text-[28px] xl:text-[40px]" />
+                  className="contact-swap-button w-full md:w-auto wrap justify-center bg-transparent! items-center text-base xl:text-4xl flex gap-5 border-b-2 border-white text-white ">
+                    <span className="contact-button__label">
+                      <span>brandoneemupemhi@gmail.com</span>
+                      <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
+                    </span>
+                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-10 w-10" />
                 </a>
               </div>
+              <div className ="flex gap-8">
+                <a
+                  href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
+                  className="contact-swap-button w-full md:w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  <span className="contact-button__label">
+                    <span>Linkedin</span>
+                    <span aria-hidden="true" className="text-primary-color">Linkedin</span>
+                  </span>
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                </a>
+                <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
+                className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  <span className="contact-button__label">
+                    <span>Github</span>
+                    <span aria-hidden="true" className="text-primary-color">Github</span>
+                  </span>
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                </a>
+                
+                <a
+                  href="https://dribbble.com/OGA_01" target="_blank" rel="noopener noreferrer"
+                  className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  <span className="contact-button__label">
+                    <span>Dribbble</span>
+                    <span aria-hidden="true" className="text-primary-color">Dribbble</span>
+                  </span>
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="h-full min-w-0 w-1/2 pt-20">
+            <div className="relative size-full">
+              <Image
+                className="object-contain object-center p-6 will-change-transform"
+                src="/images/seated-person-portfolio-1.svg"
+                alt="Brandon"
+                priority
+                fill
+                sizes="50vw"
+              />
             </div>
           </div>
         </section>

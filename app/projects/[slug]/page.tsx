@@ -38,6 +38,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const disciplines = project.tags.length ? project.tags : project.role ? [project.role] : ["Design"];
   const roleLines = project.role ? project.role.split(/[,/&]+/).map((item) => item.trim()).filter(Boolean) : ["Designer"];
   const cs = project.case_study;
+  const mediaAt = (key: string, fallbackIndex: number) => cs.media[key] || imageAt(fallbackIndex);
   const responsibilities = cs.responsibilities.length ? cs.responsibilities : roleLines;
   const insights = cs.insights.length ? cs.insights : [];
   const processSteps = cs.process_steps.length ? cs.process_steps : [];
@@ -65,7 +66,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
     <section className="case-section case-shell case-challenge">
       <Eyebrow number="02">The challenge</Eyebrow><h2>{cs.challenge_question || "What needed to be solved?"}</h2>
       <p className="case-side-copy">{cs.challenge || project.description}</p>
-      <div className="case-media-pair"><Media src={imageAt(0)} alt={`${project.name} challenge view one`} /><Media src={imageAt(1)} alt={`${project.name} challenge view two`} /></div>
+      <div className="case-media-pair"><Media src={mediaAt('challenge_1', 0)} alt={`${project.name} challenge view one`} /><Media src={mediaAt('challenge_2', 1)} alt={`${project.name} challenge view two`} /></div>
     </section>
 
     {(cs.understanding || insights.length > 0) && <section className="case-section case-shell">
@@ -81,15 +82,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
     <section className="case-section case-shell case-exploration">
       <Eyebrow number="05 /">Exploration</Eyebrow><h2>From structure to interface.</h2>
-      <div className="case-explore-grid">{[0, 1, 2].map((index) => <Media key={index} src={imageAt(index)} alt={`${project.name} exploration ${index + 1}`} />)}</div>
+      <div className="case-explore-grid">{[0, 1, 2].map((index) => <Media key={index} src={mediaAt(`exploration_${index + 1}`, index)} alt={`${project.name} exploration ${index + 1}`} />)}</div>
       <p className="case-side-copy">{cs.exploration || project.description}</p>
     </section>
 
-    <section className="case-section case-solution"><div className="case-shell"><Eyebrow number="06 /">The solution</Eyebrow><h2>{cs.solution || "The finished experience."}</h2><Media src={imageAt(3)} alt={`${project.name} finished solution`} className="case-solution-image" /></div></section>
+    <section className="case-section case-solution"><div className="case-shell"><Eyebrow number="06 /">The solution</Eyebrow><h2>{cs.solution || "The finished experience."}</h2><Media src={mediaAt('solution', 3)} alt={`${project.name} finished solution`} className="case-solution-image" /></div></section>
 
     {features.length > 0 && <section className="case-section case-shell case-features">
       <Eyebrow number="07 /">Key experiences</Eyebrow>
-      {features.map((feature, index) => <article className="case-feature" key={`${feature.title}-${index}`}><Media src={imageAt(index + 4)} alt={`${project.name} ${feature.title}`} /><div><span>{pad(index + 1)}</span><h3>{feature.title}</h3><p>{feature.description}</p></div></article>)}
+      {features.map((feature, index) => <article className="case-feature" key={`${feature.title}-${index}`}><Media src={mediaAt(`feature_${index + 1}`, index + 4)} alt={`${project.name} ${feature.title}`} /><div><span>{pad(index + 1)}</span><h3>{feature.title}</h3><p>{feature.description}</p></div></article>)}
     </section>}
 
     {cs.design_system && <section className="case-section case-shell case-system">
@@ -105,7 +106,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
     {cs.responsive && <section className="case-section case-shell case-responsive">
       <Eyebrow number="10 /">Responsive</Eyebrow><h2>Built for every screen.</h2>
       <p className="case-side-copy">{cs.responsive}</p>
-      <div className="case-devices"><Media src={imageAt(0)} alt={`${project.name} mobile view`} className="case-device-mobile" /><Media src={imageAt(1)} alt={`${project.name} tablet view`} className="case-device-tablet" /><Media src={imageAt(2)} alt={`${project.name} desktop view`} className="case-device-desktop" /></div>
+      <div className="case-devices"><Media src={mediaAt('responsive_mobile', 0)} alt={`${project.name} mobile view`} className="case-device-mobile" /><Media src={mediaAt('responsive_tablet', 1)} alt={`${project.name} tablet view`} className="case-device-tablet" /><Media src={mediaAt('responsive_desktop', 2)} alt={`${project.name} desktop view`} className="case-device-desktop" /></div>
     </section>}
 
     <section className="case-section case-shell case-outcome">

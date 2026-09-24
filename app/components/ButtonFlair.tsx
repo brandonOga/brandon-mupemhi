@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import gsap from 'gsap';
 
-const selector = 'button, .projects li a, #say-hello a, .case-visit';
+const selector = 'button, .projects li a, .case-visit';
 
 function contrastingFill(color: string) {
   const values = color.match(/[\d.]+/g)?.slice(0, 3).map(Number) ?? [255, 255, 255];

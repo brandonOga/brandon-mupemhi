@@ -30,8 +30,14 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-transparent">
-      <nav className="w-full h-20 flex items-center justify-between px-8">
+    <header
+      className="fixed top-0 left-0 right-0 z-40"
+      style={{
+        color: 'var(--header-color, #111111)',
+        background: 'var(--footer-background, #fefff8)',
+      }}
+    >
+      <nav className="w-full h-20 flex items-center justify-between px-15">
         {/* Left Menu */}
         <ul className="flex gap-8">
           {menuItems.slice(0, 2).map(({ label, id }) => (
@@ -40,9 +46,12 @@ export default function Header() {
                 href={`/#${id}`}
                 data-transition-ignore
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
-                className="text-black uppercase text-sm font-medium hover:text-gray-300 transition"
+                className="contact-swap-button text-inherit uppercase text-sm font-medium"
               >
-                {label}
+                <span className="contact-button__label">
+                  <span>{label}</span>
+                  <span aria-hidden="true">{label}</span>
+                </span>
               </Link>
             </li>
           ))}
@@ -53,9 +62,12 @@ export default function Header() {
           href="/#home"
           data-transition-ignore
           onClick={(e) => { e.preventDefault(); goToSection('home'); }}
-          className="font-heading font-bold uppercase text-3xl tracking-wide text-black whitespace-nowrap"
+          className="contact-swap-button font-heading font-bold uppercase text-3xl tracking-wide text-inherit whitespace-nowrap"
         >
-          BM
+          <span className="contact-button__label">
+            <span>BM</span>
+            <span aria-hidden="true">BM</span>
+          </span>
         </Link>
 
         {/* Right Menu */}
@@ -66,9 +78,12 @@ export default function Header() {
                 href={`/#${id}`}
                 data-transition-ignore
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
-                className="text-black uppercase text-sm font-medium hover:text-gray-300 transition"
+                className="contact-swap-button text-inherit uppercase text-sm font-medium"
               >
-                {label}
+                <span className="contact-button__label">
+                  <span>{label}</span>
+                  <span aria-hidden="true">{label}</span>
+                </span>
               </Link>
             </li>
           ))}

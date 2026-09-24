@@ -45,6 +45,7 @@ export type CaseStudy = {
   outcome: string;
   what_worked: string[];
   improvements: string[];
+  media: Record<string, string>;
 };
 
 const emptyCaseStudy: CaseStudy = {
@@ -53,6 +54,7 @@ const emptyCaseStudy: CaseStudy = {
   process_steps: [], exploration: '', solution: '', features: [],
   design_system: '', development: '', responsive: '', outcome: '',
   what_worked: [], improvements: [],
+  media: {},
 };
 
 function normalizeCaseStudy(value: unknown): CaseStudy {
@@ -75,6 +77,9 @@ function normalizeCaseStudy(value: unknown): CaseStudy {
     design_system: text('design_system'), development: text('development'),
     responsive: text('responsive'), outcome: text('outcome'),
     what_worked: list('what_worked'), improvements: list('improvements'),
+    media: source.media && typeof source.media === 'object' && !Array.isArray(source.media)
+      ? Object.fromEntries(Object.entries(source.media as Record<string, unknown>).map(([key, value]) => [key, String(value ?? '')]))
+      : {},
   };
 }
 

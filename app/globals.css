@@ -19,6 +19,41 @@
   scroll-behavior: auto !important;
 }
 
+[data-admin] section[id] { scroll-margin-top: 5.5rem; }
+
+.button-flair {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--button-base-bg) !important;
+  color: var(--button-base-color) !important;
+  transition: color 0.3s ease !important;
+}
+
+.button-flair::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: var(--button-flair-y);
+  left: var(--button-flair-x);
+  width: 175%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: var(--button-flair-fill);
+  transform: translate(-50%, -50%) scale(var(--button-flair-scale));
+  will-change: transform, top, left;
+}
+
+.button-flair__label {
+  position: relative;
+  z-index: 1;
+}
+
+@media (hover: hover) {
+  .button-flair:hover { color: var(--button-flair-color) !important; }
+}
+
 .case-shell { width: min(100%, 1600px); margin-inline: auto; padding-inline: clamp(1.25rem, 3vw, 3.5rem); }
 .case-section { padding-block: clamp(6rem, 11vw, 11rem); border-top: 1px solid var(--case-line); }
 .case-section h2 { max-width: 12ch; margin-top: clamp(2rem, 5vw, 5rem); font-size: clamp(3rem, 8vw, 8.5rem); letter-spacing: -0.06em; }
@@ -221,7 +256,7 @@
 
   --color-background: #FEFFF8;
   --color-foreground: #242124;
-  --color-primary-color: #F59E0B;
+  --color-primary-color: #FF6B35;
   --color-secondary-color: #3B82F6;
   --color-tertiary-color: #e2725b;
   --color-text-white: #ffffff;
@@ -230,6 +265,8 @@
   --color-accent-color: #fce5cd;
   --color-mustard: #e7ab23;
   --color-off-white: #eceff1;
+  --color-site-black: #0A0A0A;
+  --color-deep-teal: #2F4F4F;
 
   --font-sans: var(--font-geist-mono);
   --font-heading: "Neue Montreal", sans-serif;
@@ -239,8 +276,8 @@
      Stepped per breakpoint below (sm, md, lg, 1140, xl, 1440, 2xl) —
      h1's old max (100px/6.25rem) and h2's old hardcoded clamp max
      (100px/6.25rem) are preserved as the 2xl values. */
-  --text-h1: 2.5rem;    --text-h1--line-height: 0.9em;   --text-h1--font-weight: 800;
-  --text-h2: 32px;      --text-h2--line-height: 0.9em;   --text-h2--font-weight: 800;
+  --text-h1: 2.5rem;    --text-h1--line-height: 1.1em;   --text-h1--font-weight: 800; --text-h1--color: #d9d9d9;
+  --text-h2: 32px;      --text-h2--line-height: 1.1em;   --text-h2--font-weight: 800; --text-h2--color: #ff0000;
   --text-h3: 17px;      --text-h3--line-height: 1.4em;   --text-h3--font-weight: 800;
   --text-h4: 16px;      --text-h4--line-height: 1.4em;   --text-h4--font-weight: 700;
   --text-h5: 15px;      --text-h5--line-height: 1.4em;   --text-h5--font-weight: 600;
@@ -384,6 +421,15 @@
     font-weight: var(--text-body--font-weight);
   }
 
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-left: -0.01em;
+  }
+
   li {
     margin-bottom: 0.5rem; /* adjust spacing as needed */
     line-height: 1.6; /* improves readability */
@@ -465,6 +511,53 @@
 }
 
 @layer components {
+  .contact-swap-button {
+    overflow: hidden;
+  }
+
+  .contact-swap-button > svg {
+    transition: color 0.3s ease;
+  }
+
+  .contact-swap-button.button-flair::before {
+    content: none;
+  }
+
+  .contact-button__label {
+    display: inline-grid;
+    overflow: hidden;
+    line-height: 1.2;
+  }
+
+  .contact-button__label > span {
+    grid-area: 1 / 1;
+    display: block;
+    transition: transform 0.65s cubic-bezier(0.76, 0, 0.24, 1);
+    will-change: transform;
+  }
+
+  .contact-button__label > span:first-child {
+    transform: translateY(0%);
+  }
+
+  .contact-button__label > span:last-child {
+    transform: translateY(100%);
+  }
+
+  @media (hover: hover) {
+    .contact-swap-button:hover > svg {
+      color: var(--color-primary-color);
+    }
+
+    .contact-swap-button:hover .contact-button__label > span:first-child {
+      transform: translateY(-100%);
+    }
+
+    .contact-swap-button:hover .contact-button__label > span:last-child {
+      transform: translateY(0%);
+    }
+  }
+
 
   .preloader-images {
     clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
@@ -481,14 +574,42 @@
    }
 
    .projects li a {
-    @apply text-lg py-2.5 px-3.5 text-foreground! bg-white! whitespace-nowrap;
+    @apply inline-flex text-lg py-2.5 px-3.5 text-foreground! bg-white! whitespace-nowrap;
     cursor: pointer;
-    box-shadow: 5px 5px 0 -1px rgba(0, 0, 0, 1) !important;
+   }
+
+   .projects li a.button-flair::before {
+    content: none;
+   }
+
+   .project-pill__flair {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+   }
+
+   .project-pill__flair::before {
+    content: '';
+    position: absolute;
+    top: var(--button-flair-y);
+    left: var(--button-flair-x);
+    width: 175%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--button-flair-fill);
+    transform: translate(-50%, -50%) scale(var(--button-flair-scale));
+    will-change: transform, top, left;
    }
 
   .projects li:hover a {
-      @apply bg-black! text-white!;
-      box-shadow: 5px 5px 0 -1px rgba(255, 255, 255, 1) !important;
+      box-shadow: none !important;
+  }
+
+  .projects li a.button-flair:hover {
+    color: #fff !important;
   }
 
   .project-description {

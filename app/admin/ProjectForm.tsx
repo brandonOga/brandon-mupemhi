@@ -46,6 +46,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
   const [gallery, setGallery] = useState<string[]>(project?.gallery ?? []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [featureCount, setFeatureCount] = useState(Math.max(3, project?.case_study.features.length ?? 0));
   const [, startTransition] = useTransition();
 
   const busy = pending || uploading;
@@ -85,7 +86,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-6 max-w-3xl mx-auto px-4 py-10"
+      className="flex flex-col gap-6 max-w-5xl mx-auto px-4 py-10"
     >
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -97,10 +98,20 @@ export default function ProjectForm({ project }: { project?: Project }) {
             <p className="text-xs opacity-50 mt-1">/{project.slug}</p>
           )}
         </div>
+        <div className="flex items-center gap-3">
+        {project?.published && <Link href={`/projects/${project.slug}`} target="_blank" className="rounded-full border border-foreground/20 px-4 py-2 text-sm no-underline">Preview ↗</Link>}
         <Link href="/admin" className="text-sm no-underline opacity-60">
           ← Back
-        </Link>
+        </Link></div>
       </div>
+
+      <nav className="sticky top-3 z-20 flex gap-2 overflow-x-auto rounded-full border border-foreground/10 bg-background/95 p-2 shadow-sm backdrop-blur">
+        {[
+          ['project-intro', 'Intro'], ['snapshot', 'Overview'], ['problem', 'Problem'],
+          ['solution', 'Solution'], ['system-build', 'Build'], ['outcome', 'Outcome'],
+          ['media', 'Media'], ['settings', 'Settings'],
+        ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full px-3 py-1 text-xs uppercase no-underline text-foreground">{label}</a>)}
+      </nav>
 
       {project && <input type="hidden" name="id" value={project.id} />}
       <input
@@ -110,8 +121,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
       />
 
       {/* Details */}
-      <section className={card}>
-        <p className={legend}>Details</p>
+      <section id="project-intro" className={card}>
+        <SectionHeading title="Project card and hero" required note="Controls the homepage hover panel and the opening of the project page." />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Name *</span>
@@ -129,7 +140,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
-          <span className={labelText}>Short description</span>
+          <span className={labelText}>Project type / one-sentence summary</span>
           <input
             name="description"
             defaultValue={project?.description}
@@ -172,13 +183,13 @@ export default function ProjectForm({ project }: { project?: Project }) {
 
       {/* Case study */}
       <section className={card}>
-        <p className={legend}>Project overview</p>
+        <SectionHeading title="Optional rich-text introduction" note="Legacy long-form introduction. Leave empty to use the structured overview below." />
         <RichTextEditor name="body" defaultValue={project?.body} />
         <p className={help}>Optional rich-text introduction. The structured fields below control the editorial page sections.</p>
       </section>
 
-      <section className={card}>
-        <p className={legend}>01 — Snapshot</p>
+      <section id="snapshot" className={card}>
+        <SectionHeading title="01 — Project overview" required note="Gives visitors a quick understanding before the full case study." />
         <div className="grid grid-cols-2 gap-4">
           <Field name="case_industry" label="Industry" value={caseStudy?.industry} />
           <Field name="case_timeline" label="Timeline" value={caseStudy?.timeline} placeholder="e.g. 8 weeks" />
@@ -190,8 +201,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
         </div>
       </section>
 
-      <section className={card}>
-        <p className={legend}>02–05 — Problem and process</p>
+      <section id="problem" className={card}>
+        <SectionHeading title="02–05 — Problem and process" required note="Explain the problem before the polished work. Empty optional subsections stay hidden." />
         <Field name="case_challenge_question" label="Challenge question" value={caseStudy?.challenge_question} placeholder="How might we…?" />
         <Area name="case_challenge" label="Challenge explanation" value={caseStudy?.challenge} />
         <Area name="case_understanding" label="Understanding the problem / users" value={caseStudy?.understanding} />
@@ -200,24 +211,29 @@ export default function ProjectForm({ project }: { project?: Project }) {
         <Area name="case_exploration" label="Exploration / wireframes explanation" value={caseStudy?.exploration} />
       </section>
 
-      <section className={card}>
-        <p className={legend}>06–07 — Solution and key experiences</p>
+      <section id="solution" className={card}>
+        <SectionHeading title="06–07 — Solution and key experiences" required note="Explain what each feature does, why it exists, and which problem it solves." />
         <Area name="case_solution" label="Solution introduction" value={caseStudy?.solution} />
-        {[0, 1, 2].map((index) => <div key={index} className="grid gap-3 border-t border-foreground/10 pt-4">
+        <input type="hidden" name="case_feature_count" value={featureCount} />
+        {Array.from({ length: featureCount }, (_, index) => <div key={index} className="grid gap-3 border-t border-foreground/10 pt-4">
           <Field name={`case_feature_${index + 1}_title`} label={`Feature ${index + 1} title`} value={caseStudy?.features[index]?.title} />
           <Area name={`case_feature_${index + 1}_description`} label={`Feature ${index + 1} explanation`} value={caseStudy?.features[index]?.description} rows={3} />
         </div>)}
+        <div className="flex gap-2">
+          {featureCount < 5 && <button type="button" onClick={() => setFeatureCount((count) => count + 1)} className="bg-transparent! text-foreground! border border-foreground/20 text-xs">+ Add feature</button>}
+          {featureCount > 1 && <button type="button" onClick={() => setFeatureCount((count) => count - 1)} className="bg-transparent! text-warning! border border-warning/20 text-xs">Remove last</button>}
+        </div>
       </section>
 
-      <section className={card}>
-        <p className={legend}>08–10 — System and build</p>
+      <section id="system-build" className={card}>
+        <SectionHeading title="08–10 — System and build" note="Optional — each section remains hidden on the public page when empty." />
         <Area name="case_design_system" label="Design system" value={caseStudy?.design_system} />
         <Area name="case_development" label="Development involvement" value={caseStudy?.development} />
         <Area name="case_responsive" label="Responsive design" value={caseStudy?.responsive} />
       </section>
 
-      <section className={card}>
-        <p className={legend}>11 — Outcome and reflection</p>
+      <section id="outcome" className={card}>
+        <SectionHeading title="11 — Outcome and reflection" required note="Describe what was delivered, learned, and worth improving. Only use verified metrics." />
         <Area name="case_outcome" label="Outcome" value={caseStudy?.outcome} />
         <div className="grid grid-cols-2 gap-4">
           <Area name="case_what_worked" label="What worked — one per line" value={caseStudy?.what_worked.join('\n')} />
@@ -226,8 +242,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
       </section>
 
       {/* Media */}
-      <section className={card}>
-        <p className={legend}>Media</p>
+      <section id="media" className={card}>
+        <SectionHeading title="Media and image placement" required note="Upload images, save the project, then assign each saved image to a page position." />
 
         {/* Cover image */}
         <div className="flex flex-col gap-2.5">
@@ -292,11 +308,25 @@ export default function ProjectForm({ project }: { project?: Project }) {
             <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
+
+        {(gallery.length > 0 || project?.cover_image) && (
+          <div className="grid grid-cols-1 gap-4 border-t border-foreground/10 pt-5 sm:grid-cols-2">
+            {[
+              ['challenge_1', 'Challenge image 1'], ['challenge_2', 'Challenge image 2'],
+              ['exploration_1', 'Exploration image 1'], ['exploration_2', 'Exploration image 2'], ['exploration_3', 'Exploration image 3'],
+              ['solution', 'Main solution image'],
+              ...Array.from({ length: featureCount }, (_, index) => [`feature_${index + 1}`, `Feature ${index + 1} image`]),
+              ['responsive_mobile', 'Responsive mobile'], ['responsive_tablet', 'Responsive tablet'], ['responsive_desktop', 'Responsive desktop'],
+            ].map(([key, text]) => (
+              <MediaSelect key={key} name={`case_media_${key}`} label={text} value={caseStudy?.media[key]} cover={project?.cover_image} gallery={gallery} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Settings */}
-      <section className={card}>
-        <p className={legend}>Settings</p>
+      <section id="settings" className={card}>
+        <SectionHeading title="Publishing settings" required />
         <div className="grid grid-cols-2 gap-4 items-end">
           <label className="flex flex-col gap-1 text-sm">
             <span className={labelText}>Display order (lower = first)</span>
@@ -350,4 +380,13 @@ function Field({ name, label, value, placeholder }: { name: string; label: strin
 
 function Area({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value?: string; placeholder?: string; rows?: number }) {
   return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><textarea name={name} defaultValue={value} placeholder={placeholder} rows={rows} className={`${input} resize-y`} /></label>;
+}
+
+function SectionHeading({ title, note, required = false }: { title: string; note?: string; required?: boolean }) {
+  return <div className="border-b border-foreground/10 pb-4"><div className="flex items-center justify-between gap-4"><p className={legend}>{title}</p><span className={`rounded-full px-2 py-1 text-[10px] uppercase ${required ? 'bg-foreground text-white' : 'bg-foreground/5 text-foreground/60'}`}>{required ? 'Core' : 'Optional'}</span></div>{note && <p className="mt-2 text-xs opacity-55">{note}</p>}</div>;
+}
+
+function MediaSelect({ name, label, value, cover, gallery }: { name: string; label: string; value?: string; cover?: string; gallery: string[] }) {
+  const options = Array.from(new Set([cover, ...gallery].filter(Boolean))) as string[];
+  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><select name={name} defaultValue={value ?? ''} className={input}><option value="">Automatic gallery order</option>{options.map((url, index) => <option key={url} value={url}>{index === 0 && cover ? 'Cover image' : `Gallery image ${cover ? index : index + 1}`}</option>)}</select></label>;
 }
