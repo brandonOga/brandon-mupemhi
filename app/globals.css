@@ -295,10 +295,7 @@ html.hide-scrollbar::-webkit-scrollbar {
   --color-secondary-color: #3B82F6;
   --color-tertiary-color: #e2725b;
   --color-text-white: #ffffff;
-  --color-grey: #808080;
   --color-warning: #c70a0a;
-  --color-accent-color: #fce5cd;
-  --color-mustard: #e7ab23;
   --color-off-white: #eceff1;
   --color-site-black: #0A0A0A;
   --color-deep-teal: #2F4F4F;
@@ -311,8 +308,8 @@ html.hide-scrollbar::-webkit-scrollbar {
      Stepped per breakpoint below (sm, md, lg, 1140, xl, 1440, 2xl) —
      h1's old max (100px/6.25rem) and h2's old hardcoded clamp max
      (100px/6.25rem) are preserved as the 2xl values. */
-  --text-h1: 2.5rem;    --text-h1--line-height: 1.1em;   --text-h1--font-weight: 800; --text-h1--color: #d9d9d9;
-  --text-h2: 32px;      --text-h2--line-height: 1.1em;   --text-h2--font-weight: 800; --text-h2--color: #ff0000;
+  --text-h1: 2.5rem;    --text-h1--line-height: 0.9em;   --text-h1--font-weight: 800; 
+  --text-h2: 32px;      --text-h2--line-height: 1.1em;   --text-h2--font-weight: 800; 
   --text-h3: 17px;      --text-h3--line-height: 1.4em;   --text-h3--font-weight: 800;
   --text-h4: 16px;      --text-h4--line-height: 1.4em;   --text-h4--font-weight: 700;
   --text-h5: 15px;      --text-h5--line-height: 1.4em;   --text-h5--font-weight: 600;

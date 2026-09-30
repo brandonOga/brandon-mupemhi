@@ -158,10 +158,16 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const luminance = background[0] * 0.299 + background[1] * 0.587 + background[2] * 0.114;
       return luminance < 90 ? [255, 255, 255] : [17, 17, 17];
     });
-    const sectionBorderColors = sectionTextColors.map((text): [number, number, number, number] => {
+    // The footer has no background or border over the Work section, so the 3D
+    // scene shows through; the header keeps its solid colour everywhere.
+    const footerTransparent = sections.map((section) => section.id === 'work');
+    const sectionBorderColors = sectionTextColors.map((text, index): [number, number, number, number] => {
+      if (footerTransparent[index]) return [229, 231, 235, 0];
       const usesLightText = text[0] > 200 && text[1] > 200 && text[2] > 200;
       return usesLightText ? [247, 246, 241, 0.3] : [229, 231, 235, 1];
     });
+    const footerFill = (color: number[], index: number) =>
+      `rgba(${color.join(', ')}, ${footerTransparent[index] ? 0 : 1})`;
 
     // Header/footer colours, progress bar and section counter, driven by the
     // track's current horizontal offset.
@@ -215,6 +221,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         '--footer-background',
         `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) 100%)`
       );
+      const footerFrom = footerFill(fromBackground, fromIndex);
+      const footerTo = footerFill(toBackground, toIndex);
+      document.documentElement.style.setProperty(
+        '--footer-bar-background',
+        `linear-gradient(90deg, ${footerFrom} 0%, ${footerFrom} ${backgroundBoundary}px, ${footerTo} ${backgroundBoundary}px, ${footerTo} 100%)`
+      );
       document.documentElement.style.setProperty(
         '--footer-border-color',
         `rgba(${footerBorder.slice(0, 3).map(Math.round).join(', ')}, ${footerBorder[3]})`
@@ -245,14 +257,16 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       });
       return index;
     };
-    const bandBackground = (top: number, bottom: number) => {
+    const bandBackground = (top: number, bottom: number, transparentWork = false) => {
       const fromIndex = sectionIndexAt(top);
       const toIndex = sectionIndexAt(bottom);
-      const from = sectionBackgrounds[fromIndex] ?? inheritedBackground;
-      const to = sectionBackgrounds[toIndex] ?? from;
-      if (fromIndex === toIndex) return `rgb(${from.join(', ')})`;
+      const fill = (index: number) => {
+        const color = sectionBackgrounds[index] ?? inheritedBackground;
+        return transparentWork ? footerFill(color, index) : `rgb(${color.join(', ')})`;
+      };
+      if (fromIndex === toIndex) return `linear-gradient(${fill(fromIndex)}, ${fill(fromIndex)})`;
       const boundary = sections[toIndex].getBoundingClientRect().top - top;
-      return `linear-gradient(180deg, rgb(${from.join(', ')}) 0px, rgb(${from.join(', ')}) ${boundary}px, rgb(${to.join(', ')}) ${boundary}px, rgb(${to.join(', ')}) 100%)`;
+      return `linear-gradient(180deg, ${fill(fromIndex)} 0px, ${fill(fromIndex)} ${boundary}px, ${fill(toIndex)} ${boundary}px, ${fill(toIndex)} 100%)`;
     };
     const updateStackedUI = () => {
       if (!isStacked) return;
@@ -270,6 +284,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       rootStyle.setProperty('--header-background', bandBackground(0, headerBottom));
       rootStyle.setProperty('--footer-color', `rgb(${footerColor.join(', ')})`);
       rootStyle.setProperty('--footer-background', bandBackground(footerTop, window.innerHeight));
+      rootStyle.setProperty('--footer-bar-background', bandBackground(footerTop, window.innerHeight, true));
       rootStyle.setProperty('--footer-border-color', `rgba(${footerBorder.slice(0, 3).join(', ')}, ${footerBorder[3]})`);
     };
     window.addEventListener('scroll', updateStackedUI, { passive: true });
@@ -498,11 +513,70 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       return bounced;
     };
 
+    // Entrance: each pill falls from just above the viewport under gravity,
+    // bounces to rest in its own slot, then hands back to the idle spring loop.
+    const PILL_GRAVITY = 1.1; // px per frame², at 60fps
+    const PILL_RESTITUTION = 0.42; // share of speed kept after each bounce
+    const PILL_SETTLE_SPEED = 2.5; // impacts slower than this come to rest
+    const pillDrops = skillPillEls.map(() => ({ active: false, launched: false, startAt: 0, rotation: 0 }));
+
     const updateSkillPillTransform = (index: number) => {
       const pill = skillPillEls[index];
       if (!pill) return;
       const { x, y } = skillPillPositions[index];
-      pill.style.transform = `translate(${x}px, ${y}px)`;
+      pill.style.transform = `translate(${x}px, ${y}px) rotate(${pillDrops[index].rotation}deg)`;
+    };
+
+    const dropPills = (stagger = 0.12) => {
+      if (reduceMotion) {
+        gsap.set(skillPillEls, { clipPath: 'inset(0% 0% 0% 0%)' });
+        return;
+      }
+      const now = performance.now();
+      skillPillEls.forEach((pill, index) => {
+        if (dragState.activeIndex === index) return;
+        // Hidden in its slot until its turn to fall.
+        gsap.set(pill, { clipPath: 'inset(100% 0% 0% 0%)' });
+        Object.assign(pillDrops[index], {
+          active: true,
+          launched: false,
+          startAt: now + index * stagger * 1000,
+          rotation: 0,
+        });
+      });
+    };
+
+    const stepPillDrop = (index: number, now: number, dt: number) => {
+      const drop = pillDrops[index];
+      const pill = skillPillEls[index];
+      const position = skillPillPositions[index];
+      if (now < drop.startAt) return;
+
+      if (!drop.launched) {
+        drop.launched = true;
+        const layoutTop = pill.getBoundingClientRect().top - position.y;
+        position.x = 0;
+        position.vx = 0;
+        position.vy = 0;
+        position.y = -(layoutTop + pill.offsetHeight + 40);
+        drop.rotation = (Math.random() - 0.5) * 36;
+        gsap.set(pill, { clipPath: 'inset(0% 0% 0% 0%)' });
+      }
+
+      position.vy += PILL_GRAVITY * dt;
+      position.y += position.vy * dt;
+      if (position.y >= 0) {
+        position.y = 0;
+        if (position.vy < PILL_SETTLE_SPEED) {
+          position.vy = 0;
+          drop.rotation = 0;
+          drop.active = false;
+        } else {
+          position.vy *= -PILL_RESTITUTION;
+          drop.rotation *= -0.5;
+        }
+      }
+      updateSkillPillTransform(index);
     };
 
     const stopDrag = () => {
@@ -540,9 +614,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       dragRafId = requestAnimationFrame(decay);
     };
 
+    let lastPillFrame = performance.now();
     const animatePills = () => {
+      const now = performance.now();
+      const dt = Math.min((now - lastPillFrame) / (1000 / 60), 3);
+      lastPillFrame = now;
       skillPillEls.forEach((pill, index) => {
         if (dragState.activeIndex === index) return;
+        if (pillDrops[index].active) {
+          stepPillDrop(index, now, dt);
+          return;
+        }
         const position = skillPillPositions[index];
         const anchor = skillPillAnchors[index];
 
@@ -599,6 +681,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     skillPillEls.forEach((pill, index) => {
       const onPointerDown = (event: PointerEvent) => {
         event.preventDefault();
+        // Catching a pill mid-fall ends its drop.
+        pillDrops[index].active = false;
+        pillDrops[index].rotation = 0;
         dragState.activeIndex = index;
         dragState.startX = event.clientX;
         dragState.startY = event.clientY;
@@ -1141,13 +1226,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       };
 
-      // Skill pills: clip-path inset reveal directly on .skill-pill — clip-path
-      // doesn't touch `transform`, so it's safe even though the drag physics
-      // loop writes style.transform on the same element every frame. Each
-      // pill's JSX default state is already clipped (inset(100% ...)) so
-      // there's no flash before this code runs. Collected once up front so
-      // both the first-load entrance and the later scroll-into-view observer
-      // can reuse the same `pillSlides`.
+      // Skill pills: each pill's JSX default state is clipped (inset(100% ...))
+      // so there's no flash before the entrance runs. dropPills (in the pill
+      // physics above) unclips each one as it starts to fall. Collected once
+      // up front for the return-visit path and the scroll-into-view observer.
       const pillSlides = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
 
       // ── Hero entrance (called from preloader timeline on first visit) ─────────
@@ -1218,16 +1300,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           }, heroSupportStart);
         }
 
-        // skill pills: clip-path inset reveal from bottom (bottom edge
-        // appears first, then upward), staggered individually.
+        // skill pills: fall in under gravity (see dropPills), staggered.
         if (pillSlides.length) {
-          gsap.set(pillSlides, { clipPath: "inset(100% 0% 0% 0%)" });
-          tl.to(pillSlides, {
-            clipPath: "inset(0% 0% 0% 0%)",
-            duration: 0.7,
-            ease: "power3.out",
-            stagger: 0.1,
-          }, heroSupportStart + 0.25);
+          tl.call(() => dropPills(), [], heroSupportStart + 0.25);
         }
       };
 
@@ -1320,7 +1395,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         preloaderTL.call(animateHeroEntrance, [], ">-0.5");
       } // end preloader
 
-      // Skill pills: clip-path inset reveal whenever they scroll into view.
+      // Skill pills: drop in again whenever they scroll back into view.
       const pillWrapperEl = document.querySelector<HTMLElement>(".skill-pill-wrapper");
       if (pillWrapperEl && pillSlides.length) {
         let firstEntryHandled = false;
@@ -1330,17 +1405,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             firstEntryHandled = true;
             return;
           }
-          gsap.killTweensOf(pillSlides);
-          gsap.fromTo(
-            pillSlides,
-            { clipPath: "inset(100% 0% 0% 0%)" },
-            {
-              clipPath: "inset(0% 0% 0% 0%)",
-              duration: 0.7,
-              ease: "power3.out",
-              stagger: 0.1,
-            }
-          );
+          dropPills();
         }, { threshold: 0.3 });
         pillObserver.observe(pillWrapperEl);
 
@@ -1545,6 +1610,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.documentElement.style.removeProperty('--header-color');
       document.documentElement.style.removeProperty('--header-background');
       document.documentElement.style.removeProperty('--footer-background');
+      document.documentElement.style.removeProperty('--footer-bar-background');
       document.documentElement.style.removeProperty('--footer-border-color');
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
         canvas.remove();
@@ -1628,11 +1694,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="w-full sm:w-4/5 lg:w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
               <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-black text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-xl sm:text-2xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-black text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-xl sm:text-2xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-xl sm:text-2xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-xl sm:text-2xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
             <div className = "w-full lg:w-1/2 lg:h-full flex flex-col items-end justify-end gap-6 lg:gap-10">
@@ -1770,7 +1836,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
         
         <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
-          <div className="w-full lg:w-1/2 lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-20 lg:pb-20">
+          <div className="w-full lg:w-1/2 lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
