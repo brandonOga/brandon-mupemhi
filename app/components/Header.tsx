@@ -34,19 +34,19 @@ export default function Header() {
       className="fixed top-0 left-0 right-0 z-40"
       style={{
         color: 'var(--header-color, #111111)',
-        background: 'var(--footer-background, #fefff8)',
+        background: 'var(--header-background, var(--footer-background, #fefff8))',
       }}
     >
-      <nav className="w-full h-20 flex items-center justify-between px-15">
+      <nav className="w-full h-16 md:h-20 flex items-center justify-between gap-3 px-5 md:px-10 lg:px-15">
         {/* Left Menu */}
-        <ul className="flex gap-8">
+        <ul className="flex gap-4 sm:gap-6 md:gap-8">
           {menuItems.slice(0, 2).map(({ label, id }) => (
             <li key={id}>
               <Link
                 href={`/#${id}`}
                 data-transition-ignore
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
-                className="contact-swap-button text-inherit uppercase text-sm font-medium"
+                className="contact-swap-button text-inherit uppercase text-xs sm:text-sm font-medium whitespace-nowrap"
               >
                 <span className="contact-button__label">
                   <span>{label}</span>
@@ -62,7 +62,7 @@ export default function Header() {
           href="/#home"
           data-transition-ignore
           onClick={(e) => { e.preventDefault(); goToSection('home'); }}
-          className="contact-swap-button font-heading font-bold uppercase text-3xl tracking-wide text-inherit whitespace-nowrap"
+          className="contact-swap-button font-heading font-bold uppercase text-2xl md:text-3xl tracking-wide text-inherit whitespace-nowrap"
         >
           <span className="contact-button__label">
             <span>BM</span>
@@ -71,14 +71,14 @@ export default function Header() {
         </Link>
 
         {/* Right Menu */}
-        <ul className="flex gap-8">
+        <ul className="flex gap-4 sm:gap-6 md:gap-8">
           {menuItems.slice(2).map(({ label, id }) => (
             <li key={id}>
               <Link
                 href={`/#${id}`}
                 data-transition-ignore
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
-                className="contact-swap-button text-inherit uppercase text-sm font-medium"
+                className="contact-swap-button text-inherit uppercase text-xs sm:text-sm font-medium whitespace-nowrap"
               >
                 <span className="contact-button__label">
                   <span>{label}</span>

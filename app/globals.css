@@ -160,6 +160,33 @@ html.hide-scrollbar::-webkit-scrollbar {
   .case-devices { align-items: center; flex-direction: column; }
   .case-device-mobile, .case-device-tablet, .case-device-desktop { width: min(100%, 30rem); min-height: 34rem; }
   .case-outcome-grid { grid-template-columns: 1fr; }
+  .case-section { padding-block: 4.5rem; }
+  .case-hero { padding-top: 6rem; }
+  .case-hero-meta { gap: 1rem; flex-wrap: wrap; }
+  .case-media, .case-hero-image { min-height: 18rem; }
+  .case-solution-image { min-height: 22rem; }
+  .case-flow-track { grid-template-columns: repeat(6, minmax(8.5rem, 1fr)); }
+  .case-flow-track span { margin-bottom: 2rem; }
+  .case-device-mobile, .case-device-tablet, .case-device-desktop { min-height: 24rem; }
+  .case-next-heading { gap: 1rem; }
+  .case-next-heading h2 { min-width: 0; overflow-wrap: anywhere; }
+  .case-next .case-media { min-height: 18rem; }
+  .case-bottom { flex-wrap: wrap; gap: 1rem 1.5rem; padding-block: 3rem 5rem; }
+  .case-visit { margin-top: 2.5rem; padding: .85rem 1.25rem; }
+}
+
+@media (max-width: 479px) {
+  .case-facts { grid-template-columns: 1fr; gap: 1.5rem; }
+  .case-title { font-size: clamp(2.75rem, 15vw, 4rem); line-height: .85; }
+  .case-section h2 { font-size: clamp(2.25rem, 11vw, 3rem); }
+  .case-feature h3 { font-size: 1.75rem; }
+  .case-system-grid strong { font-size: 4.5rem; }
+}
+
+/* Phones and portrait tablets stack the homepage vertically — never allow
+   anything to push the page sideways. */
+@media (max-width: 1023.98px) {
+  html, body { overflow-x: clip; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -611,6 +638,11 @@ html.hide-scrollbar::-webkit-scrollbar {
     transform: translate(-50%, -50%) scale(var(--button-flair-scale));
     will-change: transform, top, left;
    }
+
+  @media (max-width: 1023.98px) {
+    .projects li { margin-bottom: 0; }
+    .projects li a { @apply text-xs sm:text-sm py-2 px-3; }
+  }
 
   .projects li:hover a {
       box-shadow: none !important;

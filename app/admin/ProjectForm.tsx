@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 const input =
   'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px] text-[#1d2327]';
 const labelText = 'text-[13.5px] font-semibold text-[#1d2327]/90';
-const card = 'rounded-[10px] border border-foreground/12 bg-white px-7 py-6 flex flex-col gap-5';
+const card = 'rounded-[10px] border border-foreground/12 bg-white px-4 py-5 sm:px-7 sm:py-6 flex flex-col gap-5';
 const sidebarCard = 'rounded-[10px] border border-foreground/12 bg-white px-5 py-5 flex flex-col gap-4';
 const legend = 'text-[19px] font-[650] leading-snug text-[#1d2327]';
 const help = 'text-[12.5px] text-[#1d2327]/55';
@@ -98,7 +98,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
       className={`${editorFont} text-[#1d2327] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-x-7 gap-y-6 items-start max-w-[1320px] mx-auto px-4 pt-[calc(60px+2.5rem)] pb-10`}
     >
       {/* Fixed action bar */}
-      <div className="fixed top-0 inset-x-0 z-50 bg-white border-b border-foreground/12 shadow-sm px-6 py-2.5 flex items-center justify-between gap-4">
+      <div className="fixed top-0 inset-x-0 z-50 bg-white border-b border-foreground/12 shadow-sm px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
         <p className="text-[15px] font-semibold text-[#1d2327] truncate">
           {project ? `Editing: ${project.name}` : 'New project'}
         </p>
@@ -114,13 +114,13 @@ export default function ProjectForm({ project }: { project?: Project }) {
           <button
             type="submit"
             disabled={busy}
-            className="shrink-0 bg-foreground! text-white! rounded-md text-sm px-[18px] py-2 disabled:opacity-50"
+            className="shrink-0 bg-foreground! text-white! rounded-md text-sm px-3 sm:px-[18px] py-2 disabled:opacity-50"
           >
             {uploading ? 'Uploading…' : pending ? 'Saving…' : 'Save project'}
           </button>
           <Link
             href="/admin"
-            className="shrink-0 rounded-md border border-foreground/20 text-sm px-[18px] py-2 no-underline text-[#1d2327]"
+            className="shrink-0 rounded-md border border-foreground/20 text-sm px-3 sm:px-[18px] py-2 no-underline text-[#1d2327]"
           >
             Cancel
           </Link>
@@ -128,7 +128,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
       </div>
 
       {/* Header */}
-      <div className="lg:col-span-2 flex items-center justify-between">
+      <div className="lg:col-span-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[23px] font-semibold leading-tight text-[#1d2327]">
             {project ? 'Edit project' : 'New project'}
@@ -159,7 +159,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Name *</span>
-          <input name="name" required defaultValue={project?.name} className={`${input} text-[28px] font-[650] px-4 py-3.5`} />
+          <input name="name" required defaultValue={project?.name} className={`${input} text-[22px] sm:text-[28px] font-[650] px-4 py-3.5`} />
         </label>
 
         <label className="flex flex-col gap-1 text-sm">
@@ -181,7 +181,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="flex flex-col gap-1 text-sm">
             <span className={labelText}>Year</span>
             <input name="year" defaultValue={project?.year} className={input} />
@@ -223,12 +223,12 @@ export default function ProjectForm({ project }: { project?: Project }) {
 
       <section id="snapshot" className={card}>
         <SectionHeading title="01 — Project overview" required note="Gives visitors a quick understanding before the full case study." />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field name="case_industry" label="Industry" value={caseStudy?.industry} />
           <Field name="case_timeline" label="Timeline" value={caseStudy?.timeline} placeholder="e.g. 8 weeks" />
         </div>
         <Area name="case_overview" label="Project overview" value={caseStudy?.overview} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Area name="case_responsibilities" label="Responsibilities — one per line" value={caseStudy?.responsibilities.join('\n')} rows={5} />
           <Area name="case_tools" label="Tools / technology — one per line" value={caseStudy?.tools.join('\n')} rows={5} />
         </div>
@@ -268,7 +268,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
       <section id="outcome" className={card}>
         <SectionHeading title="11 — Outcome and reflection" required note="Describe what was delivered, learned, and worth improving. Only use verified metrics." />
         <Area name="case_outcome" label="Outcome" value={caseStudy?.outcome} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Area name="case_what_worked" label="What worked — one per line" value={caseStudy?.what_worked.join('\n')} />
           <Area name="case_improvements" label="What I’d improve — one per line" value={caseStudy?.improvements.join('\n')} />
         </div>

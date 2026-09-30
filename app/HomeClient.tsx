@@ -231,6 +231,49 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       }
     };
 
+    // Below the lg breakpoint the sections stack vertically and scroll
+    // natively — a pinned 400vw track doesn't fit phones or portrait tablets.
+    const stackedQuery = window.matchMedia('(max-width: 1023.98px)');
+    let isStacked = stackedQuery.matches;
+
+    // Stacked layout: header/footer take the colours of whichever section is
+    // behind them, with a hard edge where two sections meet.
+    const sectionIndexAt = (y: number) => {
+      let index = 0;
+      sections.forEach((section, i) => {
+        if (section.getBoundingClientRect().top <= y) index = i;
+      });
+      return index;
+    };
+    const bandBackground = (top: number, bottom: number) => {
+      const fromIndex = sectionIndexAt(top);
+      const toIndex = sectionIndexAt(bottom);
+      const from = sectionBackgrounds[fromIndex] ?? inheritedBackground;
+      const to = sectionBackgrounds[toIndex] ?? from;
+      if (fromIndex === toIndex) return `rgb(${from.join(', ')})`;
+      const boundary = sections[toIndex].getBoundingClientRect().top - top;
+      return `linear-gradient(180deg, rgb(${from.join(', ')}) 0px, rgb(${from.join(', ')}) ${boundary}px, rgb(${to.join(', ')}) ${boundary}px, rgb(${to.join(', ')}) 100%)`;
+    };
+    const updateStackedUI = () => {
+      if (!isStacked) return;
+      const header = document.querySelector<HTMLElement>('header');
+      const footer = document.querySelector<HTMLElement>('footer');
+      const headerBottom = header?.offsetHeight ?? 64;
+      const footerTop = window.innerHeight - (footer?.offsetHeight ?? 36);
+      const headerIndex = sectionIndexAt(headerBottom / 2);
+      const footerIndex = sectionIndexAt((footerTop + window.innerHeight) / 2);
+      const headerColor = sectionHeaderTextColors[headerIndex] ?? [17, 17, 17];
+      const footerColor = sectionTextColors[footerIndex] ?? footerThemeColors.cream;
+      const footerBorder = sectionBorderColors[footerIndex] ?? [229, 231, 235, 1];
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty('--header-color', `rgb(${headerColor.join(', ')})`);
+      rootStyle.setProperty('--header-background', bandBackground(0, headerBottom));
+      rootStyle.setProperty('--footer-color', `rgb(${footerColor.join(', ')})`);
+      rootStyle.setProperty('--footer-background', bandBackground(footerTop, window.innerHeight));
+      rootStyle.setProperty('--footer-border-color', `rgba(${footerBorder.slice(0, 3).join(', ')}, ${footerBorder[3]})`);
+    };
+    window.addEventListener('scroll', updateStackedUI, { passive: true });
+
     // Smooth native scrolling. Vertical scroll drives the pinned horizontal
     // track below; horizontal trackpad swipes are mapped onto the same scroll.
     const lenis = new Lenis({
@@ -254,6 +297,25 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     let layoutKey = '';
 
     const buildHorizontalScroll = () => {
+      isStacked = stackedQuery.matches;
+      if (isStacked) {
+        // Mobile URL bars resize the viewport height constantly; the stacked
+        // layout only needs rebuilding when the width changes.
+        const key = `stacked:${window.innerWidth}`;
+        if (key === layoutKey) return;
+        layoutKey = key;
+        scrollCtx?.revert();
+        scrollCtx = undefined;
+        horizontalTrigger = undefined;
+        if (aboutSection) aboutSection.scrollTop = 0;
+        document.documentElement.style.removeProperty('--header-background');
+        lenis.resize();
+        ScrollTrigger.refresh();
+        updateStackedUI();
+        return;
+      }
+      document.documentElement.style.removeProperty('--header-background');
+
       const maxScroll = getMaxScroll();
       const aboutMax = aboutSection ? aboutSection.scrollHeight - aboutSection.clientHeight : 0;
       const key = `${window.innerWidth}x${window.innerHeight}:${maxScroll}:${aboutMax}`;
@@ -325,8 +387,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     // already on the homepage, or stashed in sessionStorage when navigating
     // home from another page.
     const scrollToSection = (id: string, immediate = false) => {
-      if (!horizontalTrigger || !sections.some((s) => s.id === id)) return;
+      const target = sections.find((s) => s.id === id);
+      if (!target) return;
       lenis.resize();
+      if (isStacked) {
+        lenis.scrollTo(target, { immediate, force: true, duration: 1.2 });
+        return;
+      }
+      if (!horizontalTrigger) return;
       lenis.scrollTo(horizontalTrigger.labelToScroll(id), { immediate, force: true, duration: 1.6 });
     };
 
@@ -1430,8 +1498,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           const isHorizontallyVisible =
             bounds.left < window.innerWidth * 0.85 &&
             bounds.right > window.innerWidth * 0.15;
+          const isVerticallyVisible =
+            bounds.top < window.innerHeight * 0.85 &&
+            bounds.bottom > window.innerHeight * 0.15;
 
-          if (isHorizontallyVisible) {
+          if (isHorizontallyVisible && isVerticallyVisible) {
             revealAboutImage();
             return;
           }
@@ -1463,6 +1534,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       lenis.destroy();
       document.documentElement.classList.remove('hide-scrollbar');
       window.removeEventListener('navigate-section', handleSectionNav);
+      window.removeEventListener('scroll', updateStackedUI);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
       window.removeEventListener('pointercancel', handleSkillPointerUp);
@@ -1471,6 +1543,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (physicsRafId) cancelAnimationFrame(physicsRafId);
       document.documentElement.style.removeProperty('--footer-color');
       document.documentElement.style.removeProperty('--header-color');
+      document.documentElement.style.removeProperty('--header-background');
       document.documentElement.style.removeProperty('--footer-background');
       document.documentElement.style.removeProperty('--footer-border-color');
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
@@ -1491,7 +1564,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         {/* Preloader */}
         <section className={`preloader w-full h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
-            <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
+            <div className="preloader-images relative w-[min(18.75rem,70vw)] aspect-[6/7] opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
                 <Image className="img object-cover will-change-transform" src="/images/brandon.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
@@ -1506,7 +1579,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
           </div>
-          <div className="counter absolute right-10 bottom-10 flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase text-white">
+          <div className="counter absolute right-5 bottom-5 md:right-10 md:bottom-10 max-sm:scale-[0.6] origin-bottom-right flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase text-white">
             <div className="counter-1 digit"></div>
             <div className="counter-2 digit"></div>
             <div className="counter-3 digit"></div>
@@ -1541,33 +1614,33 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </div>
 
       {/* Pinned viewport: page scrolls vertically, the track inside moves sideways */}
-      <div ref={pinRef} className="w-full h-screen overflow-hidden">
+      <div ref={pinRef} className="w-full lg:h-screen lg:overflow-hidden">
       <main
         ref={scrollRef}
-        className="relative flex flex-row will-change-transform"
+        className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-screen h-screen shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full w-full flex items-end pb-15 pt-20 px-15 gap-5">
-            <div className = "w-1/2  flex flex-col justify-between h-full gap-10">
+        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:h-screen shrink-0 flex flex-col overflow-hidden relative">
+          <div className="h-full w-full flex flex-col lg:flex-row lg:items-end pb-16 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-10 lg:gap-5">
+            <div className = "w-full lg:w-1/2 flex flex-col justify-between lg:h-full gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
+                <p className="w-full sm:w-4/5 lg:w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
-              <div className="w-full relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+              <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-black text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-xl sm:text-2xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-black text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-xl sm:text-2xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10">
+            <div className = "w-full lg:w-1/2 lg:h-full flex flex-col items-end justify-end gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
-              <div className="relative w-full h-[40vh]">
+              <div className="relative w-full h-[45vh] sm:h-[50vh] lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
@@ -1575,7 +1648,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     alt="Brandon"
                     priority
                     fill
-                    sizes="50vw"
+                    sizes="(max-width: 1023px) 100vw, 50vw"
                   />
                 </div>
               </div>
@@ -1588,17 +1661,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             vertically when its content is taller than the viewport (see the
             horizontal scroll timeline, which pauses the track here and scrubs this
             panel's scrollTop before resuming horizontal). */}
-        <section id="about" className="w-screen h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-15 pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
+          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-24 lg:pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
             {/* Headline */}
-            <h2 className="col-span-2 row-start-1 self-start uppercase whitespace-nowrap text-white">
+            <h2 className="md:col-span-2 lg:row-start-1 self-start uppercase whitespace-nowrap text-white">
               About Me
             </h2>
 
             {/* 01 — Who I Am */}
-            <div className="col-start-3 row-start-1 max-w-[20rem]">
+            <div className="lg:col-start-3 lg:row-start-1 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">01</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Who I Am</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1607,7 +1680,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
 
             {/* 02 — My Journey */}
-            <div className="col-start-2 row-start-2 max-w-[24rem]">
+            <div className="lg:col-start-2 lg:row-start-2 max-w-[24rem]">
               <p className="font-mono text-sm text-primary-color mb-3">02</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">My Journey</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1616,12 +1689,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
 
             {/* Tagline motif */}
-            <div className="col-start-1 row-start-3 self-center">
+            <div className="md:col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-3 self-center">
               <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
             </div>
 
             {/* 03 — Approach */}
-            <div className="col-start-3 row-start-3 max-w-[20rem]">
+            <div className="lg:col-start-3 lg:row-start-3 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">03</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Approach</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1632,19 +1705,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* Centered portrait — spans the middle column; taller than its
                 cell, anchored to the top so it grows downward (the side
                 columns hold 04/05, so the extra height never overlaps text). */}
-            <div className="about-image-reveal col-start-2 row-start-3 row-span-2 self-start relative min-h-175 overflow-hidden will-change-[clip-path]">
+            <div className="about-image-reveal md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-3 lg:row-span-2 self-start relative w-full aspect-[4/5] md:aspect-[16/11] lg:aspect-auto lg:min-h-175 overflow-hidden will-change-[clip-path]">
               <Image
                 className="object-cover grayscale will-change-transform"
                 src="/images/brandon4.jpg"
                 alt="Brandon Mupemhi"
                 priority
                 fill
-                sizes="34vw"
+                sizes="(max-width: 1023px) 100vw, 34vw"
               />
             </div>
 
             {/* 04 — Experience */}
-            <div className="col-start-1 row-start-4 self-end max-w-[20rem]">
+            <div className="lg:col-start-1 lg:row-start-4 lg:self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">04</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Experience</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1653,7 +1726,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
 
             {/* 05 — Off Screen */}
-            <div className="col-start-3 row-start-4 self-end max-w-[20rem]">
+            <div className="lg:col-start-3 lg:row-start-4 lg:self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">05</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Off Screen</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1664,8 +1737,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 bg-background relative overflow-hidden">
-          <div className="absolute left-15 top-20 z-10 flex flex-col gap-5">
+        <section id="work" ref={projectsRef} className="w-full lg:w-screen h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden">
+          <div className="absolute left-5 top-24 md:left-10 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -1675,7 +1748,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </p>
             */}
           </div>
-          <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
+          <ul className="projects absolute bottom-14 lg:bottom-12.5 left-1/2 -translate-x-1/2 max-lg:left-0 max-lg:right-0 max-lg:translate-x-0 max-lg:px-5 max-lg:flex-wrap max-lg:justify-center z-10 flex gap-2 sm:gap-3 lg:gap-5 text-black uppercase">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/projects/${project.slug}`}>
@@ -1687,7 +1760,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="project-description absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+          <div className="project-description hidden lg:block absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
             <p data-project-position></p>
             <h3></h3>
             <p data-project-detail></p>
@@ -1696,8 +1769,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
         
-        <section id="say-hello" className="w-screen h-screen bg-deep-teal shrink-0 flex  px-15">
-          <div className="w-1/2 h-full flex flex-col gap-10 justify-between pb-20 pt-20">
+        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+          <div className="w-full lg:w-1/2 lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-20 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
@@ -1708,46 +1781,46 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="text-white uppercase">Email me</p>
                 <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full md:w-auto wrap justify-center bg-transparent! items-center text-base xl:text-4xl flex gap-5 border-b-2 border-white text-white ">
-                    <span className="contact-button__label">
+                  className="contact-swap-button max-w-full justify-start bg-transparent! items-center text-sm sm:text-base md:text-2xl xl:text-4xl flex gap-3 md:gap-5 border-b-2 border-white text-white ">
+                    <span className="contact-button__label min-w-0 break-all">
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-10 w-10" />
+                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-6 w-6 md:h-10 md:w-10" />
                 </a>
               </div>
-              <div className ="flex gap-8">
+              <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
                 <a
                   href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full md:w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
                     <span>Linkedin</span>
                     <span aria-hidden="true" className="text-primary-color">Linkedin</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
-                className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
                     <span>Github</span>
                     <span aria-hidden="true" className="text-primary-color">Github</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 
                 <a
                   href="/cv.pdf" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
                     <span>Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
               </div>
             </div>
           </div>
-          <div className="h-full min-w-0 w-1/2 pt-20">
+          <div className="h-[45vh] sm:h-[55vh] lg:h-full min-w-0 w-full lg:w-1/2 pt-6 pb-14 lg:pb-0 lg:pt-20">
             <div className="relative size-full">
               <Image
                 className="object-contain object-center p-6 will-change-transform"
@@ -1755,7 +1828,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 alt="Brandon"
                 priority
                 fill
-                sizes="50vw"
+                sizes="(max-width: 1023px) 100vw, 50vw"
               />
             </div>
           </div>
@@ -1764,7 +1837,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       </div>
 
       {/* Scroll progress bar */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-1/5 z-40 flex items-center gap-4 px-8 py-3 pointer-events-none mix-blend-difference">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-1/5 z-40 hidden lg:flex items-center gap-4 px-8 py-3 pointer-events-none mix-blend-difference">
         <span ref={sectionCountRef} className="text-xs font-mono text-white tabular-nums w-5 shrink-0">01</span>
         <div className="flex-1 h-px bg-white/30 relative overflow-hidden">
           <div
