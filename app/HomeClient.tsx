@@ -829,6 +829,69 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       let modelIsLoaded = false;
       let restingModelY = 0;
 
+      // Fit the model to a share of the section's on-screen area instead of
+      // per-breakpoint scales. The camera's FOV is vertical, so a fixed world
+      // size looks far wider on a tall phone than on a wide desktop. The
+      // model is also deep (mouse and cable reach toward the camera), so
+      // perspective magnifies it non-linearly as it grows; a bounding-box
+      // estimate overshoots. Instead, project sampled vertices through the
+      // camera and binary-search the scale that fits. --project-model-scale /
+      // --project-model-y in globals.css still work as optional overrides.
+      const MODEL_FIT_WIDTH = 0.6;   // max share of the section's width
+      const MODEL_FIT_HEIGHT = 0.5;  // max share of the section's height
+      const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
+      const MAX_MODEL_SAMPLES = 4000;
+      let modelSamplePoints: THREE.Vector3[] | null = null;
+
+      // Group-local vertex samples of the untilted, unscaled model.
+      const sampleModelPoints = () => {
+        const savedRotation = monitorGroup.rotation.clone();
+        monitorGroup.rotation.set(0, 0, 0);
+        monitorGroup.scale.setScalar(1);
+        monitorGroup.position.set(0, 0, 0);
+        monitorGroup.updateMatrixWorld(true);
+
+        let vertexCount = 0;
+        monitorGroup.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (mesh.isMesh) vertexCount += mesh.geometry.getAttribute('position')?.count ?? 0;
+        });
+        const stride = Math.max(1, Math.ceil(vertexCount / MAX_MODEL_SAMPLES));
+
+        const points: THREE.Vector3[] = [];
+        monitorGroup.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
+          if (!position) return;
+          for (let i = 0; i < position.count; i += stride) {
+            points.push(
+              new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
+            );
+          }
+        });
+
+        monitorGroup.rotation.copy(savedRotation);
+        return points;
+      };
+
+      // Does the model, at this scale, fit inside the target screen share?
+      const projectedPoint = new THREE.Vector3();
+      const modelFitsAt = (scale: number, points: THREE.Vector3[]) => {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        const yOffset = MODEL_Y_OFFSET * scale;
+        for (const point of points) {
+          projectedPoint.copy(point).multiplyScalar(scale);
+          projectedPoint.y += yOffset;
+          // Anything reaching the camera's near side is far too big.
+          if (projectedPoint.z > camera.position.z - camera.near * 2) return false;
+          projectedPoint.project(camera);
+          minX = Math.min(minX, projectedPoint.x); maxX = Math.max(maxX, projectedPoint.x);
+          minY = Math.min(minY, projectedPoint.y); maxY = Math.max(maxY, projectedPoint.y);
+        }
+        // NDC spans -1..1, so half the range is the share of the viewport.
+        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= MODEL_FIT_HEIGHT;
+      };
+
       const updateModelScale = () => {
         // Build the replacement screen while the group is still at its
         // identity scale. Its geometry and transform are measured in world
@@ -836,17 +899,24 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // second time when the screen is added to monitorGroup.
         if (!modelIsLoaded) return;
 
-        const cssScale = Number.parseFloat(
-          getComputedStyle(document.documentElement)
-            .getPropertyValue('--project-model-scale')
-        );
-        const cssY = Number.parseFloat(
-          getComputedStyle(document.documentElement)
-            .getPropertyValue('--project-model-y')
-        );
+        if (!modelSamplePoints) modelSamplePoints = sampleModelPoints();
 
-        monitorGroup.scale.setScalar(Number.isFinite(cssScale) ? cssScale : 1);
-        restingModelY = Number.isFinite(cssY) ? cssY : 0;
+        camera.updateMatrixWorld();
+        let low = 0.05;
+        let high = 3;
+        for (let i = 0; i < 16; i++) {
+          const mid = (low + high) / 2;
+          if (modelFitsAt(mid, modelSamplePoints)) low = mid;
+          else high = mid;
+        }
+        const fitScale = low;
+
+        const rootStyle = getComputedStyle(document.documentElement);
+        const cssScale = Number.parseFloat(rootStyle.getPropertyValue('--project-model-scale'));
+        const cssY = Number.parseFloat(rootStyle.getPropertyValue('--project-model-y'));
+
+        monitorGroup.scale.setScalar(fitScale * (Number.isFinite(cssScale) ? cssScale : 1));
+        restingModelY = Number.isFinite(cssY) ? cssY : MODEL_Y_OFFSET * fitScale;
         monitorGroup.position.y = restingModelY;
         monitorGroup.updateMatrixWorld(true);
 
@@ -1835,8 +1905,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
         
-        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
-          <div className="w-full lg:w-1/2 lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-30 lg:pb-20">
+        <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
@@ -1886,10 +1956,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
           </div>
-          <div className="h-[45vh] sm:h-[55vh] lg:h-full min-w-0 w-full lg:w-1/2 pt-6 pb-14 lg:pb-0 lg:pt-20">
+          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-11 md:pb-13 lg:pb-0 lg:pt-20">
             <div className="relative size-full">
               <Image
-                className="object-contain object-center p-6 will-change-transform"
+                className="object-contain object-bottom lg:object-center p-2 lg:p-6 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"
                 alt="Brandon"
                 priority

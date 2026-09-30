@@ -321,18 +321,21 @@ html.hide-scrollbar::-webkit-scrollbar {
   --shadow-medium: rgb(0, 0, 0, 0.1) 0px 0px 0px 1px;
 }
 
-/* Three.js reads this value so the project model follows the same
-   mobile-first breakpoints as the Tailwind layout. */
+/* Three.js now fits the project model to the visible area itself (see
+   updateModelScale in HomeClient.tsx). The old per-breakpoint values are
+   kept below, commented out. Uncommenting them applies them on top of the
+   automatic fit: --project-model-scale as a multiplier, --project-model-y as
+   an absolute resting offset. */
 :root {
-  --project-model-scale: 0.8;
-  --project-model-y: -0.15;
+  /* --project-model-scale: 0.8; */
+  /* --project-model-y: -0.15; */
 }
 
 /* ---- sm: 640px ---- */
 @media (min-width: 40rem) {
   :root {
-    --project-model-scale: 0.55;
-    --project-model-y: -0.1;
+    /* --project-model-scale: 0.55; */
+    /* --project-model-y: -0.1; */
     --text-h1: 3.375rem;
     --text-h2: 48px;
     --text-h3: 21px;
@@ -347,8 +350,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* ---- md: 768px ---- */
 @media (min-width: 48rem) {
   :root {
-    --project-model-scale: 0.7;
-    --project-model-y: -0.05;
+    /* --project-model-scale: 0.7; */
+    /* --project-model-y: -0.05; */
     --text-h1: 3.75rem;
     --text-h2: 56px;
     --text-h3: 22px;
@@ -363,8 +366,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* ---- lg: 1024px ---- */
 @media (min-width: 64rem) {
   :root {
-    --project-model-scale: 0.86;
-    --project-model-y: -0.15;
+    /* --project-model-scale: 0.86; */
+    /* --project-model-y: -0.15; */
     --text-h1: 4.625rem;
     --text-h2: 70px;
     --text-h3: 26px;
@@ -379,8 +382,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* ---- custom: 1140px ---- */
 @media (min-width: 71.25rem) {
   :root {
-    --project-model-scale: 0.92;
-    --project-model-y: 0;
+    /* --project-model-scale: 0.92; */
+    /* --project-model-y: 0; */
     --text-h1: 5rem;
     --text-h2: 76px;
     --text-h3: 28px;
@@ -395,8 +398,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* ---- xl: 1280px ---- */
 @media (min-width: 80rem) {
   :root {
-    --project-model-scale: 1;
-    --project-model-y: -0.15;
+    /* --project-model-scale: 1; */
+    /* --project-model-y: -0.15; */
     --text-h1: 5.375rem;
     --text-h2: 86px;
     --text-h3: 29px;
@@ -411,8 +414,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* ---- custom: 1440px ---- */
 @media (min-width: 90rem) {
   :root {
-    --project-model-scale: 1;
-    --project-model-y: 0;
+    /* --project-model-scale: 1; */
+    /* --project-model-y: 0; */
     --text-h1: 6rem;
     --text-h2: 94px;
     --text-h3: 32px;
@@ -427,8 +430,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* ---- 2xl: 1536px ---- */
 @media (min-width: 96rem) {
   :root {
-    --project-model-scale: 1;
-    --project-model-y: 0;
+    /* --project-model-scale: 1; */
+    /* --project-model-y: 0; */
     --text-h1: 6.25rem;
     --text-h2: 100px;
     --text-h3: 33px;
