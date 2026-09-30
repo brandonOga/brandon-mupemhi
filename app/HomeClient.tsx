@@ -1686,9 +1686,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:h-screen shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full w-full flex flex-col lg:flex-row lg:items-end pb-16 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-10 lg:gap-5">
-            <div className = "w-full lg:w-1/2 flex flex-col justify-between lg:h-full gap-8 lg:gap-10">
+        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen shrink-0 flex flex-col overflow-hidden relative">
+          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-14 md:pb-16 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+            <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
                 <p className="w-full sm:w-4/5 lg:w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
@@ -1701,12 +1701,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-full lg:w-1/2 lg:h-full flex flex-col items-end justify-end gap-6 lg:gap-10">
+            <div className = "w-full lg:w-1/2 flex-1 min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
-              <div className="relative w-full h-[45vh] sm:h-[50vh] lg:h-[40vh]">
+              <div className="relative w-full flex-1 min-h-0 lg:flex-none lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
