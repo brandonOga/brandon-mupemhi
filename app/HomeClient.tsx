@@ -18,6 +18,7 @@ import { FaArrowRight } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
+import ProjectCarousel from "./components/ProjectCarousel";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 
 let preloaderHasPlayed = false;
@@ -36,6 +37,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
   const monitorScreen    = useRef<THREE.Mesh | null>(null);
   const monitorGroupRef  = useRef<THREE.Group | null>(null);
+  // Set once the monitor is built; lets the mobile carousel swap its screen.
+  const setMonitorImage  = useRef<((src: string) => void) | null>(null);
 
 
   function normalizeModel(
@@ -1190,6 +1193,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       }
 
+      setMonitorImage.current = setDisplayImage;
+
       document.querySelectorAll('.projects li').forEach(li => {
         li.addEventListener('mouseover', (e) => {
           const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
@@ -1490,7 +1495,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // Non-hero headings: masked line reveal, then character hover once done.
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
-      ));
+      )).filter((el) => !el.closest('.project-carousel'));
       entranceHeadings.forEach((heading) => {
         gsap.set(heading, { autoAlpha: 0 });
         const split = SplitText.create(heading, { type: "lines", mask: "lines" });
@@ -1526,7 +1531,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) p, main > section:not(.hero) li"
       )).filter(
-        (el) => !el.closest('.projects') && !el.matches('#about p.font-mono')
+        (el) => !el.closest('.projects, .project-carousel') && !el.matches('#about p.font-mono')
       );
       const entranceTextSplits = entranceTexts.map((el) => {
         gsap.set(el, { autoAlpha: 0 });
@@ -1884,7 +1889,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </p>
             */}
           </div>
-          <ul className="projects absolute bottom-14 lg:bottom-12.5 left-1/2 -translate-x-1/2 max-lg:left-0 max-lg:right-0 max-lg:translate-x-0 max-lg:px-5 max-lg:flex-wrap max-lg:justify-center z-10 flex gap-2 sm:gap-3 lg:gap-5 text-black uppercase">
+          <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/projects/${project.slug}`}>
@@ -1896,6 +1901,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
+          <div className="absolute inset-x-0 bottom-14 z-10 lg:hidden">
+            <ProjectCarousel
+              projects={projects}
+              onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
+            />
+          </div>
           <div className="project-description hidden lg:block absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
             <p data-project-position></p>
             <h3></h3>
