@@ -1769,7 +1769,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       >
         {/* Hero Section */}
         <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-14 md:pb-16 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
@@ -1931,16 +1931,18 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
             <div className="w-full flex flex-col items-start gap-5 xl:gap-15">
-              <div className="flex flex-col gap-2.5">
+              <div className="@container w-full flex flex-col gap-2.5">
                 <p className="text-white uppercase">Email me</p>
+                {/* Monospace: 26 characters at 0.6em, a 0.4em gap and a 1em
+                    arrow make the row 17em wide, so 100cqw / 17 fills the column. */}
                 <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button max-w-full justify-start bg-transparent! items-center text-sm sm:text-base md:text-2xl xl:text-4xl flex gap-3 md:gap-5 border-b-2 border-white text-white ">
-                    <span className="contact-button__label min-w-0 break-all">
+                  className="contact-swap-button w-full justify-between bg-transparent! items-center text-[calc(100cqw/17)] whitespace-nowrap flex gap-[0.4em] border-b-2 border-white text-white ">
+                    <span className="contact-button__label">
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-6 w-6 md:h-10 md:w-10" />
+                    <FiArrowUpRight aria-hidden="true" className="shrink-0 size-[1em]" />
                 </a>
               </div>
               <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
