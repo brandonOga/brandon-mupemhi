@@ -1710,7 +1710,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           patternAlpha={15}
         />
         {/* Preloader */}
-        <section className={`preloader w-full h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
+        <section className={`preloader w-full h-svh lg:h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
             <div className="preloader-images relative w-[min(18.75rem,70vw)] aspect-[6/7] opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
