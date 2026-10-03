@@ -1908,7 +1908,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="absolute inset-x-0 bottom-14 z-10 lg:hidden">
+          <div className="absolute inset-x-0 bottom-6 z-10 lg:hidden">
             <ProjectCarousel
               projects={projects}
               onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
