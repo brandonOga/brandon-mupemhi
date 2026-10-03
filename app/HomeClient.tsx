@@ -1135,8 +1135,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // Scoped to the section itself (not window) so the model rests
       // centered by default and only tracks the cursor while it's actually
-      // over this section.
+      // over this section. Touch devices and the stacked layout keep it still:
+      // a tap fires a synthetic mousemove that would leave the model tilted.
+      const staticModelQuery = window.matchMedia('(hover: none), (max-width: 1023.98px)');
       container.addEventListener("mousemove", (e) => {
+        if (staticModelQuery.matches) {
+          mouse.x = 0;
+          mouse.y = 0;
+          return;
+        }
         const rect = container.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width - 0.5;
         const y = (e.clientY - rect.top) / rect.height - 0.5;
