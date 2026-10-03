@@ -34,13 +34,13 @@ export default async function AdminDashboard({
     : null;
 
   return (
-    <div className="min-h-screen bg-background px-6 py-10 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-background px-4 sm:px-6 py-8 sm:py-10 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <p className="text-2xl font-bold uppercase">Projects</p>
           <p className="text-sm opacity-60">{user.email}</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap justify-end">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:justify-end">
           <a
             href="/admin/projects/export"
             className="rounded-full border border-foreground/20 px-4 py-2.5 text-sm no-underline"
@@ -73,7 +73,7 @@ export default async function AdminDashboard({
         </p>
       )}
 
-      <section className="mb-10 rounded-xl border border-foreground/12 bg-white/70 p-6 flex flex-col gap-4">
+      <section className="mb-10 rounded-xl border border-foreground/12 bg-white/70 p-4 sm:p-6 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-widest opacity-40 font-medium">CV</p>
@@ -104,8 +104,8 @@ export default async function AdminDashboard({
       ) : (
         <ul className="flex flex-col divide-y divide-foreground/10 border-y border-foreground/10">
           {projects.map((p) => (
-            <li key={p.id} className="flex items-center gap-4 py-3">
-              <div className="relative w-16 h-12 shrink-0 bg-neutral-200 rounded overflow-hidden">
+            <li key={p.id} className="flex items-center gap-3 sm:gap-4 py-3">
+              <div className="hidden sm:block relative w-16 h-12 shrink-0 bg-neutral-200 rounded overflow-hidden">
                 {p.cover_image && (
                   <Image
                     src={p.cover_image}
@@ -131,7 +131,7 @@ export default async function AdminDashboard({
               </span>
               <Link
                 href={`/admin/projects/${p.id}/edit`}
-                className="text-sm no-underline px-3"
+                className="text-sm no-underline px-1 sm:px-3"
               >
                 Edit
               </Link>

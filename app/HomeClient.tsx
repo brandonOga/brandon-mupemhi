@@ -18,6 +18,7 @@ import { FaArrowRight } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
+import ProjectCarousel from "./components/ProjectCarousel";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 
 let preloaderHasPlayed = false;
@@ -36,6 +37,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
   const monitorScreen    = useRef<THREE.Mesh | null>(null);
   const monitorGroupRef  = useRef<THREE.Group | null>(null);
+  // Set once the monitor is built; lets the mobile carousel swap its screen.
+  const setMonitorImage  = useRef<((src: string) => void) | null>(null);
 
 
   function normalizeModel(
@@ -158,10 +161,16 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const luminance = background[0] * 0.299 + background[1] * 0.587 + background[2] * 0.114;
       return luminance < 90 ? [255, 255, 255] : [17, 17, 17];
     });
-    const sectionBorderColors = sectionTextColors.map((text): [number, number, number, number] => {
+    // The footer has no background or border over the Work section, so the 3D
+    // scene shows through; the header keeps its solid colour everywhere.
+    const footerTransparent = sections.map((section) => section.id === 'work');
+    const sectionBorderColors = sectionTextColors.map((text, index): [number, number, number, number] => {
+      if (footerTransparent[index]) return [229, 231, 235, 0];
       const usesLightText = text[0] > 200 && text[1] > 200 && text[2] > 200;
       return usesLightText ? [247, 246, 241, 0.3] : [229, 231, 235, 1];
     });
+    const footerFill = (color: number[], index: number) =>
+      `rgba(${color.join(', ')}, ${footerTransparent[index] ? 0 : 1})`;
 
     // Header/footer colours, progress bar and section counter, driven by the
     // track's current horizontal offset.
@@ -215,6 +224,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         '--footer-background',
         `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) 100%)`
       );
+      const footerFrom = footerFill(fromBackground, fromIndex);
+      const footerTo = footerFill(toBackground, toIndex);
+      document.documentElement.style.setProperty(
+        '--footer-bar-background',
+        `linear-gradient(90deg, ${footerFrom} 0%, ${footerFrom} ${backgroundBoundary}px, ${footerTo} ${backgroundBoundary}px, ${footerTo} 100%)`
+      );
       document.documentElement.style.setProperty(
         '--footer-border-color',
         `rgba(${footerBorder.slice(0, 3).map(Math.round).join(', ')}, ${footerBorder[3]})`
@@ -230,6 +245,52 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         sectionCountRef.current.textContent = String(idx).padStart(2, '0');
       }
     };
+
+    // Below the lg breakpoint the sections stack vertically and scroll
+    // natively — a pinned 400vw track doesn't fit phones or portrait tablets.
+    const stackedQuery = window.matchMedia('(max-width: 1023.98px)');
+    let isStacked = stackedQuery.matches;
+
+    // Stacked layout: header/footer take the colours of whichever section is
+    // behind them, with a hard edge where two sections meet.
+    const sectionIndexAt = (y: number) => {
+      let index = 0;
+      sections.forEach((section, i) => {
+        if (section.getBoundingClientRect().top <= y) index = i;
+      });
+      return index;
+    };
+    const bandBackground = (top: number, bottom: number, transparentWork = false) => {
+      const fromIndex = sectionIndexAt(top);
+      const toIndex = sectionIndexAt(bottom);
+      const fill = (index: number) => {
+        const color = sectionBackgrounds[index] ?? inheritedBackground;
+        return transparentWork ? footerFill(color, index) : `rgb(${color.join(', ')})`;
+      };
+      if (fromIndex === toIndex) return `linear-gradient(${fill(fromIndex)}, ${fill(fromIndex)})`;
+      const boundary = sections[toIndex].getBoundingClientRect().top - top;
+      return `linear-gradient(180deg, ${fill(fromIndex)} 0px, ${fill(fromIndex)} ${boundary}px, ${fill(toIndex)} ${boundary}px, ${fill(toIndex)} 100%)`;
+    };
+    const updateStackedUI = () => {
+      if (!isStacked) return;
+      const header = document.querySelector<HTMLElement>('header');
+      const footer = document.querySelector<HTMLElement>('footer');
+      const headerBottom = header?.offsetHeight ?? 64;
+      const footerTop = window.innerHeight - (footer?.offsetHeight ?? 36);
+      const headerIndex = sectionIndexAt(headerBottom / 2);
+      const footerIndex = sectionIndexAt((footerTop + window.innerHeight) / 2);
+      const headerColor = sectionHeaderTextColors[headerIndex] ?? [17, 17, 17];
+      const footerColor = sectionTextColors[footerIndex] ?? footerThemeColors.cream;
+      const footerBorder = sectionBorderColors[footerIndex] ?? [229, 231, 235, 1];
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty('--header-color', `rgb(${headerColor.join(', ')})`);
+      rootStyle.setProperty('--header-background', bandBackground(0, headerBottom));
+      rootStyle.setProperty('--footer-color', `rgb(${footerColor.join(', ')})`);
+      rootStyle.setProperty('--footer-background', bandBackground(footerTop, window.innerHeight));
+      rootStyle.setProperty('--footer-bar-background', bandBackground(footerTop, window.innerHeight, true));
+      rootStyle.setProperty('--footer-border-color', `rgba(${footerBorder.slice(0, 3).join(', ')}, ${footerBorder[3]})`);
+    };
+    window.addEventListener('scroll', updateStackedUI, { passive: true });
 
     // Smooth native scrolling. Vertical scroll drives the pinned horizontal
     // track below; horizontal trackpad swipes are mapped onto the same scroll.
@@ -254,6 +315,25 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     let layoutKey = '';
 
     const buildHorizontalScroll = () => {
+      isStacked = stackedQuery.matches;
+      if (isStacked) {
+        // Mobile URL bars resize the viewport height constantly; the stacked
+        // layout only needs rebuilding when the width changes.
+        const key = `stacked:${window.innerWidth}`;
+        if (key === layoutKey) return;
+        layoutKey = key;
+        scrollCtx?.revert();
+        scrollCtx = undefined;
+        horizontalTrigger = undefined;
+        if (aboutSection) aboutSection.scrollTop = 0;
+        document.documentElement.style.removeProperty('--header-background');
+        lenis.resize();
+        ScrollTrigger.refresh();
+        updateStackedUI();
+        return;
+      }
+      document.documentElement.style.removeProperty('--header-background');
+
       const maxScroll = getMaxScroll();
       const aboutMax = aboutSection ? aboutSection.scrollHeight - aboutSection.clientHeight : 0;
       const key = `${window.innerWidth}x${window.innerHeight}:${maxScroll}:${aboutMax}`;
@@ -325,8 +405,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     // already on the homepage, or stashed in sessionStorage when navigating
     // home from another page.
     const scrollToSection = (id: string, immediate = false) => {
-      if (!horizontalTrigger || !sections.some((s) => s.id === id)) return;
+      const target = sections.find((s) => s.id === id);
+      if (!target) return;
       lenis.resize();
+      if (isStacked) {
+        lenis.scrollTo(target, { immediate, force: true, duration: 1.2 });
+        return;
+      }
+      if (!horizontalTrigger) return;
       lenis.scrollTo(horizontalTrigger.labelToScroll(id), { immediate, force: true, duration: 1.6 });
     };
 
@@ -430,11 +516,70 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       return bounced;
     };
 
+    // Entrance: each pill falls from just above the viewport under gravity,
+    // bounces to rest in its own slot, then hands back to the idle spring loop.
+    const PILL_GRAVITY = 1.1; // px per frame², at 60fps
+    const PILL_RESTITUTION = 0.42; // share of speed kept after each bounce
+    const PILL_SETTLE_SPEED = 2.5; // impacts slower than this come to rest
+    const pillDrops = skillPillEls.map(() => ({ active: false, launched: false, startAt: 0, rotation: 0 }));
+
     const updateSkillPillTransform = (index: number) => {
       const pill = skillPillEls[index];
       if (!pill) return;
       const { x, y } = skillPillPositions[index];
-      pill.style.transform = `translate(${x}px, ${y}px)`;
+      pill.style.transform = `translate(${x}px, ${y}px) rotate(${pillDrops[index].rotation}deg)`;
+    };
+
+    const dropPills = (stagger = 0.12) => {
+      if (reduceMotion) {
+        gsap.set(skillPillEls, { clipPath: 'inset(0% 0% 0% 0%)' });
+        return;
+      }
+      const now = performance.now();
+      skillPillEls.forEach((pill, index) => {
+        if (dragState.activeIndex === index) return;
+        // Hidden in its slot until its turn to fall.
+        gsap.set(pill, { clipPath: 'inset(100% 0% 0% 0%)' });
+        Object.assign(pillDrops[index], {
+          active: true,
+          launched: false,
+          startAt: now + index * stagger * 1000,
+          rotation: 0,
+        });
+      });
+    };
+
+    const stepPillDrop = (index: number, now: number, dt: number) => {
+      const drop = pillDrops[index];
+      const pill = skillPillEls[index];
+      const position = skillPillPositions[index];
+      if (now < drop.startAt) return;
+
+      if (!drop.launched) {
+        drop.launched = true;
+        const layoutTop = pill.getBoundingClientRect().top - position.y;
+        position.x = 0;
+        position.vx = 0;
+        position.vy = 0;
+        position.y = -(layoutTop + pill.offsetHeight + 40);
+        drop.rotation = (Math.random() - 0.5) * 36;
+        gsap.set(pill, { clipPath: 'inset(0% 0% 0% 0%)' });
+      }
+
+      position.vy += PILL_GRAVITY * dt;
+      position.y += position.vy * dt;
+      if (position.y >= 0) {
+        position.y = 0;
+        if (position.vy < PILL_SETTLE_SPEED) {
+          position.vy = 0;
+          drop.rotation = 0;
+          drop.active = false;
+        } else {
+          position.vy *= -PILL_RESTITUTION;
+          drop.rotation *= -0.5;
+        }
+      }
+      updateSkillPillTransform(index);
     };
 
     const stopDrag = () => {
@@ -472,9 +617,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       dragRafId = requestAnimationFrame(decay);
     };
 
+    let lastPillFrame = performance.now();
     const animatePills = () => {
+      const now = performance.now();
+      const dt = Math.min((now - lastPillFrame) / (1000 / 60), 3);
+      lastPillFrame = now;
       skillPillEls.forEach((pill, index) => {
         if (dragState.activeIndex === index) return;
+        if (pillDrops[index].active) {
+          stepPillDrop(index, now, dt);
+          return;
+        }
         const position = skillPillPositions[index];
         const anchor = skillPillAnchors[index];
 
@@ -531,6 +684,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     skillPillEls.forEach((pill, index) => {
       const onPointerDown = (event: PointerEvent) => {
         event.preventDefault();
+        // Catching a pill mid-fall ends its drop.
+        pillDrops[index].active = false;
+        pillDrops[index].rotation = 0;
         dragState.activeIndex = index;
         dragState.startX = event.clientX;
         dragState.startY = event.clientY;
@@ -676,6 +832,69 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       let modelIsLoaded = false;
       let restingModelY = 0;
 
+      // Fit the model to a share of the section's on-screen area instead of
+      // per-breakpoint scales. The camera's FOV is vertical, so a fixed world
+      // size looks far wider on a tall phone than on a wide desktop. The
+      // model is also deep (mouse and cable reach toward the camera), so
+      // perspective magnifies it non-linearly as it grows; a bounding-box
+      // estimate overshoots. Instead, project sampled vertices through the
+      // camera and binary-search the scale that fits. --project-model-scale /
+      // --project-model-y in globals.css still work as optional overrides.
+      const MODEL_FIT_WIDTH = 0.6;   // max share of the section's width
+      const MODEL_FIT_HEIGHT = 0.5;  // max share of the section's height
+      const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
+      const MAX_MODEL_SAMPLES = 4000;
+      let modelSamplePoints: THREE.Vector3[] | null = null;
+
+      // Group-local vertex samples of the untilted, unscaled model.
+      const sampleModelPoints = () => {
+        const savedRotation = monitorGroup.rotation.clone();
+        monitorGroup.rotation.set(0, 0, 0);
+        monitorGroup.scale.setScalar(1);
+        monitorGroup.position.set(0, 0, 0);
+        monitorGroup.updateMatrixWorld(true);
+
+        let vertexCount = 0;
+        monitorGroup.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          if (mesh.isMesh) vertexCount += mesh.geometry.getAttribute('position')?.count ?? 0;
+        });
+        const stride = Math.max(1, Math.ceil(vertexCount / MAX_MODEL_SAMPLES));
+
+        const points: THREE.Vector3[] = [];
+        monitorGroup.traverse((child) => {
+          const mesh = child as THREE.Mesh;
+          const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
+          if (!position) return;
+          for (let i = 0; i < position.count; i += stride) {
+            points.push(
+              new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
+            );
+          }
+        });
+
+        monitorGroup.rotation.copy(savedRotation);
+        return points;
+      };
+
+      // Does the model, at this scale, fit inside the target screen share?
+      const projectedPoint = new THREE.Vector3();
+      const modelFitsAt = (scale: number, points: THREE.Vector3[]) => {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        const yOffset = MODEL_Y_OFFSET * scale;
+        for (const point of points) {
+          projectedPoint.copy(point).multiplyScalar(scale);
+          projectedPoint.y += yOffset;
+          // Anything reaching the camera's near side is far too big.
+          if (projectedPoint.z > camera.position.z - camera.near * 2) return false;
+          projectedPoint.project(camera);
+          minX = Math.min(minX, projectedPoint.x); maxX = Math.max(maxX, projectedPoint.x);
+          minY = Math.min(minY, projectedPoint.y); maxY = Math.max(maxY, projectedPoint.y);
+        }
+        // NDC spans -1..1, so half the range is the share of the viewport.
+        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= MODEL_FIT_HEIGHT;
+      };
+
       const updateModelScale = () => {
         // Build the replacement screen while the group is still at its
         // identity scale. Its geometry and transform are measured in world
@@ -683,17 +902,24 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // second time when the screen is added to monitorGroup.
         if (!modelIsLoaded) return;
 
-        const cssScale = Number.parseFloat(
-          getComputedStyle(document.documentElement)
-            .getPropertyValue('--project-model-scale')
-        );
-        const cssY = Number.parseFloat(
-          getComputedStyle(document.documentElement)
-            .getPropertyValue('--project-model-y')
-        );
+        if (!modelSamplePoints) modelSamplePoints = sampleModelPoints();
 
-        monitorGroup.scale.setScalar(Number.isFinite(cssScale) ? cssScale : 1);
-        restingModelY = Number.isFinite(cssY) ? cssY : 0;
+        camera.updateMatrixWorld();
+        let low = 0.05;
+        let high = 3;
+        for (let i = 0; i < 16; i++) {
+          const mid = (low + high) / 2;
+          if (modelFitsAt(mid, modelSamplePoints)) low = mid;
+          else high = mid;
+        }
+        const fitScale = low;
+
+        const rootStyle = getComputedStyle(document.documentElement);
+        const cssScale = Number.parseFloat(rootStyle.getPropertyValue('--project-model-scale'));
+        const cssY = Number.parseFloat(rootStyle.getPropertyValue('--project-model-y'));
+
+        monitorGroup.scale.setScalar(fitScale * (Number.isFinite(cssScale) ? cssScale : 1));
+        restingModelY = Number.isFinite(cssY) ? cssY : MODEL_Y_OFFSET * fitScale;
         monitorGroup.position.y = restingModelY;
         monitorGroup.updateMatrixWorld(true);
 
@@ -909,8 +1135,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       // Scoped to the section itself (not window) so the model rests
       // centered by default and only tracks the cursor while it's actually
-      // over this section.
+      // over this section. Touch devices and the stacked layout keep it still:
+      // a tap fires a synthetic mousemove that would leave the model tilted.
+      const staticModelQuery = window.matchMedia('(hover: none), (max-width: 1023.98px)');
       container.addEventListener("mousemove", (e) => {
+        if (staticModelQuery.matches) {
+          mouse.x = 0;
+          mouse.y = 0;
+          return;
+        }
         const rect = container.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width - 0.5;
         const y = (e.clientY - rect.top) / rect.height - 0.5;
@@ -966,6 +1199,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           }
         });
       }
+
+      setMonitorImage.current = setDisplayImage;
 
       document.querySelectorAll('.projects li').forEach(li => {
         li.addEventListener('mouseover', (e) => {
@@ -1073,13 +1308,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       };
 
-      // Skill pills: clip-path inset reveal directly on .skill-pill — clip-path
-      // doesn't touch `transform`, so it's safe even though the drag physics
-      // loop writes style.transform on the same element every frame. Each
-      // pill's JSX default state is already clipped (inset(100% ...)) so
-      // there's no flash before this code runs. Collected once up front so
-      // both the first-load entrance and the later scroll-into-view observer
-      // can reuse the same `pillSlides`.
+      // Skill pills: each pill's JSX default state is clipped (inset(100% ...))
+      // so there's no flash before the entrance runs. dropPills (in the pill
+      // physics above) unclips each one as it starts to fall. Collected once
+      // up front for the return-visit path and the scroll-into-view observer.
       const pillSlides = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
 
       // ── Hero entrance (called from preloader timeline on first visit) ─────────
@@ -1150,16 +1382,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           }, heroSupportStart);
         }
 
-        // skill pills: clip-path inset reveal from bottom (bottom edge
-        // appears first, then upward), staggered individually.
+        // skill pills: fall in under gravity (see dropPills), staggered.
         if (pillSlides.length) {
-          gsap.set(pillSlides, { clipPath: "inset(100% 0% 0% 0%)" });
-          tl.to(pillSlides, {
-            clipPath: "inset(0% 0% 0% 0%)",
-            duration: 0.7,
-            ease: "power3.out",
-            stagger: 0.1,
-          }, heroSupportStart + 0.25);
+          tl.call(() => dropPills(), [], heroSupportStart + 0.25);
         }
       };
 
@@ -1252,7 +1477,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         preloaderTL.call(animateHeroEntrance, [], ">-0.5");
       } // end preloader
 
-      // Skill pills: clip-path inset reveal whenever they scroll into view.
+      // Skill pills: drop in again whenever they scroll back into view.
       const pillWrapperEl = document.querySelector<HTMLElement>(".skill-pill-wrapper");
       if (pillWrapperEl && pillSlides.length) {
         let firstEntryHandled = false;
@@ -1262,17 +1487,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             firstEntryHandled = true;
             return;
           }
-          gsap.killTweensOf(pillSlides);
-          gsap.fromTo(
-            pillSlides,
-            { clipPath: "inset(100% 0% 0% 0%)" },
-            {
-              clipPath: "inset(0% 0% 0% 0%)",
-              duration: 0.7,
-              ease: "power3.out",
-              stagger: 0.1,
-            }
-          );
+          dropPills();
         }, { threshold: 0.3 });
         pillObserver.observe(pillWrapperEl);
 
@@ -1287,7 +1502,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // Non-hero headings: masked line reveal, then character hover once done.
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
-      ));
+      )).filter((el) => !el.closest('.project-carousel'));
       entranceHeadings.forEach((heading) => {
         gsap.set(heading, { autoAlpha: 0 });
         const split = SplitText.create(heading, { type: "lines", mask: "lines" });
@@ -1323,7 +1538,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) p, main > section:not(.hero) li"
       )).filter(
-        (el) => !el.closest('.projects') && !el.matches('#about p.font-mono')
+        (el) => !el.closest('.projects, .project-carousel') && !el.matches('#about p.font-mono')
       );
       const entranceTextSplits = entranceTexts.map((el) => {
         gsap.set(el, { autoAlpha: 0 });
@@ -1430,8 +1645,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           const isHorizontallyVisible =
             bounds.left < window.innerWidth * 0.85 &&
             bounds.right > window.innerWidth * 0.15;
+          const isVerticallyVisible =
+            bounds.top < window.innerHeight * 0.85 &&
+            bounds.bottom > window.innerHeight * 0.15;
 
-          if (isHorizontallyVisible) {
+          if (isHorizontallyVisible && isVerticallyVisible) {
             revealAboutImage();
             return;
           }
@@ -1463,6 +1681,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       lenis.destroy();
       document.documentElement.classList.remove('hide-scrollbar');
       window.removeEventListener('navigate-section', handleSectionNav);
+      window.removeEventListener('scroll', updateStackedUI);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
       window.removeEventListener('pointercancel', handleSkillPointerUp);
@@ -1471,7 +1690,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (physicsRafId) cancelAnimationFrame(physicsRafId);
       document.documentElement.style.removeProperty('--footer-color');
       document.documentElement.style.removeProperty('--header-color');
+      document.documentElement.style.removeProperty('--header-background');
       document.documentElement.style.removeProperty('--footer-background');
+      document.documentElement.style.removeProperty('--footer-bar-background');
       document.documentElement.style.removeProperty('--footer-border-color');
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
         canvas.remove();
@@ -1491,7 +1712,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         {/* Preloader */}
         <section className={`preloader w-full h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
-            <div className="preloader-images relative w-75 h-87.5 opacity-0 will-change-[clip-path] overflow-hidden">
+            <div className="preloader-images relative w-[min(18.75rem,70vw)] aspect-[6/7] opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
                 <Image className="img object-cover will-change-transform" src="/images/brandon.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
@@ -1506,7 +1727,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
           </div>
-          <div className="counter absolute right-10 bottom-10 flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase text-white">
+          <div className="counter absolute right-5 bottom-5 md:right-10 md:bottom-10 max-sm:scale-[0.6] origin-bottom-right flex items-start gap-2 text-[120px] h-30 leading-37.5 [clip-path:polygon(0_0,100%_0,100%_120px,0_120px)] font-bold uppercase text-white">
             <div className="counter-1 digit"></div>
             <div className="counter-2 digit"></div>
             <div className="counter-3 digit"></div>
@@ -1541,33 +1762,33 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </div>
 
       {/* Pinned viewport: page scrolls vertically, the track inside moves sideways */}
-      <div ref={pinRef} className="w-full h-screen overflow-hidden">
+      <div ref={pinRef} className="w-full lg:h-screen lg:overflow-hidden">
       <main
         ref={scrollRef}
-        className="relative flex flex-row will-change-transform"
+        className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-screen h-screen shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full w-full flex items-end pb-15 pt-20 px-15 gap-5">
-            <div className = "w-1/2  flex flex-col justify-between h-full gap-10">
+        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen shrink-0 flex flex-col overflow-hidden relative">
+          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-14 md:pb-16 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+            <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
-                <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
+                <p className="w-full sm:w-4/5 lg:w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
-              <div className="w-full relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+              <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-xl sm:text-2xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-xl sm:text-2xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10">
+            <div className = "w-full lg:w-1/2 flex-1 min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
-              <div className="relative w-full h-[40vh]">
+              <div className="relative w-full flex-1 min-h-0 lg:flex-none lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
@@ -1575,7 +1796,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     alt="Brandon"
                     priority
                     fill
-                    sizes="50vw"
+                    sizes="(max-width: 1023px) 100vw, 50vw"
                   />
                 </div>
               </div>
@@ -1588,17 +1809,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             vertically when its content is taller than the viewport (see the
             horizontal scroll timeline, which pauses the track here and scrubs this
             panel's scrollTop before resuming horizontal). */}
-        <section id="about" className="w-screen h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-[1fr_1.5fr_1fr] grid-rows-[auto_auto_1fr_auto] gap-x-12 gap-y-15 px-15 pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
+          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-24 lg:pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
             {/* Headline */}
-            <h2 className="col-span-2 row-start-1 self-start uppercase whitespace-nowrap text-white">
+            <h2 className="md:col-span-2 lg:row-start-1 self-start uppercase whitespace-nowrap text-white">
               About Me
             </h2>
 
             {/* 01 — Who I Am */}
-            <div className="col-start-3 row-start-1 max-w-[20rem]">
+            <div className="lg:col-start-3 lg:row-start-1 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">01</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Who I Am</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1607,7 +1828,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
 
             {/* 02 — My Journey */}
-            <div className="col-start-2 row-start-2 max-w-[24rem]">
+            <div className="lg:col-start-2 lg:row-start-2 max-w-[24rem]">
               <p className="font-mono text-sm text-primary-color mb-3">02</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">My Journey</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1616,12 +1837,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
 
             {/* Tagline motif */}
-            <div className="col-start-1 row-start-3 self-center">
+            <div className="md:col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-3 self-center">
               <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
             </div>
 
             {/* 03 — Approach */}
-            <div className="col-start-3 row-start-3 max-w-[20rem]">
+            <div className="lg:col-start-3 lg:row-start-3 max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">03</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Approach</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1632,19 +1853,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             {/* Centered portrait — spans the middle column; taller than its
                 cell, anchored to the top so it grows downward (the side
                 columns hold 04/05, so the extra height never overlaps text). */}
-            <div className="about-image-reveal col-start-2 row-start-3 row-span-2 self-start relative min-h-175 overflow-hidden will-change-[clip-path]">
+            <div className="about-image-reveal md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-3 lg:row-span-2 self-start relative w-full aspect-[4/5] md:aspect-[16/11] lg:aspect-auto lg:min-h-175 overflow-hidden will-change-[clip-path]">
               <Image
                 className="object-cover grayscale will-change-transform"
                 src="/images/brandon4.jpg"
                 alt="Brandon Mupemhi"
                 priority
                 fill
-                sizes="34vw"
+                sizes="(max-width: 1023px) 100vw, 34vw"
               />
             </div>
 
             {/* 04 — Experience */}
-            <div className="col-start-1 row-start-4 self-end max-w-[20rem]">
+            <div className="lg:col-start-1 lg:row-start-4 lg:self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">04</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Experience</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1653,7 +1874,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
 
             {/* 05 — Off Screen */}
-            <div className="col-start-3 row-start-4 self-end max-w-[20rem]">
+            <div className="lg:col-start-3 lg:row-start-4 lg:self-end max-w-[20rem]">
               <p className="font-mono text-sm text-primary-color mb-3">05</p>
               <p className="text-sm font-bold uppercase mb-2 text-white">Off Screen</p>
               <p className="text-sm uppercase leading-relaxed text-white/90">
@@ -1664,8 +1885,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section id="work" ref={projectsRef} className="w-screen h-screen shrink-0 bg-background relative overflow-hidden">
-          <div className="absolute left-15 top-20 z-10 flex flex-col gap-5">
+        <section id="work" ref={projectsRef} className="w-full lg:w-screen h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden">
+          <div className="absolute left-5 top-24 md:left-10 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -1675,7 +1896,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </p>
             */}
           </div>
-          <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 flex gap-5 text-black uppercase">
+          <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/projects/${project.slug}`}>
@@ -1687,7 +1908,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="project-description absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+          <div className="absolute inset-x-0 bottom-14 z-10 lg:hidden">
+            <ProjectCarousel
+              projects={projects}
+              onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
+            />
+          </div>
+          <div className="project-description hidden lg:block absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
             <p data-project-position></p>
             <h3></h3>
             <p data-project-detail></p>
@@ -1696,8 +1923,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
         
-        <section id="say-hello" className="w-screen h-screen bg-deep-teal shrink-0 flex  px-15">
-          <div className="w-1/2 h-full flex flex-col gap-10 justify-between pb-20 pt-20">
+        <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
@@ -1708,54 +1935,54 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="text-white uppercase">Email me</p>
                 <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full md:w-auto wrap justify-center bg-transparent! items-center text-base xl:text-4xl flex gap-5 border-b-2 border-white text-white ">
-                    <span className="contact-button__label">
+                  className="contact-swap-button max-w-full justify-start bg-transparent! items-center text-sm sm:text-base md:text-2xl xl:text-4xl flex gap-3 md:gap-5 border-b-2 border-white text-white ">
+                    <span className="contact-button__label min-w-0 break-all">
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-10 w-10" />
+                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-6 w-6 md:h-10 md:w-10" />
                 </a>
               </div>
-              <div className ="flex gap-8">
+              <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
                 <a
                   href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full md:w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
                     <span>Linkedin</span>
                     <span aria-hidden="true" className="text-primary-color">Linkedin</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
-                className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
                     <span>Github</span>
                     <span aria-hidden="true" className="text-primary-color">Github</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 
                 <a
                   href="/cv.pdf" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full md:w-auto  bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
                     <span>Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-7 w-7" />
+                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
               </div>
             </div>
           </div>
-          <div className="h-full min-w-0 w-1/2 pt-20">
+          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-11 md:pb-13 lg:pb-0 lg:pt-20">
             <div className="relative size-full">
               <Image
-                className="object-contain object-center p-6 will-change-transform"
+                className="object-contain object-bottom lg:object-center p-2 lg:p-6 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"
                 alt="Brandon"
                 priority
                 fill
-                sizes="50vw"
+                sizes="(max-width: 1023px) 100vw, 50vw"
               />
             </div>
           </div>
@@ -1764,7 +1991,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       </div>
 
       {/* Scroll progress bar */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-1/5 z-40 flex items-center gap-4 px-8 py-3 pointer-events-none mix-blend-difference">
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-1/5 z-40 hidden lg:flex items-center gap-4 px-8 py-3 pointer-events-none mix-blend-difference">
         <span ref={sectionCountRef} className="text-xs font-mono text-white tabular-nums w-5 shrink-0">01</span>
         <div className="flex-1 h-px bg-white/30 relative overflow-hidden">
           <div
