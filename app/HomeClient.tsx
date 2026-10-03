@@ -1977,9 +1977,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </div>
           </div>
           <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-11 md:pb-13 lg:pb-0 lg:pt-20">
-            <div className="relative size-full">
+            <div className="relative size-full lg:w-auto lg:-mr-15">
               <Image
-                className="object-contain object-bottom lg:object-center p-2 lg:p-6 will-change-transform"
+                className="object-contain object-bottom lg:object-right p-2 lg:p-6 lg:pr-0 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"
                 alt="Brandon"
                 priority
