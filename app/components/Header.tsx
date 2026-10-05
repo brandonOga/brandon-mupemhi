@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTransitionRouter } from 'next-transition-router';
 
@@ -10,12 +11,26 @@ const menuItems = [
   { label: 'say hello', id: 'say-hello' },
 ];
 
+const subscribeToSection = (onChange: () => void) => {
+  window.addEventListener('section-change', onChange);
+  return () => window.removeEventListener('section-change', onChange);
+};
+
 export default function Header() {
   const pathname = usePathname();
   const router = useTransitionRouter();
+  // The home page reports the section in view (see setActiveSection there).
+  const homeSection = useSyncExternalStore(
+    subscribeToSection,
+    () => document.documentElement.dataset.activeSection ?? null,
+    () => null
+  );
 
   // The admin dashboard has its own chrome — don't show the site nav there.
   if (pathname.startsWith('/admin')) return null;
+
+  // Project pages belong to Work; elsewhere it's whichever section is in view.
+  const activeId = pathname === '/' ? homeSection : pathname.startsWith('/projects/') ? 'work' : null;
 
   const goToSection = (id: string) => {
     if (pathname === '/') {
@@ -46,7 +61,8 @@ export default function Header() {
                 href={`/#${id}`}
                 data-transition-ignore
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
-                className="contact-swap-button text-inherit uppercase text-xs sm:text-sm font-medium whitespace-nowrap"
+                aria-current={activeId === id ? 'true' : undefined}
+                className="nav-link contact-swap-button text-inherit uppercase text-xs sm:text-sm font-medium whitespace-nowrap"
               >
                 <span className="contact-button__label">
                   <span>{label}</span>
@@ -78,7 +94,8 @@ export default function Header() {
                 href={`/#${id}`}
                 data-transition-ignore
                 onClick={(e) => { e.preventDefault(); goToSection(id); }}
-                className="contact-swap-button text-inherit uppercase text-xs sm:text-sm font-medium whitespace-nowrap"
+                aria-current={activeId === id ? 'true' : undefined}
+                className="nav-link contact-swap-button text-inherit uppercase text-xs sm:text-sm font-medium whitespace-nowrap"
               >
                 <span className="contact-button__label">
                   <span>{label}</span>

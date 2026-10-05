@@ -114,6 +114,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     // Extra scroll distance (as a fraction of the viewport height) during which
     // the track rests on Work, so its full 100vw is presented before moving on.
     const WORK_HOLD = 0.6;
+    // Same idea for About: the panel sits still once it lands, and again once
+    // its content has finished scrolling, so neither handover feels abrupt.
+    const ABOUT_HOLD = 0.3;
 
     const totalSections = sections.length;
     const footerThemeColors: Record<string, [number, number, number]> = {
@@ -186,6 +189,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
     measureSectionStarts();
 
+    // Tells the header which section is in view so it can mark that nav link.
+    // Also kept on <html> for a header that mounts after the first update.
+    let activeSectionId = '';
+    const setActiveSection = (index: number) => {
+      const id = sections[index]?.id;
+      if (!id || id === activeSectionId) return;
+      activeSectionId = id;
+      document.documentElement.dataset.activeSection = id;
+      window.dispatchEvent(new CustomEvent('section-change', { detail: id }));
+    };
+
     const updateScrollUI = (x: number) => {
       const maxScroll = getMaxScroll();
       const progress = maxScroll > 0 ? x / maxScroll : 0;
@@ -193,6 +207,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       sectionStarts.forEach((start, i) => {
         if (start <= x + 0.5) fromIndex = i;
       });
+      let centerIndex = 0;
+      sectionStarts.forEach((start, i) => {
+        if (start <= x + window.innerWidth / 2) centerIndex = i;
+      });
+      setActiveSection(centerIndex);
       const toIndex = Math.min(fromIndex + 1, totalSections - 1);
       const fromStart = sectionStarts[fromIndex] ?? 0;
       const toStart = sectionStarts[toIndex] ?? fromStart;
@@ -279,6 +298,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const footerTop = window.innerHeight - (footer?.offsetHeight ?? 36);
       const headerIndex = sectionIndexAt(headerBottom / 2);
       const footerIndex = sectionIndexAt((footerTop + window.innerHeight) / 2);
+      setActiveSection(sectionIndexAt(window.innerHeight / 2));
       const headerColor = sectionHeaderTextColors[headerIndex] ?? [17, 17, 17];
       const footerColor = sectionTextColors[footerIndex] ?? footerThemeColors.cream;
       const footerBorder = sectionBorderColors[footerIndex] ?? [229, 231, 235, 1];
@@ -362,7 +382,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           moveTo(section.offsetLeft);
           if (section.id) tl.addLabel(section.id);
           if (section === aboutSection && aboutMax > 1) {
+            const hold = window.innerHeight * ABOUT_HOLD;
+            tl.to({}, { duration: hold });
             tl.fromTo(aboutSection, { scrollTop: 0 }, { scrollTop: aboutMax, duration: aboutMax, immediateRender: false });
+            tl.to({}, { duration: hold });
           }
           if (section === workSection) {
             tl.to({}, { duration: window.innerHeight * WORK_HOLD });
@@ -1688,6 +1711,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       skillListeners.forEach((remove) => remove());
       if (dragRafId) cancelAnimationFrame(dragRafId);
       if (physicsRafId) cancelAnimationFrame(physicsRafId);
+      delete document.documentElement.dataset.activeSection;
       document.documentElement.style.removeProperty('--footer-color');
       document.documentElement.style.removeProperty('--header-color');
       document.documentElement.style.removeProperty('--header-background');
@@ -1968,7 +1992,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   href="/cv.pdf" target="_blank" rel="noopener noreferrer"
                   className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
-                    <span>Resume</span>
+                    <span>My Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
                   <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
