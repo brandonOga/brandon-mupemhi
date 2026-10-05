@@ -28,6 +28,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const pinRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const projectsRef = useRef<HTMLDivElement>(null);
+  const modelStageRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
   const preloaderSquiggleRef = useRef<HTMLDivElement>(null);
@@ -734,13 +735,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     window.addEventListener('pointercancel', handleSkillPointerUp);
 
     let threeRafId = 0;
+    let stageResizeObserver: ResizeObserver | undefined;
 
     const ctx = gsap.context(() => {
       const container = projectsRef.current!;
+      // The canvas lives in the stage: the whole section on desktop, the
+      // band between the heading and the carousel once the layout stacks.
+      const stage = modelStageRef.current!;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
-        60, 
-        container.clientWidth / container.clientHeight, 
+        60,
+        stage.clientWidth / stage.clientHeight,
         0.1, 
         1000
       );
@@ -750,7 +755,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
       threeCamera.current   = camera;
       threeRenderer.current = renderer;
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(stage.clientWidth, stage.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.25;
@@ -764,7 +769,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       renderer.domElement.style.height = '100%';
       renderer.domElement.style.pointerEvents = 'none';
       
-      container.appendChild(renderer.domElement);
+      stage.appendChild(renderer.domElement);
 
       scene.add(new THREE.AmbientLight(0xffffff, 1));
 
@@ -863,8 +868,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // estimate overshoots. Instead, project sampled vertices through the
       // camera and binary-search the scale that fits. --project-model-scale /
       // --project-model-y in globals.css still work as optional overrides.
-      const MODEL_FIT_WIDTH = 0.6;   // max share of the section's width
-      const MODEL_FIT_HEIGHT = 0.5;  // max share of the section's height
+      const MODEL_FIT_WIDTH = 0.6;   // max share of the stage's width
+      const MODEL_FIT_HEIGHT = 0.5;  // max share of the stage's height
+      // Stacked, the stage holds nothing but the model, so it may fill more.
+      const MODEL_FIT_HEIGHT_STACKED = 0.85;
+      const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
       const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
       const MAX_MODEL_SAMPLES = 4000;
       let modelSamplePoints: THREE.Vector3[] | null = null;
@@ -878,14 +886,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         monitorGroup.updateMatrixWorld(true);
 
         let vertexCount = 0;
-        monitorGroup.traverse((child) => {
+        monitorGroup.traverseVisible((child) => {
           const mesh = child as THREE.Mesh;
           if (mesh.isMesh) vertexCount += mesh.geometry.getAttribute('position')?.count ?? 0;
         });
         const stride = Math.max(1, Math.ceil(vertexCount / MAX_MODEL_SAMPLES));
 
         const points: THREE.Vector3[] = [];
-        monitorGroup.traverse((child) => {
+        monitorGroup.traverseVisible((child) => {
           const mesh = child as THREE.Mesh;
           const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
           if (!position) return;
@@ -915,7 +923,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           minY = Math.min(minY, projectedPoint.y); maxY = Math.max(maxY, projectedPoint.y);
         }
         // NDC spans -1..1, so half the range is the share of the viewport.
-        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= MODEL_FIT_HEIGHT;
+        const fitHeight = stackedStageQuery.matches ? MODEL_FIT_HEIGHT_STACKED : MODEL_FIT_HEIGHT;
+        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= fitHeight;
       };
 
       const updateModelScale = () => {
@@ -1020,11 +1029,24 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // computer. Moving the top-level groups keeps the mouse, cable, and
         // plug aligned with one another.
         const mousePartNames = new Set(['Mouse', 'Mousechord', 'Mouseplug']);
+        const mouseParts: THREE.Object3D[] = [];
         model.traverse((child) => {
           if (!mousePartNames.has(child.name)) return;
           child.position.x -= 10;
           child.position.z -= 15;
+          mouseParts.push(child);
         });
+
+        // Up to 768px the mouse is dropped so the computer alone fills the fit
+        // area; the samples are rebuilt because they skip hidden parts.
+        const mouseHiddenQuery = window.matchMedia('(max-width: 768px)');
+        const syncMouseVisibility = () => {
+          mouseParts.forEach((part) => { part.visible = !mouseHiddenQuery.matches; });
+          modelSamplePoints = null;
+          updateModelScale();
+        };
+        mouseHiddenQuery.addEventListener('change', syncMouseVisibility);
+        syncMouseVisibility();
 
         // Keep the computer—not the movable mouse/cables—as the fixed sizing
         // and camera anchor. Mouse coordinate edits no longer shift or zoom
@@ -1180,18 +1202,23 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         mouse.y = 0;
       });
 
-      window.addEventListener("resize", () => {
-        const newWidth = container.clientWidth;
-        const newHeight = container.clientHeight;
-        
+      const resizeStage = () => {
+        const newWidth = stage.clientWidth;
+        const newHeight = stage.clientHeight;
+
         if (newWidth === 0 || newHeight === 0) return;
-        
+
         camera.aspect = newWidth / newHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(newWidth, newHeight);
         updateFloorSize();
         updateModelScale();
-      });
+      };
+      window.addEventListener("resize", resizeStage);
+      // Stacked, the stage flexes with the content around it, so it can
+      // change size without the window doing so.
+      stageResizeObserver = new ResizeObserver(resizeStage);
+      stageResizeObserver.observe(stage);
       
       const glitchState = { intensity: 0 };
       let glitchAnimation: gsap.core.Tween | null = null;
@@ -1718,6 +1745,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.documentElement.style.removeProperty('--footer-background');
       document.documentElement.style.removeProperty('--footer-bar-background');
       document.documentElement.style.removeProperty('--footer-border-color');
+      stageResizeObserver?.disconnect();
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
         canvas.remove();
       });
@@ -1909,8 +1937,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section id="work" ref={projectsRef} className="w-full lg:w-screen h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden">
-          <div className="absolute left-5 top-24 md:left-10 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
+        <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
+          <div className="relative lg:absolute pl-5 pt-24 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -1932,7 +1960,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="absolute inset-x-0 bottom-6 z-10 lg:hidden">
+          <div className="relative order-2 z-10 pb-6 lg:hidden">
             <ProjectCarousel
               projects={projects}
               onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
@@ -1945,6 +1973,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <p data-project-detail></p>
             <p data-project-detail></p>
           </div>
+          {/* 3D model canvas: the whole section on desktop; below lg, its own
+              band between the heading and the carousel so neither covers it. */}
+          <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
         
         <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
