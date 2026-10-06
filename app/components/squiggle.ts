@@ -10,3 +10,10 @@ export const SQUIGGLE_COLOR = "#2F4F4F";
 // screens or oversized on small ones.
 export const SQUIGGLE_STROKE_THIN = "0.2%";
 export const SQUIGGLE_STROKE_THICK = "29%";
+
+// The shape is landscape (about 2:1). On a portrait screen a plain "slice"
+// fit would crop it to a sliver of its middle, so there the SVG is laid out
+// with the viewport's dimensions swapped and turned a quarter-turn: the
+// whole squiggle shows, running top to bottom.
+export const SQUIGGLE_SVG_CLASS =
+  "w-full h-full scale-[1.3] portrait:w-[100vh] portrait:h-[100vw] portrait:max-w-none portrait:shrink-0 portrait:rotate-90";

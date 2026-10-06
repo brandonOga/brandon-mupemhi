@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { TransitionRouter } from 'next-transition-router';
 import gsap from 'gsap';
 import { DrawSVGPlugin } from 'gsap/DrawSVGPlugin';
-import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from './squiggle';
+import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from './squiggle';
 
 gsap.registerPlugin(DrawSVGPlugin);
 
@@ -94,7 +94,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
       <div
         ref={overlayRef}
         aria-hidden
-        className="fixed inset-0 z-[9999] flex items-center justify-center opacity-0 pointer-events-none"
+        className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden opacity-0 pointer-events-none"
       >
         <svg
           width="100%"
@@ -102,8 +102,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
           viewBox={SQUIGGLE_VIEWBOX}
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full"
-          style={{ transform: 'scale(1.3)' }}
+          className={SQUIGGLE_SVG_CLASS}
           preserveAspectRatio="xMidYMid slice"
         >
           <path

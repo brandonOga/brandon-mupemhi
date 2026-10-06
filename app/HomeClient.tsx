@@ -12,7 +12,7 @@ import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
-import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK } from "./components/squiggle";
+import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
 import { FiArrowUpRight } from "react-icons/fi";
@@ -1794,7 +1794,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         <div
           ref={preloaderSquiggleRef}
           aria-hidden
-          className="fixed inset-0 z-[51] flex items-center justify-center opacity-0 pointer-events-none"
+          className="fixed inset-0 z-[51] flex items-center justify-center overflow-hidden opacity-0 pointer-events-none"
         >
           <svg
             width="100%"
@@ -1802,8 +1802,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             viewBox={SQUIGGLE_VIEWBOX}
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-full"
-            style={{ transform: 'scale(1.3)' }}
+            className={SQUIGGLE_SVG_CLASS}
             preserveAspectRatio="xMidYMid slice"
           >
             <path
