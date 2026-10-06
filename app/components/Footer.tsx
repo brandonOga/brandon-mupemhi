@@ -9,10 +9,11 @@ export default function Footer() {
   if (pathname.startsWith('/admin')) return null;
 
   // Project pages scroll normally, so the footer sits at the end of the page
-  // instead of staying pinned to the bottom of the viewport.
+  // instead of staying pinned to the bottom of the viewport. Below lg every
+  // page scrolls natively, so it's only pinned from lg up.
   const position = pathname.startsWith('/projects/')
     ? 'relative w-full'
-    : 'w-screen fixed bottom-0 left-0 right-0 z-40';
+    : 'relative w-full lg:w-screen lg:fixed lg:bottom-0 lg:left-0 lg:right-0 lg:z-40';
 
   return (
     <footer

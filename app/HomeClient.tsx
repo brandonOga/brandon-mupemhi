@@ -28,6 +28,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const pinRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLElement>(null);
   const projectsRef = useRef<HTMLDivElement>(null);
+  const modelStageRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
   const preloaderSquiggleRef = useRef<HTMLDivElement>(null);
@@ -114,6 +115,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     // Extra scroll distance (as a fraction of the viewport height) during which
     // the track rests on Work, so its full 100vw is presented before moving on.
     const WORK_HOLD = 0.6;
+    // Same idea for About: the panel sits still once it lands, and again once
+    // its content has finished scrolling, so neither handover feels abrupt.
+    const ABOUT_HOLD = 0.3;
 
     const totalSections = sections.length;
     const footerThemeColors: Record<string, [number, number, number]> = {
@@ -186,6 +190,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     };
     measureSectionStarts();
 
+    // Tells the header which section is in view so it can mark that nav link.
+    // Also kept on <html> for a header that mounts after the first update.
+    let activeSectionId = '';
+    const setActiveSection = (index: number) => {
+      const id = sections[index]?.id;
+      if (!id || id === activeSectionId) return;
+      activeSectionId = id;
+      document.documentElement.dataset.activeSection = id;
+      window.dispatchEvent(new CustomEvent('section-change', { detail: id }));
+    };
+
     const updateScrollUI = (x: number) => {
       const maxScroll = getMaxScroll();
       const progress = maxScroll > 0 ? x / maxScroll : 0;
@@ -193,6 +208,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       sectionStarts.forEach((start, i) => {
         if (start <= x + 0.5) fromIndex = i;
       });
+      let centerIndex = 0;
+      sectionStarts.forEach((start, i) => {
+        if (start <= x + window.innerWidth / 2) centerIndex = i;
+      });
+      setActiveSection(centerIndex);
       const toIndex = Math.min(fromIndex + 1, totalSections - 1);
       const fromStart = sectionStarts[fromIndex] ?? 0;
       const toStart = sectionStarts[toIndex] ?? fromStart;
@@ -279,6 +299,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const footerTop = window.innerHeight - (footer?.offsetHeight ?? 36);
       const headerIndex = sectionIndexAt(headerBottom / 2);
       const footerIndex = sectionIndexAt((footerTop + window.innerHeight) / 2);
+      setActiveSection(sectionIndexAt(window.innerHeight / 2));
       const headerColor = sectionHeaderTextColors[headerIndex] ?? [17, 17, 17];
       const footerColor = sectionTextColors[footerIndex] ?? footerThemeColors.cream;
       const footerBorder = sectionBorderColors[footerIndex] ?? [229, 231, 235, 1];
@@ -362,7 +383,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           moveTo(section.offsetLeft);
           if (section.id) tl.addLabel(section.id);
           if (section === aboutSection && aboutMax > 1) {
+            const hold = window.innerHeight * ABOUT_HOLD;
+            tl.to({}, { duration: hold });
             tl.fromTo(aboutSection, { scrollTop: 0 }, { scrollTop: aboutMax, duration: aboutMax, immediateRender: false });
+            tl.to({}, { duration: hold });
           }
           if (section === workSection) {
             tl.to({}, { duration: window.innerHeight * WORK_HOLD });
@@ -409,7 +433,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (!target) return;
       lenis.resize();
       if (isStacked) {
-        lenis.scrollTo(target, { immediate, force: true, duration: 1.2 });
+        // Sections after the hero only pad their top by 50px, so stop them
+        // below the fixed header rather than underneath it.
+        const headerHeight = document.querySelector<HTMLElement>('header')?.offsetHeight ?? 64;
+        const offset = target === sections[0] ? 0 : -headerHeight;
+        lenis.scrollTo(target, { offset, immediate, force: true, duration: 1.2 });
         return;
       }
       if (!horizontalTrigger) return;
@@ -711,13 +739,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     window.addEventListener('pointercancel', handleSkillPointerUp);
 
     let threeRafId = 0;
+    let stageResizeObserver: ResizeObserver | undefined;
 
     const ctx = gsap.context(() => {
       const container = projectsRef.current!;
+      // The canvas lives in the stage: the whole section on desktop, the
+      // band between the heading and the carousel once the layout stacks.
+      const stage = modelStageRef.current!;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
-        60, 
-        container.clientWidth / container.clientHeight, 
+        60,
+        stage.clientWidth / stage.clientHeight,
         0.1, 
         1000
       );
@@ -727,7 +759,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
       threeCamera.current   = camera;
       threeRenderer.current = renderer;
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(stage.clientWidth, stage.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.25;
@@ -741,7 +773,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       renderer.domElement.style.height = '100%';
       renderer.domElement.style.pointerEvents = 'none';
       
-      container.appendChild(renderer.domElement);
+      stage.appendChild(renderer.domElement);
 
       scene.add(new THREE.AmbientLight(0xffffff, 1));
 
@@ -840,8 +872,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // estimate overshoots. Instead, project sampled vertices through the
       // camera and binary-search the scale that fits. --project-model-scale /
       // --project-model-y in globals.css still work as optional overrides.
-      const MODEL_FIT_WIDTH = 0.6;   // max share of the section's width
-      const MODEL_FIT_HEIGHT = 0.5;  // max share of the section's height
+      const MODEL_FIT_WIDTH = 0.6;   // max share of the stage's width
+      const MODEL_FIT_HEIGHT = 0.5;  // max share of the stage's height
+      // Stacked, the stage holds nothing but the model, so it may fill more.
+      const MODEL_FIT_HEIGHT_STACKED = 0.85;
+      const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
       const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
       const MAX_MODEL_SAMPLES = 4000;
       let modelSamplePoints: THREE.Vector3[] | null = null;
@@ -855,14 +890,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         monitorGroup.updateMatrixWorld(true);
 
         let vertexCount = 0;
-        monitorGroup.traverse((child) => {
+        monitorGroup.traverseVisible((child) => {
           const mesh = child as THREE.Mesh;
           if (mesh.isMesh) vertexCount += mesh.geometry.getAttribute('position')?.count ?? 0;
         });
         const stride = Math.max(1, Math.ceil(vertexCount / MAX_MODEL_SAMPLES));
 
         const points: THREE.Vector3[] = [];
-        monitorGroup.traverse((child) => {
+        monitorGroup.traverseVisible((child) => {
           const mesh = child as THREE.Mesh;
           const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
           if (!position) return;
@@ -892,7 +927,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           minY = Math.min(minY, projectedPoint.y); maxY = Math.max(maxY, projectedPoint.y);
         }
         // NDC spans -1..1, so half the range is the share of the viewport.
-        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= MODEL_FIT_HEIGHT;
+        const fitHeight = stackedStageQuery.matches ? MODEL_FIT_HEIGHT_STACKED : MODEL_FIT_HEIGHT;
+        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= fitHeight;
       };
 
       const updateModelScale = () => {
@@ -997,11 +1033,24 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // computer. Moving the top-level groups keeps the mouse, cable, and
         // plug aligned with one another.
         const mousePartNames = new Set(['Mouse', 'Mousechord', 'Mouseplug']);
+        const mouseParts: THREE.Object3D[] = [];
         model.traverse((child) => {
           if (!mousePartNames.has(child.name)) return;
           child.position.x -= 10;
           child.position.z -= 15;
+          mouseParts.push(child);
         });
+
+        // Up to 768px the mouse is dropped so the computer alone fills the fit
+        // area; the samples are rebuilt because they skip hidden parts.
+        const mouseHiddenQuery = window.matchMedia('(max-width: 768px)');
+        const syncMouseVisibility = () => {
+          mouseParts.forEach((part) => { part.visible = !mouseHiddenQuery.matches; });
+          modelSamplePoints = null;
+          updateModelScale();
+        };
+        mouseHiddenQuery.addEventListener('change', syncMouseVisibility);
+        syncMouseVisibility();
 
         // Keep the computer—not the movable mouse/cables—as the fixed sizing
         // and camera anchor. Mouse coordinate edits no longer shift or zoom
@@ -1157,18 +1206,23 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         mouse.y = 0;
       });
 
-      window.addEventListener("resize", () => {
-        const newWidth = container.clientWidth;
-        const newHeight = container.clientHeight;
-        
+      const resizeStage = () => {
+        const newWidth = stage.clientWidth;
+        const newHeight = stage.clientHeight;
+
         if (newWidth === 0 || newHeight === 0) return;
-        
+
         camera.aspect = newWidth / newHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(newWidth, newHeight);
         updateFloorSize();
         updateModelScale();
-      });
+      };
+      window.addEventListener("resize", resizeStage);
+      // Stacked, the stage flexes with the content around it, so it can
+      // change size without the window doing so.
+      stageResizeObserver = new ResizeObserver(resizeStage);
+      stageResizeObserver.observe(stage);
       
       const glitchState = { intensity: 0 };
       let glitchAnimation: gsap.core.Tween | null = null;
@@ -1688,12 +1742,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       skillListeners.forEach((remove) => remove());
       if (dragRafId) cancelAnimationFrame(dragRafId);
       if (physicsRafId) cancelAnimationFrame(physicsRafId);
+      delete document.documentElement.dataset.activeSection;
       document.documentElement.style.removeProperty('--footer-color');
       document.documentElement.style.removeProperty('--header-color');
       document.documentElement.style.removeProperty('--header-background');
       document.documentElement.style.removeProperty('--footer-background');
       document.documentElement.style.removeProperty('--footer-bar-background');
       document.documentElement.style.removeProperty('--footer-border-color');
+      stageResizeObserver?.disconnect();
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
         canvas.remove();
       });
@@ -1710,7 +1766,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           patternAlpha={15}
         />
         {/* Preloader */}
-        <section className={`preloader w-full h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
+        <section className={`preloader w-full h-svh lg:h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
           <div>
             <div className="preloader-images relative w-[min(18.75rem,70vw)] aspect-[6/7] opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -1768,8 +1824,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-14 md:pb-16 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
+          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
@@ -1812,7 +1868,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-24 lg:pt-20 pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
+          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-12.5 lg:pt-20 pb-12.5 lg:pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
             {/* Headline */}
             <h2 className="md:col-span-2 lg:row-start-1 self-start uppercase whitespace-nowrap text-white">
               About Me
@@ -1885,8 +1941,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
 
         {/* Projects Section */}
-        <section id="work" ref={projectsRef} className="w-full lg:w-screen h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden">
-          <div className="absolute left-5 top-24 md:left-10 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
+        <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
+          <div className="relative lg:absolute pl-5 pt-12.5 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -1908,7 +1964,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="absolute inset-x-0 bottom-14 z-10 lg:hidden">
+          <div className="relative order-2 z-10 pb-12.5 lg:hidden">
             <ProjectCarousel
               projects={projects}
               onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
@@ -1921,26 +1977,31 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             <p data-project-detail></p>
             <p data-project-detail></p>
           </div>
+          {/* 3D model canvas: the whole section on desktop; below lg, its own
+              band between the heading and the carousel so neither covers it. */}
+          <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
         
         <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
-          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 lg:pt-30 lg:pb-20">
+          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-12.5 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
               </div>
             </div>
             <div className="w-full flex flex-col items-start gap-5 xl:gap-15">
-              <div className="flex flex-col gap-2.5">
+              <div className="@container w-full flex flex-col gap-2.5">
                 <p className="text-white uppercase">Email me</p>
+                {/* Monospace: 26 characters at 0.6em, a 0.4em gap and a 1em
+                    arrow make the row 17em wide, so 100cqw / 17 fills the column. */}
                 <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button max-w-full justify-start bg-transparent! items-center text-sm sm:text-base md:text-2xl xl:text-4xl flex gap-3 md:gap-5 border-b-2 border-white text-white ">
-                    <span className="contact-button__label min-w-0 break-all">
+                  className="contact-swap-button w-full justify-between bg-transparent! items-center text-[calc(100cqw/17)] whitespace-nowrap flex gap-[0.4em] border-b-2 border-white text-white ">
+                    <span className="contact-button__label">
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 h-6 w-6 md:h-10 md:w-10" />
+                    <FiArrowUpRight aria-hidden="true" className="shrink-0 size-[1em]" />
                 </a>
               </div>
               <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
@@ -1966,7 +2027,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   href="/cv.pdf" target="_blank" rel="noopener noreferrer"
                   className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
                   <span className="contact-button__label">
-                    <span>Resume</span>
+                    <span>My Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
                   <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
@@ -1974,10 +2035,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-11 md:pb-13 lg:pb-0 lg:pt-20">
-            <div className="relative size-full">
+          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-12.5 lg:pb-0 lg:pt-20">
+            <div className="relative size-full lg:w-auto lg:-mr-15">
               <Image
-                className="object-contain object-bottom lg:object-center p-2 lg:p-6 will-change-transform"
+                className="object-contain object-bottom lg:object-right p-2 lg:p-6 lg:pr-0 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"
                 alt="Brandon"
                 priority
