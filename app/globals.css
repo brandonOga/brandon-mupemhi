@@ -223,6 +223,20 @@ html.hide-scrollbar::-webkit-scrollbar {
 @font-face {
     font-family: "Neue Montreal";
     font-display: swap;
+    font-weight: 400;
+    font-style: normal;
+    src: url("/fonts/Neue%20Montreal%20Regular/Neue%20Montreal%20Regular.woff2") format("woff2"),
+    url("/fonts/Neue%20Montreal%20Regular/Neue%20Montreal%20Regular.woff") format("woff"),
+    url("/fonts/Neue%20Montreal%20Regular/Neue%20Montreal%20Regular.ttf") format("truetype");
+}
+
+/* This file is the Bold cut. Declaring its weight lets the Regular above
+   serve normal-weight text without the browser reaching for this one. */
+@font-face {
+    font-family: "Neue Montreal";
+    font-display: swap;
+    font-weight: 700;
+    font-style: normal;
     src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot");
     src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot?#iefix")format("embedded-opentype"),
     url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.woff2")format("woff2"),
@@ -300,7 +314,7 @@ html.hide-scrollbar::-webkit-scrollbar {
   --color-site-black: #0A0A0A;
   --color-deep-teal: #2F4F4F;
 
-  --font-sans: var(--font-geist-mono);
+  --font-sans: var(--font-roboto-mono);
   --font-heading: "Neue Montreal", sans-serif;
   --font-editorial: "PP Editorial Old", serif;
 
@@ -878,7 +892,7 @@ html.hide-scrollbar::-webkit-scrollbar {
     font-style: italic;
   }
   .rich-text code {
-    font-family: var(--font-geist-mono), monospace;
+    font-family: var(--font-roboto-mono), monospace;
     font-size: 0.9em;
     background: rgba(0, 0, 0, 0.06);
     padding: 0.1em 0.35em;
