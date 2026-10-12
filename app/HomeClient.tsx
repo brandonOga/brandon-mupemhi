@@ -451,8 +451,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     const pendingSection = sessionStorage.getItem('scroll-to-section');
     if (pendingSection) {
-      sessionStorage.removeItem('scroll-to-section');
       scrollToSection(pendingSection, true);
+      // Cleared a tick later: in development React mounts this effect twice,
+      // and the second pass needs to find the key too.
+      setTimeout(() => sessionStorage.removeItem('scroll-to-section'), 0);
     }
 
     const skillPillContainer = root.current?.querySelector('.skill-pill-wrapper') as HTMLElement | null;
@@ -845,15 +847,27 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // radial alpha map is transparent where the surface meets the section
       // edges, avoiding a hard cutoff during horizontal scrolling.
       const floorRadius = 1.9;
+      const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
       const updateFloorSize = () => {
+        const halfFovTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
         const cameraDistance = Math.abs(
           camera.position.z - shadowFloor.position.z
         );
-        const visibleHeight =
-          2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * cameraDistance;
+        const visibleHeight = 2 * halfFovTan * cameraDistance;
         const visibleWidth = visibleHeight * camera.aspect;
 
-        shadowFloor.scale.set(visibleWidth / (floorRadius * 2), 1.15, 1);
+        // Stacked, the canvas is a short band that ends above the carousel,
+        // so a floor reaching toward the camera is sliced off in a straight
+        // line there. Pull its depth in until the faded rim lands on the
+        // band's bottom edge instead.
+        let depthScale = 1.15;
+        if (stackedStageQuery.matches) {
+          const drop = camera.position.y - shadowFloor.position.y;
+          const reach = camera.position.z - drop / halfFovTan - shadowFloor.position.z;
+          depthScale = Math.min(depthScale, Math.max(reach / floorRadius, 0.2));
+        }
+
+        shadowFloor.scale.set(visibleWidth / (floorRadius * 2), depthScale, 1);
       };
       updateFloorSize();
       shadowFloor.rotation.x = -Math.PI / 2;
@@ -876,7 +890,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const MODEL_FIT_HEIGHT = 0.5;  // max share of the stage's height
       // Stacked, the stage holds nothing but the model, so it may fill more.
       const MODEL_FIT_HEIGHT_STACKED = 0.85;
-      const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
       const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
       const MAX_MODEL_SAMPLES = 4000;
       let modelSamplePoints: THREE.Vector3[] | null = null;
@@ -961,6 +974,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         const scaledModelBox = new THREE.Box3().setFromObject(monitorGroup);
         shadowFloor.position.y = scaledModelBox.min.y - 0.01;
+        // The floor's depth depends on how far below the camera it sits.
+        updateFloorSize();
       };
 
 
@@ -986,7 +1001,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       }
 
       const defaultDisplayImage = "/images/brandon.jpg";
-      const defaultTexture = loadTexture(defaultDisplayImage);
+      // Below lg the carousel opens on the first project and there is no hover
+      // to bring a cover up, so the screen starts on that project's cover.
+      const firstProjectCover = projects[0]?.cover_image;
+      const restingDisplayImage = () =>
+        stackedStageQuery.matches && firstProjectCover ? firstProjectCover : defaultDisplayImage;
+      const defaultTexture = loadTexture(restingDisplayImage());
+      stackedStageQuery.addEventListener('change', () => setDisplayImage(restingDisplayImage()));
 
       let displayMaterial: THREE.ShaderMaterial | null = null;
 
@@ -1270,6 +1291,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           const titleElement = document.querySelector('.project-description h3') as HTMLElement;
           const positionElement = document.querySelector<HTMLElement>('.project-description [data-project-position]');
           const detailElements = document.querySelectorAll<HTMLElement>('.project-description [data-project-detail]');
+          const tagsElement = document.querySelector<HTMLElement>('.project-description [data-project-tags]');
 
           if (positionElement) positionElement.textContent = position || '';
 
@@ -1291,9 +1313,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             });
           }
 
-          [projectType, disciplines, year].forEach((value, index) => {
+          [projectType, year].forEach((value, index) => {
             if (detailElements[index]) detailElements[index].textContent = value || '—';
           });
+          // Role and tags: one pill each.
+          tagsElement?.replaceChildren(
+            ...(disciplines ? disciplines.split('\n') : []).map((label) => {
+              const pill = document.createElement('span');
+              pill.textContent = label;
+              return pill;
+            })
+          );
           gsap.to('.project-description', { opacity: 1, duration: 0.3, ease: "power2.out" });
         });
 
@@ -1312,6 +1342,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       });
 
       customEase.create("hop", "0.9, 0, 0.1, 1");
+      // Gentler than "hop" for the preloader images: "hop" packs over half
+      // the motion into ~12% of the tween, which reads as a jump.
+      customEase.create("hopSoft", "0.76, 0, 0.24, 1");
 
       // ── Char hover helper (defined early so animateHeroEntrance can call it) ──
       const setupCharHover = (heading: HTMLElement) => {
@@ -1452,6 +1485,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       } else {
         preloaderHasPlayed = true;
         lenis.stop(); // no scrolling until the preloader has finished
+        // A long frame (model parse, shader compile) would otherwise make the
+        // timeline jump ahead by the time lost and skip the squiggle exit.
+        // Scroll sync needs smoothing off again once the preloader is done.
+        // The threshold is low because the model load hitches the main thread
+        // in 100–400ms chunks, each of which would otherwise skip the images
+        // forward mid-wipe.
+        gsap.ticker.lagSmoothing(100, 33);
 
         // Pre-hide hero content so it's invisible until the preloader exits
         gsap.set([".hero h1", ".hero p:not(.skill-pill)"], { autoAlpha: 0 });
@@ -1483,22 +1523,30 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // counter-1 sits at position 1.5 with duration 2 → finishes at t=3.5 within the timeline
         const counterEnd = 3.5;
 
-        const preloaderTL = gsap.timeline({ delay: 0.25, timeScale: 0.6, onComplete: () => lenis.start() });
+        const preloaderTL = gsap.timeline({
+          delay: 0.25,
+          onComplete: () => {
+            gsap.ticker.lagSmoothing(0);
+            lenis.start();
+          },
+        });
 
         // counters — wired into the timeline so they're in sync with everything else
         preloaderTL.to(c3, { y: -scrollDist(c3), duration: 2.5, ease: "power2.inOut" }, 0);
         preloaderTL.to(c2, { y: -scrollDist(c2), duration: 3,   ease: "power2.inOut" }, 0);
         preloaderTL.to(c1, { y: -scrollDist(c1), duration: 2,   ease: "power2.inOut" }, 1.5);
 
-        // images staggered so the last one finishes exactly at counterEnd
-        // 4 images × 1s duration: last starts at counterEnd-1=2.5 → stagger 2.5/3 ≈ 0.833
+        // Each image's wipe and zoom start together, so every image reveals
+        // the same way. The zoom (1.5s) outlasts the wipe (1s) and the last
+        // one finishes exactly at counterEnd: starts at counterEnd-1.5=2 →
+        // stagger 2/3 ≈ 0.667
+        const imageStagger = 0.667;
         preLoaderImages.forEach((imgWrap, i) => {
-          preloaderTL.to(imgWrap, { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", ease: "hop", duration: 1 }, i * 0.833);
+          preloaderTL.to(imgWrap, { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", ease: "hopSoft", duration: 1 }, i * imageStagger);
         });
 
-        // 4 inner images × 1.5s duration: last starts at counterEnd-1.5=2 → stagger 2/3 ≈ 0.667
         preLoaderImagesInner.forEach((imgWrap, i) => {
-          preloaderTL.to(imgWrap, { scale: 1, ease: "hop", duration: 1.5 }, i * 0.667);
+          preloaderTL.to(imgWrap, { scale: 1, ease: "hopSoft", duration: 1.5 }, i * imageStagger);
         });
 
         // exit fires the moment counter reads 100 — the preloader's own
@@ -1773,13 +1821,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <Image className="img object-cover will-change-transform" src="/images/brandon.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image className="img object-cover will-change-transform" src="/images/brandon2.jpg" alt="Brandon" fill sizes="300px" />
+                <Image className="img object-cover will-change-transform" src="/images/brandon2.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image className="img object-cover will-change-transform" src="/images/brandon3.jpg" alt="Brandon" fill sizes="300px" />
+                <Image className="img object-cover will-change-transform" src="/images/brandon3.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
-                <Image className="img object-cover will-change-transform" src="/images/brandon5.jpg" alt="Brandon" fill sizes="300px" />
+                <Image className="img object-cover will-change-transform" src="/images/brandon5.jpg" alt="Brandon" priority fill sizes="300px" />
               </div>
             </div>
           </div>
@@ -1831,11 +1879,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="w-full sm:w-4/5 lg:w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
               <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-xl sm:text-2xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-xl sm:text-2xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm md:text-base py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
             <div className = "w-full lg:w-1/2 flex-1 min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
@@ -1875,18 +1923,18 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
             {/* 01 — Who I Am */}
             <div className="lg:col-start-3 lg:row-start-1 max-w-[20rem]">
-              <p className="font-mono text-sm text-primary-color mb-3">01</p>
-              <p className="text-sm font-bold uppercase mb-2 text-white">Who I Am</p>
-              <p className="text-sm uppercase leading-relaxed text-white/90">
+              <p className="font-mono text-primary-color mb-3">01</p>
+              <p className="text-[18px] font-bold uppercase mb-2 text-white">Who I Am</p>
+              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
                 UI/UX designer and frontend developer creating thoughtful digital experiences where design, usability, and code come together.
               </p>
             </div>
 
             {/* 02 — My Journey */}
             <div className="lg:col-start-2 lg:row-start-2 max-w-[24rem]">
-              <p className="font-mono text-sm text-primary-color mb-3">02</p>
-              <p className="text-sm font-bold uppercase mb-2 text-white">My Journey</p>
-              <p className="text-sm uppercase leading-relaxed text-white/90">
+              <p className="font-mono text-primary-color mb-3">02</p>
+              <p className="text-[18px] font-bold uppercase mb-2 text-white">My Journey</p>
+              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
                 I started my design journey in 2022, and have since grown across UI/UX, web design, and frontend development — turning ideas into real digital products.
               </p>
             </div>
@@ -1898,9 +1946,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
             {/* 03 — Approach */}
             <div className="lg:col-start-3 lg:row-start-3 max-w-[20rem]">
-              <p className="font-mono text-sm text-primary-color mb-3">03</p>
-              <p className="text-sm font-bold uppercase mb-2 text-white">Approach</p>
-              <p className="text-sm uppercase leading-relaxed text-white/90">
+              <p className="font-mono text-primary-color mb-3">03</p>
+              <p className="text-[18px] font-bold uppercase mb-2 text-white">Approach</p>
+              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
                 I design with development in mind — balancing visual detail, usability, and technical feasibility to create experiences that work beyond the mockup.
               </p>
             </div>
@@ -1921,18 +1969,18 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
             {/* 04 — Experience */}
             <div className="lg:col-start-1 lg:row-start-4 lg:self-end max-w-[20rem]">
-              <p className="font-mono text-sm text-primary-color mb-3">04</p>
-              <p className="text-sm font-bold uppercase mb-2 text-white">Experience</p>
-              <p className="text-sm uppercase leading-relaxed text-white/90">
+              <p className="font-mono text-primary-color mb-3">04</p>
+              <p className="text-[18px] font-bold uppercase mb-2 text-white">Experience</p>
+              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
                 I&apos;ve worked across websites and digital products for organisations in education, agriculture, technology, and other industries.
               </p>
             </div>
 
             {/* 05 — Off Screen */}
             <div className="lg:col-start-3 lg:row-start-4 lg:self-end max-w-[20rem]">
-              <p className="font-mono text-sm text-primary-color mb-3">05</p>
-              <p className="text-sm font-bold uppercase mb-2 text-white">Off Screen</p>
-              <p className="text-sm uppercase leading-relaxed text-white/90">
+              <p className="font-mono text-primary-color mb-3">05</p>
+              <p className="text-[18px] font-bold uppercase mb-2 text-white">Off Screen</p>
+              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
                 When I&apos;m not designing or building, I&apos;m usually exploring new ideas, experimenting with motion, or finding inspiration far away from Figma.
               </p>
             </div>
@@ -1953,7 +2001,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
             {projects.map((project, index) => (
-              <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[project.role, ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
+              <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/projects/${project.slug}`}>
                   <span className="project-pill__flair" aria-hidden="true" />
                   <span className="button-flair__label inline-flex items-center">
@@ -1963,17 +2011,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </li>
             ))}
           </ul>
-          <div className="relative order-2 z-10 pb-12.5 lg:hidden">
+          <div className="relative order-2 z-10 pt-10 pb-12.5 lg:hidden">
             <ProjectCarousel
               projects={projects}
               onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
             />
           </div>
-          <div className="project-description hidden lg:block absolute left-[70%] top-3/10 -translate-y-7/10 opacity-0 pointer-events-none">
+          <div className="project-description hidden lg:block absolute left-[70%] top-1/5 opacity-0 pointer-events-none">
             <p data-project-position></p>
             <h3></h3>
             <p data-project-detail></p>
-            <p data-project-detail></p>
+            <div data-project-tags></div>
             <p data-project-detail></p>
           </div>
           {/* 3D model canvas: the whole section on desktop; below lg, its own

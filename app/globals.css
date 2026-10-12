@@ -645,7 +645,8 @@ html.hide-scrollbar::-webkit-scrollbar {
    }
 
    .projects li a {
-    @apply inline-flex text-lg py-2.5 px-3.5 text-foreground! bg-white! whitespace-nowrap;
+    @apply inline-flex py-2.5 px-3.5 text-foreground! bg-white! whitespace-nowrap;
+    font-size: var(--text-body);
     cursor: pointer;
    }
 
@@ -728,7 +729,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 
   .pc-title {
     font-family: var(--font-sans);
-    font-size: 0.95rem;
+    font-size: var(--text-body);
     font-weight: 600;
     line-height: 1.3;
     text-transform: uppercase;
@@ -834,8 +835,29 @@ html.hide-scrollbar::-webkit-scrollbar {
     color: rgba(36, 33, 36, 0.6);
   }
 
-  .project-description [data-project-detail] {
-    white-space: pre-line;
+  .project-description [data-project-position] {
+    color: var(--color-primary-color);
+  }
+
+  .project-description [data-project-tags] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-block: 0.6rem;
+  }
+
+  .project-description [data-project-tags]:empty {
+    display: none;
+  }
+
+  .project-description [data-project-tags] span {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    text-transform: uppercase;
+    color: var(--color-foreground);
+    border: 1px solid currentColor;
+    border-radius: 999px;
   }
 
   .project-description p + p {
