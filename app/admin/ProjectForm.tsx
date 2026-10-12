@@ -7,6 +7,8 @@ import { saveProject, type SaveState } from './actions';
 import RichTextEditor from './RichTextEditor';
 import FileInput from './FileInput';
 import type { Project } from '@/lib/projects';
+import { problemProcessHtml, solutionHtml } from '@/lib/caseStudyHtml';
+import { deviceFrameKey, devicePresets, deviceSlots } from '@/lib/devices';
 import { createClient } from '@/lib/supabase/client';
 
 const input =
@@ -16,12 +18,12 @@ const card = 'rounded-[10px] border border-foreground/12 bg-white px-4 py-5 sm:p
 const sidebarCard = 'rounded-[10px] border border-foreground/12 bg-white px-5 py-5 flex flex-col gap-4';
 const legend = 'text-[19px] font-[650] leading-snug text-[#1d2327]';
 const help = 'text-[12.5px] text-[#1d2327]/55';
-// The site's `font-sans` token is Geist Mono, so the editor names its own sans stack.
+// The site's `font-sans` token is Roboto Mono, so the editor names its own sans stack.
 const editorFont = "[font-family:system-ui,-apple-system,'Segoe_UI',Roboto,'Helvetica_Neue',Arial,sans-serif]";
 
 const sectionLinks = [
   ['project-intro', 'Intro'], ['snapshot', 'Overview'], ['problem', 'Problem'],
-  ['solution', 'Solution'], ['system-build', 'Build'], ['outcome', 'Outcome'],
+  ['solution', 'Solution'], ['outcome', 'Outcome'],
   ['media', 'Media'], ['settings', 'Publish'],
 ];
 
@@ -55,7 +57,6 @@ export default function ProjectForm({ project }: { project?: Project }) {
   const [gallery, setGallery] = useState<string[]>(project?.gallery ?? []);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [featureCount, setFeatureCount] = useState(Math.max(3, project?.case_study.features.length ?? 0));
   const [, startTransition] = useTransition();
 
   const busy = pending || uploading;
@@ -81,6 +82,15 @@ export default function ProjectForm({ project }: { project?: Project }) {
       raw.delete('gallery_files');
       for (const f of galleryFiles) {
         raw.append('gallery_keep', await uploadImage(f));
+      }
+
+      // A new device screenshot replaces the one its slot already holds.
+      for (const { key } of deviceSlots) {
+        const deviceFile = raw.get(`device_file_${key}`) as File | null;
+        if (deviceFile && deviceFile.size > 0) {
+          raw.set(`case_media_${key}`, await uploadImage(deviceFile));
+        }
+        raw.delete(`device_file_${key}`);
       }
     } catch (err) {
       setUploading(false);
@@ -155,22 +165,16 @@ export default function ProjectForm({ project }: { project?: Project }) {
       <div className="flex flex-col gap-6 min-w-0">
       {/* Details */}
       <section id="project-intro" className={card}>
-        <SectionHeading title="Project card and hero" required note="Controls the homepage hover panel and the opening of the project page." />
+        <SectionHeading title="Project card and hero" required note="Controls the homepage hover panel and the opening of the project page. Roles and tags appear as pills in both places." />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Name *</span>
           <input name="name" required defaultValue={project?.name} className={`${input} text-[22px] sm:text-[28px] font-[650] px-4 py-3.5`} />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className={labelText}>Slug — leave blank to auto-generate</span>
-          <input
-            name="slug"
-            defaultValue={project?.slug}
-            placeholder="e.g. ferrari"
-            className={`${input} font-mono text-[13px] text-[#555]`}
-          />
-        </label>
+        {/* Not editable: a new project's slug is generated from its name, and
+            an existing project keeps the one it has. */}
+        <input type="hidden" name="slug" value={project?.slug ?? ''} />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Project type / one-sentence summary</span>
@@ -181,26 +185,23 @@ export default function ProjectForm({ project }: { project?: Project }) {
           />
         </label>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className={labelText}>Year</span>
-            <input name="year" defaultValue={project?.year} className={input} />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className={labelText}>Role</span>
-            <input name="role" defaultValue={project?.role} className={input} />
-          </label>
-        </div>
+        <Field name="year" label="Year" value={project?.year} />
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className={labelText}>Tags (comma separated)</span>
-          <input
-            name="tags"
-            defaultValue={project?.tags.join(', ')}
-            placeholder="branding, web, 3d"
-            className={input}
-          />
-        </label>
+        <Repeater
+          name="role"
+          label="Role"
+          itemLabel="role"
+          values={(project?.role ?? '').split(',').map((item) => item.trim()).filter(Boolean)}
+          placeholder="e.g. UI Designer"
+        />
+
+        <Repeater
+          name="tags"
+          label="Tags"
+          itemLabel="tag"
+          values={project?.tags ?? []}
+          placeholder="e.g. branding"
+        />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>External link (optional)</span>
@@ -214,69 +215,69 @@ export default function ProjectForm({ project }: { project?: Project }) {
         </label>
       </section>
 
-      {/* Case study */}
-      <section className={card}>
-        <SectionHeading title="Optional rich-text introduction" note="Legacy long-form introduction. Leave empty to use the structured overview below." />
-        <RichTextEditor name="body" defaultValue={project?.body} />
-        <p className={help}>Optional rich-text introduction. The structured fields below control the editorial page sections.</p>
-      </section>
-
       <section id="snapshot" className={card}>
-        <SectionHeading title="01 — Project overview" required note="Gives visitors a quick understanding before the full case study." />
+        <SectionHeading title="01 — Project overview" required note="The at-a-glance facts (role, timeline, industry, responsibilities, tools) and the opening paragraph of the project page." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field name="case_industry" label="Industry" value={caseStudy?.industry} />
           <Field name="case_timeline" label="Timeline" value={caseStudy?.timeline} placeholder="e.g. 8 weeks" />
         </div>
         <Area name="case_overview" label="Project overview" value={caseStudy?.overview} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Area name="case_responsibilities" label="Responsibilities — one per line" value={caseStudy?.responsibilities.join('\n')} rows={5} />
-          <Area name="case_tools" label="Tools / technology — one per line" value={caseStudy?.tools.join('\n')} rows={5} />
-        </div>
+        <Repeater name="case_responsibilities" label="Responsibilities" itemLabel="responsibility" values={caseStudy?.responsibilities ?? []} />
+        <Repeater name="case_tools" label="Tools / technology" itemLabel="tool" values={caseStudy?.tools ?? []} placeholder="e.g. Figma" />
       </section>
 
       <section id="problem" className={card}>
-        <SectionHeading title="02–05 — Problem and process" required note="Explain the problem before the polished work. Empty optional subsections stay hidden." />
-        <Field name="case_challenge_question" label="Challenge question" value={caseStudy?.challenge_question} placeholder="How might we…?" />
-        <Area name="case_challenge" label="Challenge explanation" value={caseStudy?.challenge} />
-        <Area name="case_understanding" label="Understanding the problem / users" value={caseStudy?.understanding} />
-        <Area name="case_insights" label="Key insights — one per line" value={caseStudy?.insights.join('\n')} />
-        <Area name="case_process_steps" label="Information architecture / process steps — one per line" value={caseStudy?.process_steps.join('\n')} placeholder={'Registration\nOnboarding\nDashboard\nCompletion'} />
-        <Area name="case_exploration" label="Exploration / wireframes explanation" value={caseStudy?.exploration} />
+        <SectionHeading title="02 — Problem and process" required note="Explain the problem before the polished work: the challenge, what you learned about the users, the process, and the exploration. This section is text only." />
+        <RichTextEditor name="case_problem_process" defaultValue={problemProcessHtml(caseStudy)} />
       </section>
 
       <section id="solution" className={card}>
-        <SectionHeading title="06–07 — Solution and key experiences" required note="Explain what each feature does, why it exists, and which problem it solves." />
-        <Area name="case_solution" label="Solution introduction" value={caseStudy?.solution} />
-        <input type="hidden" name="case_feature_count" value={featureCount} />
-        {Array.from({ length: featureCount }, (_, index) => <div key={index} className="grid gap-3 border-t border-foreground/10 pt-4">
-          <Field name={`case_feature_${index + 1}_title`} label={`Feature ${index + 1} title`} value={caseStudy?.features[index]?.title} />
-          <Area name={`case_feature_${index + 1}_description`} label={`Feature ${index + 1} explanation`} value={caseStudy?.features[index]?.description} rows={3} />
-        </div>)}
-        <div className="flex gap-2">
-          {featureCount < 5 && <button type="button" onClick={() => setFeatureCount((count) => count + 1)} className="bg-transparent! text-foreground! border border-foreground/20 text-xs">+ Add feature</button>}
-          {featureCount > 1 && <button type="button" onClick={() => setFeatureCount((count) => count - 1)} className="bg-transparent! text-warning! border border-warning/20 text-xs">Remove last</button>}
+        <SectionHeading title="03 — Solution" required note="Introduce the solution, then explain what each key feature does, why it exists, and which problem it solves. Shown to the left of the device mockups." />
+        <RichTextEditor name="case_solution_detail" defaultValue={solutionHtml(caseStudy)} />
+
+        <div className="flex flex-col gap-2.5 border-t border-foreground/10 pt-5">
+          <span className={labelText}>Device mockups</span>
+          <span className={help}>
+            Shown to the right of the solution copy in three columns: the two mobiles, the tablet, then the desktop.
+            Pick a device and upload a screenshot taken at its screen size. Until a device has its own screenshot
+            it shows a gallery image or the cover.{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
+          </span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {deviceSlots.map((slot) => (
+              <DeviceSlot
+                key={slot.key}
+                slot={slot}
+                image={caseStudy?.media[slot.key]}
+                frame={caseStudy?.media[deviceFrameKey(slot.key)]}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
-      <section id="system-build" className={card}>
-        <SectionHeading title="08–10 — System and build" note="Optional — each section remains hidden on the public page when empty." />
-        <Area name="case_design_system" label="Design system" value={caseStudy?.design_system} />
-        <Area name="case_development" label="Development involvement" value={caseStudy?.development} />
-        <Area name="case_responsive" label="Responsive design" value={caseStudy?.responsive} />
-      </section>
+      {/* System and build is no longer edited or shown on the project page.
+          What a project already stored is passed through so saving keeps it. */}
+      <input type="hidden" name="case_design_system" value={caseStudy?.design_system ?? ''} />
+      <input type="hidden" name="case_development" value={caseStudy?.development ?? ''} />
+      <input type="hidden" name="case_responsive" value={caseStudy?.responsive ?? ''} />
+      {/* The problem and process section has no images any more, and the
+          solution shows device mockups instead of assigned images; the old
+          image assignments are passed through the same way. */}
+      {['responsive_mobile', 'responsive_tablet', 'responsive_desktop', 'challenge_1', 'challenge_2', 'exploration_1', 'exploration_2', 'exploration_3', 'solution', 'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5'].map((key) => (
+        <input key={key} type="hidden" name={`case_media_${key}`} value={caseStudy?.media[key] ?? ''} />
+      ))}
 
       <section id="outcome" className={card}>
-        <SectionHeading title="11 — Outcome and reflection" required note="Describe what was delivered, learned, and worth improving. Only use verified metrics." />
+        <SectionHeading title="04 — Outcome and reflection" required note="Describe what was delivered, learned, and worth improving. Only use verified metrics." />
         <Area name="case_outcome" label="Outcome" value={caseStudy?.outcome} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Area name="case_what_worked" label="What worked — one per line" value={caseStudy?.what_worked.join('\n')} />
-          <Area name="case_improvements" label="What I’d improve — one per line" value={caseStudy?.improvements.join('\n')} />
-        </div>
+        <Repeater name="case_what_worked" label="What worked" itemLabel="point" values={caseStudy?.what_worked ?? []} />
+        <Repeater name="case_improvements" label="What I’d improve" itemLabel="point" values={caseStudy?.improvements ?? []} />
       </section>
 
       {/* Media */}
       <section id="media" className={card}>
-        <SectionHeading title="Media and image placement" required note="Upload images, save the project, then assign each saved image to a page position." />
+        <SectionHeading title="Media and image placement" required note="The cover image and the gallery. Device screenshots for the solution are uploaded in section 03." />
 
         {/* Cover image */}
         <div className="flex flex-col gap-2.5">
@@ -341,20 +342,6 @@ export default function ProjectForm({ project }: { project?: Project }) {
             <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
         </div>
-
-        {(gallery.length > 0 || project?.cover_image) && (
-          <div className="grid grid-cols-1 gap-4 border-t border-foreground/10 pt-5 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              ['challenge_1', 'Challenge image 1'], ['challenge_2', 'Challenge image 2'],
-              ['exploration_1', 'Exploration image 1'], ['exploration_2', 'Exploration image 2'], ['exploration_3', 'Exploration image 3'],
-              ['solution', 'Main solution image'],
-              ...Array.from({ length: featureCount }, (_, index) => [`feature_${index + 1}`, `Feature ${index + 1} image`]),
-              ['responsive_mobile', 'Responsive mobile'], ['responsive_tablet', 'Responsive tablet'], ['responsive_desktop', 'Responsive desktop'],
-            ].map(([key, text]) => (
-              <MediaSelect key={key} name={`case_media_${key}`} label={text} value={caseStudy?.media[key]} cover={project?.cover_image} gallery={gallery} />
-            ))}
-          </div>
-        )}
       </section>
       </div>
 
@@ -403,6 +390,35 @@ function Field({ name, label, value, placeholder }: { name: string; label: strin
   return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><input name={name} defaultValue={value} placeholder={placeholder} className={input} /></label>;
 }
 
+// One input per value, all submitted under the same field name.
+function Repeater({ name, label, itemLabel, values, placeholder }: { name: string; label: string; itemLabel: string; values: string[]; placeholder?: string }) {
+  const [rows, setRows] = useState(() => (values.length ? values : ['']).map((value, id) => ({ id, value })));
+  const [nextId, setNextId] = useState(rows.length);
+
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <span className={labelText}>{label}</span>
+      {rows.map((row, index) => (
+        <div key={row.id} className="flex items-center gap-2">
+          <input name={name} defaultValue={row.value} placeholder={placeholder} aria-label={`${label} ${index + 1}`} className={input} />
+          {rows.length > 1 && (
+            <button type="button" onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))} className="shrink-0 bg-transparent! text-warning! border border-warning/20 text-xs">Remove</button>
+          )}
+        </div>
+      ))}
+      <div>
+        <button
+          type="button"
+          onClick={() => { setRows((current) => [...current, { id: nextId, value: '' }]); setNextId((id) => id + 1); }}
+          className="bg-transparent! text-foreground! border border-foreground/20 text-xs"
+        >
+          + Add {itemLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Area({ name, label, value, placeholder, rows = 4 }: { name: string; label: string; value?: string; placeholder?: string; rows?: number }) {
   return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><textarea name={name} defaultValue={value} placeholder={placeholder} rows={rows} className={`${input} resize-y leading-relaxed`} /></label>;
 }
@@ -411,7 +427,31 @@ function SectionHeading({ title, note, required = false }: { title: string; note
   return <div className="border-b border-foreground/10 pb-4"><div className="flex items-center justify-between gap-4"><p className={legend}>{title}</p><span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] ${required ? 'bg-foreground text-white' : 'bg-foreground/5 text-foreground/60'}`}>{required ? 'Core' : 'Optional'}</span></div>{note && <p className="mt-2 text-[13.5px] opacity-65">{note}</p>}</div>;
 }
 
-function MediaSelect({ name, label, value, cover, gallery }: { name: string; label: string; value?: string; cover?: string; gallery: string[] }) {
-  const options = Array.from(new Set([cover, ...gallery].filter(Boolean))) as string[];
-  return <label className="flex flex-col gap-1 text-sm"><span className={labelText}>{label}</span><select name={name} defaultValue={value ?? ''} className={input}><option value="">Automatic gallery order</option>{options.map((url, index) => <option key={url} value={url}>{index === 0 && cover ? 'Cover image' : `Gallery image ${cover ? index : index + 1}`}</option>)}</select></label>;
+// One device mockup: which device to draw and the screenshot on its screen.
+function DeviceSlot({ slot, image, frame }: { slot: (typeof deviceSlots)[number]; image?: string; frame?: string }) {
+  const [current, setCurrent] = useState(image ?? '');
+  const presets = devicePresets[slot.kind];
+
+  return (
+    <div className="flex flex-col gap-2.5 rounded-md border border-foreground/12 p-3.5 text-sm">
+      <label className="flex flex-col gap-1">
+        <span className={labelText}>{slot.label}</span>
+        <select name={`case_media_${deviceFrameKey(slot.key)}`} defaultValue={frame || presets[0].id} className={input}>
+          {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+        </select>
+      </label>
+      <input type="hidden" name={`case_media_${slot.key}`} value={current} />
+      {current && (
+        <div className="flex items-end gap-3">
+          <div className="relative w-28 h-20 bg-neutral-200 rounded-md overflow-hidden border border-foreground/10">
+            <Image src={current} alt={`${slot.label} screenshot`} fill className="object-cover object-top" sizes="112px" />
+          </div>
+          <button type="button" onClick={() => setCurrent('')} className="bg-transparent! text-warning! text-xs px-0">
+            Remove
+          </button>
+        </div>
+      )}
+      <FileInput name={`device_file_${slot.key}`} buttonLabel={current ? 'Replace screenshot' : 'Upload screenshot'} />
+    </div>
+  );
 }
