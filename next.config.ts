@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 2592000, // 30 days
+    // 90 is for the device-mockup screenshots, whose text shows compression.
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",

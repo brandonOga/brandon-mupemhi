@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { deviceMediaKeys } from '@/lib/devices';
 
 export const dynamic = 'force-dynamic';
 
 const columns = [
   'slug', 'name', 'description', 'year', 'role', 'tags', 'url', 'body',
   'case_industry', 'case_timeline', 'case_overview', 'case_responsibilities',
-  'case_tools', 'case_challenge_question', 'case_challenge', 'case_understanding',
-  'case_insights', 'case_process_steps', 'case_exploration', 'case_solution',
+  'case_tools', 'case_problem_process', 'case_challenge_question', 'case_challenge', 'case_understanding',
+  'case_insights', 'case_process_steps', 'case_exploration', 'case_solution_detail', 'case_solution',
   'case_feature_1_title', 'case_feature_1_description',
   'case_feature_2_title', 'case_feature_2_description',
   'case_feature_3_title', 'case_feature_3_description',
@@ -20,8 +21,9 @@ const columns = [
   'case_media_solution', 'case_media_feature_1', 'case_media_feature_2',
   'case_media_feature_3', 'case_media_feature_4', 'case_media_feature_5',
   'case_media_responsive_mobile', 'case_media_responsive_tablet', 'case_media_responsive_desktop',
+  ...deviceMediaKeys.map((key) => `case_media_${key}`),
   'display_order', 'published',
-] as const;
+];
 
 function csvCell(value: unknown): string {
   const text = typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value ?? '');
@@ -47,12 +49,14 @@ function flattenProject(project: Record<string, unknown>): Record<string, unknow
     case_overview: caseStudy.overview,
     case_responsibilities: lines(caseStudy.responsibilities),
     case_tools: lines(caseStudy.tools),
+    case_problem_process: caseStudy.problem_process,
     case_challenge_question: caseStudy.challenge_question,
     case_challenge: caseStudy.challenge,
     case_understanding: caseStudy.understanding,
     case_insights: lines(caseStudy.insights),
     case_process_steps: lines(caseStudy.process_steps),
     case_exploration: caseStudy.exploration,
+    case_solution_detail: caseStudy.solution_detail,
     case_solution: caseStudy.solution,
     case_feature_1_title: features[0]?.title,
     case_feature_1_description: features[0]?.description,

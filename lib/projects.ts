@@ -31,12 +31,18 @@ export type CaseStudy = {
   responsibilities: string[];
   tools: string[];
   overview: string;
+  /** Rich-text HTML for the whole problem-and-process section. When set, it
+   *  replaces the six legacy fields below it on the project page. */
+  problem_process: string;
   challenge_question: string;
   challenge: string;
   understanding: string;
   insights: string[];
   process_steps: string[];
   exploration: string;
+  /** Rich-text HTML for the whole solution section. When set, it replaces
+   *  the legacy `solution` introduction and `features` on the project page. */
+  solution_detail: string;
   solution: string;
   features: CaseStudyFeature[];
   design_system: string;
@@ -50,8 +56,8 @@ export type CaseStudy = {
 
 const emptyCaseStudy: CaseStudy = {
   industry: '', timeline: '', responsibilities: [], tools: [], overview: '',
-  challenge_question: '', challenge: '', understanding: '', insights: [],
-  process_steps: [], exploration: '', solution: '', features: [],
+  problem_process: '', challenge_question: '', challenge: '', understanding: '', insights: [],
+  process_steps: [], exploration: '', solution_detail: '', solution: '', features: [],
   design_system: '', development: '', responsive: '', outcome: '',
   what_worked: [], improvements: [],
   media: {},
@@ -70,10 +76,12 @@ function normalizeCaseStudy(value: unknown): CaseStudy {
   return {
     industry: text('industry'), timeline: text('timeline'),
     responsibilities: list('responsibilities'), tools: list('tools'),
-    overview: text('overview'), challenge_question: text('challenge_question'),
+    overview: text('overview'), problem_process: text('problem_process'),
+    challenge_question: text('challenge_question'),
     challenge: text('challenge'), understanding: text('understanding'),
     insights: list('insights'), process_steps: list('process_steps'),
-    exploration: text('exploration'), solution: text('solution'), features,
+    exploration: text('exploration'), solution_detail: text('solution_detail'),
+    solution: text('solution'), features,
     design_system: text('design_system'), development: text('development'),
     responsive: text('responsive'), outcome: text('outcome'),
     what_worked: list('what_worked'), improvements: list('improvements'),

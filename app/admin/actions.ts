@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { deviceMediaKeys } from '@/lib/devices';
 
 function slugify(input: string): string {
   return input
@@ -88,24 +89,28 @@ export async function saveProject(
     const cover_image = (formData.get('cover_image_current') as string) || '';
     const gallery = (formData.getAll('gallery_keep') as string[]).filter(Boolean);
 
-    const tags = ((formData.get('tags') as string) || '')
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+    // Repeater fields: one input per value, all under the same name.
+    const repeated = (field: string) =>
+      formData.getAll(field).flatMap((value) => String(value).split(',')).map((item) => item.trim()).filter(Boolean);
+    const tags = repeated('tags');
 
     const text = (name: string) => (formData.get(name) as string)?.trim() ?? '';
-    const lines = (name: string) => text(name).split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+    // List fields are repeaters too; a value may itself hold several lines.
+    const lines = (name: string) =>
+      formData.getAll(name).flatMap((value) => String(value).split(/\r?\n/)).map((item) => item.trim()).filter(Boolean);
     const case_study = {
       industry: text('case_industry'), timeline: text('case_timeline'),
       responsibilities: lines('case_responsibilities'), tools: lines('case_tools'),
-      overview: text('case_overview'), challenge_question: text('case_challenge_question'),
-      challenge: text('case_challenge'), understanding: text('case_understanding'),
-      insights: lines('case_insights'), process_steps: lines('case_process_steps'),
-      exploration: text('case_exploration'), solution: text('case_solution'),
-      features: Array.from({ length: Math.min(5, Math.max(1, Number(formData.get('case_feature_count')) || 3)) }, (_, offset) => offset + 1).map((index) => ({
-        title: text(`case_feature_${index}_title`),
-        description: text(`case_feature_${index}_description`),
-      })).filter((feature) => feature.title || feature.description),
+      overview: text('case_overview'),
+      // One rich-text field now covers the problem and process. The editor
+      // pre-fills it from the six legacy fields, which are then stored empty.
+      problem_process: text('case_problem_process'),
+      challenge_question: '', challenge: '', understanding: '',
+      insights: [], process_steps: [], exploration: '',
+      // Likewise for the solution: one rich-text field, pre-filled from the
+      // legacy introduction and features, which are then stored empty.
+      solution_detail: text('case_solution_detail'),
+      solution: '', features: [],
       design_system: text('case_design_system'), development: text('case_development'),
       responsive: text('case_responsive'), outcome: text('case_outcome'),
       what_worked: lines('case_what_worked'), improvements: lines('case_improvements'),
@@ -113,6 +118,7 @@ export async function saveProject(
         'challenge_1', 'challenge_2', 'exploration_1', 'exploration_2', 'exploration_3',
         'solution', 'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5',
         'responsive_mobile', 'responsive_tablet', 'responsive_desktop',
+        ...deviceMediaKeys,
       ].map((key) => [key, text(`case_media_${key}`)]).filter(([, value]) => value)),
     };
 
@@ -120,10 +126,12 @@ export async function saveProject(
       slug,
       name,
       description: (formData.get('description') as string)?.trim() ?? '',
-      body: (formData.get('body') as string) ?? '',
+      // The editor no longer has a body field: a new project starts with
+      // none, and an existing project's stored body is left untouched.
+      ...(id ? {} : { body: '' }),
       case_study,
       year: (formData.get('year') as string)?.trim() ?? '',
-      role: (formData.get('role') as string)?.trim() ?? '',
+      role: repeated('role').join(', '),
       url: ((formData.get('url') as string)?.trim() || null) as string | null,
       display_order: Number(formData.get('display_order')) || 0,
       published: formData.get('published') === 'on',
@@ -210,12 +218,14 @@ export async function importProjects(formData: FormData) {
         overview: value('case_overview'),
         responsibilities: list('case_responsibilities'),
         tools: list('case_tools'),
+        problem_process: value('case_problem_process'),
         challenge_question: value('case_challenge_question'),
         challenge: value('case_challenge'),
         understanding: value('case_understanding'),
         insights: list('case_insights'),
         process_steps: list('case_process_steps'),
         exploration: value('case_exploration'),
+        solution_detail: value('case_solution_detail'),
         solution: value('case_solution'),
         features: [1, 2, 3, 4, 5].map((featureIndex) => ({
           title: value(`case_feature_${featureIndex}_title`, ''),
@@ -231,6 +241,7 @@ export async function importProjects(formData: FormData) {
           'challenge_1', 'challenge_2', 'exploration_1', 'exploration_2', 'exploration_3',
           'solution', 'feature_1', 'feature_2', 'feature_3', 'feature_4', 'feature_5',
           'responsive_mobile', 'responsive_tablet', 'responsive_desktop',
+          ...deviceMediaKeys,
         ].map((key) => [key, String(item[`case_media_${key}`] ?? (legacy.media as ImportProject | undefined)?.[key] ?? '')]).filter(([, mediaValue]) => mediaValue)),
       };
 
