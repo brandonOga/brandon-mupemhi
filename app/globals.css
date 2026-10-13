@@ -133,6 +133,9 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-solution-split .case-side-copy { --case-body: 16px; width: auto; margin: 0; text-align: justify; }
 .case-solution-media { min-width: 0; }
 .case-solution-media:only-child { grid-column: 1 / -1; }
+/* On desktop the copy stays in view below the fixed header (5rem) while the
+   taller mockup column scrolls past it. */
+@media (min-width: 1024px) { .case-solution-split .case-side-copy { position: sticky; top: 7rem; } }
 @media (max-width: 1023.98px) { .case-solution-split { grid-template-columns: 1fr; } }
 
 /* Device mockups in the solution's image column, stacked in three bands: the
