@@ -76,7 +76,7 @@ export default function ProjectCarousel({
                 {project.description && <p className="pc-desc">{project.description}</p>}
               </div>
               <Link
-                href={`/projects/${project.slug}`}
+                href={`/work/${project.slug}`}
                 className="pc-view"
                 tabIndex={i === index ? 0 : -1}
                 aria-label={`View ${project.name}`}

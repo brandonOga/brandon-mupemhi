@@ -30,7 +30,7 @@ export default function Header() {
   if (pathname.startsWith('/admin')) return null;
 
   // Project pages belong to Work; elsewhere it's whichever section is in view.
-  const activeId = pathname === '/' ? homeSection : pathname.startsWith('/projects/') ? 'work' : null;
+  const activeId = pathname === '/' ? homeSection : pathname.startsWith('/work/') ? 'work' : null;
 
   const goToSection = (id: string) => {
     if (pathname === '/') {
@@ -80,7 +80,7 @@ export default function Header() {
           onClick={(e) => { e.preventDefault(); goToSection('home'); }}
           className="contact-swap-button font-heading font-bold uppercase text-2xl md:text-3xl tracking-wide text-inherit whitespace-nowrap"
         >
-          <span className="contact-button__label">
+          <span className="contact-button__label ">
             <span>BM</span>
             <span aria-hidden="true">BM</span>
           </span>

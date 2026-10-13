@@ -73,7 +73,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       <div className="case-glance">
         <div className="case-narrative">
           <span>01 / The project</span><p>{cs.overview || project.description}</p>
-          {project.url && <a className="case-visit" href={project.url} target="_blank" rel="noreferrer">View live site ↗</a>}
+          {project.url && <a className="btn-outline" href={project.url} target="_blank" rel="noreferrer">View live site ↗</a>}
         </div>
         <div className="case-facts">
           <div><span>Role</span>{roleLines.map((line) => <p key={line}>{line}</p>)}</div>
@@ -109,7 +109,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       {project.url && <a className="case-visit" href={project.url} target="_blank" rel="noreferrer">Visit live project ↗</a>}
     </section>
 
-    {nextProject && <section className="case-next"><Link href={`/projects/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.name}</h2><span>↗</span></div><p>{nextProject.description}</p></div><Media src={nextProject.cover_image} alt={`${nextProject.name} project`} /></Link></section>}
+    {nextProject && <section className="case-next"><Link href={`/work/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.name}</h2><span>↗</span></div><p>{nextProject.description}</p></div><Media src={nextProject.cover_image} alt={`${nextProject.name} project`} /></Link></section>}
     <div className="case-bottom case-shell"><Link href="/">Home</Link><Link href="/#about">About</Link><a href="#top">↑ Back to top</a></div>
   </main>;
 }

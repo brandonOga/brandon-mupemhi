@@ -148,7 +148,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
           )}
         </div>
         <div className="flex items-center gap-3">
-        {project?.published && <Link href={`/projects/${project.slug}`} target="_blank" className="rounded-full border border-foreground/20 px-4 py-2 text-sm no-underline">Preview ↗</Link>}
+        {project?.published && <Link href={`/work/${project.slug}`} target="_blank" className="rounded-full border border-foreground/20 px-4 py-2 text-sm no-underline">Preview ↗</Link>}
         <Link href="/admin" className="text-sm no-underline opacity-60">
           ← Back
         </Link></div>

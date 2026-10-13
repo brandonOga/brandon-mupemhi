@@ -2000,7 +2000,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
-                <Link href={`/projects/${project.slug}`}>
+                <Link href={`/work/${project.slug}`}>
                   <span className="project-pill__flair" aria-hidden="true" />
                   <span className="button-flair__label inline-flex items-center">
                     {project.name}
