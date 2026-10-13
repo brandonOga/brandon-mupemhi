@@ -1190,12 +1190,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // the monitor's left/right rotation.
         shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
 
-        // Apply same mouse tracking to description element
-        const descElement = document.querySelector('.project-description') as HTMLElement;
-        if (descElement) {
-          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.35}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
-        }
-
         renderer.render(scene, camera);
       }
 
@@ -1869,8 +1863,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
+          <div className="flex-1 lg:flex-none lg:h-full lg:min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
@@ -1884,12 +1878,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-full lg:w-1/2 flex-1 min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
+            <div className = "w-full lg:w-1/2 flex-1 lg:min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
-              <div className="relative w-full flex-1 min-h-0 lg:flex-none lg:h-[40vh]">
+              <div className="relative w-full flex-1 min-h-60 lg:min-h-0 lg:flex-none lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
@@ -2027,7 +2021,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
         
-        <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
           <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 md:pt-28 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
@@ -2080,8 +2074,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-12.5 lg:pb-0 lg:pt-20">
-            <div className="relative size-full lg:w-auto lg:-mr-15">
+          <div className="flex-1 lg:min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 flex flex-col pt-4 pb-12.5 lg:pb-0 lg:pt-20">
+            <div className="relative flex-1 min-h-60 lg:min-h-0 lg:-mr-15">
               <Image
                 className="object-contain object-bottom lg:object-right p-2 lg:p-6 lg:pr-0 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"

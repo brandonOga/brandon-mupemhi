@@ -806,17 +806,18 @@ html.hide-scrollbar::-webkit-scrollbar {
     flex: 0 0 auto;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
+    gap: 1.25rem;
+    padding: 1.25rem;
     background: #fff;
     border: 1px solid var(--color-foreground);
+    border-radius: 15px;
     user-select: none;
   }
 
   .pc-card-copy {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.75rem;
     flex: 1 1 0;
     min-width: 0;
   }
@@ -879,8 +880,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     align-items: center;
     height: 2.25rem;
     padding-inline: 0.5rem;
-    background: #fff;
-    border: 1px solid var(--color-foreground);
   }
 
   .pc-dot {
@@ -907,12 +906,9 @@ html.hide-scrollbar::-webkit-scrollbar {
   }
 
   .project-description {
-    perspective: 1000px;
-    transform-style: preserve-3d;
-    will-change: transform, opacity;
+    will-change: opacity;
     max-width: 320px;
     pointer-events: none;
-    transform-origin: center center;
   }
 
   .project-description h3 {
@@ -921,9 +917,9 @@ html.hide-scrollbar::-webkit-scrollbar {
     line-height: 1.3;
     font-weight: 600;
     letter-spacing: -0.01em;
-    text-transform: none;
+    text-transform: uppercase;
     color: var(--color-foreground);
-    margin: 0 0 0.35rem;
+    margin: 0 0 25px;
   }
 
   .project-description p {
@@ -931,19 +927,21 @@ html.hide-scrollbar::-webkit-scrollbar {
     line-height: 1.5;
     font-size: 0.85rem;
     margin: 0;
+    text-transform: uppercase;
     font-weight: 400;
     color: rgba(36, 33, 36, 0.6);
   }
 
   .project-description [data-project-position] {
     color: var(--color-primary-color);
+    margin-bottom: 25px;
   }
 
   .project-description [data-project-tags] {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-block: 0.6rem;
+    gap: 0.6rem;
+    margin-block: 25px;
   }
 
   .project-description [data-project-tags]:empty {
