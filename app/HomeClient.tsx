@@ -433,11 +433,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (!target) return;
       lenis.resize();
       if (isStacked) {
-        // Sections after the hero only pad their top by 50px, so stop them
-        // below the fixed header rather than underneath it.
-        const headerHeight = document.querySelector<HTMLElement>('header')?.offsetHeight ?? 64;
-        const offset = target === sections[0] ? 0 : -headerHeight;
-        lenis.scrollTo(target, { offset, immediate, force: true, duration: 1.2 });
+        // The section's top lands on the top of the viewport, behind the
+        // fixed header.
+        lenis.scrollTo(target, { immediate, force: true, duration: 1.2 });
         return;
       }
       if (!horizontalTrigger) return;
@@ -1915,7 +1913,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-12.5 lg:pt-20 pb-12.5 lg:pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
+          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-24 md:pt-28 lg:pt-20 pb-12.5 lg:pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
             {/* Headline */}
             <h2 className="md:col-span-2 lg:row-start-1 self-start uppercase whitespace-nowrap text-white">
               About Me
@@ -1989,7 +1987,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         {/* Projects Section */}
         <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
-          <div className="relative lg:absolute pl-5 pt-12.5 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
+          <div className="relative lg:absolute pl-5 pt-24 md:pt-28 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -2030,7 +2028,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         </section>
         
         <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
-          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-12.5 lg:pt-30 lg:pb-20">
+          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 md:pt-28 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
