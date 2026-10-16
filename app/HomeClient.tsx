@@ -15,7 +15,7 @@ import { vertexShader, fragmentShader } from "./components/shaders";
 import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
-import { FiArrowUpRight } from "react-icons/fi";
+import ArrowUpRight from "./components/ArrowUpRight";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
 import ProjectCarousel from "./components/ProjectCarousel";
@@ -433,11 +433,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (!target) return;
       lenis.resize();
       if (isStacked) {
-        // Sections after the hero only pad their top by 50px, so stop them
-        // below the fixed header rather than underneath it.
-        const headerHeight = document.querySelector<HTMLElement>('header')?.offsetHeight ?? 64;
-        const offset = target === sections[0] ? 0 : -headerHeight;
-        lenis.scrollTo(target, { offset, immediate, force: true, duration: 1.2 });
+        // The section's top lands on the top of the viewport, behind the
+        // fixed header.
+        lenis.scrollTo(target, { immediate, force: true, duration: 1.2 });
         return;
       }
       if (!horizontalTrigger) return;
@@ -1192,12 +1190,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // the monitor's left/right rotation.
         shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
 
-        // Apply same mouse tracking to description element
-        const descElement = document.querySelector('.project-description') as HTMLElement;
-        if (descElement) {
-          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.35}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
-        }
-
         renderer.render(scene, camera);
       }
 
@@ -1871,8 +1863,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
+          <div className="flex-1 lg:flex-none lg:h-full lg:min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
@@ -1886,12 +1878,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-full lg:w-1/2 flex-1 min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
+            <div className = "w-full lg:w-1/2 flex-1 lg:min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
-              <div className="relative w-full flex-1 min-h-0 lg:flex-none lg:h-[40vh]">
+              <div className="relative w-full flex-1 min-h-60 lg:min-h-0 lg:flex-none lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
@@ -1915,7 +1907,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
               cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-12.5 lg:pt-20 pb-12.5 lg:pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
+          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-24 md:pt-28 lg:pt-20 pb-12.5 lg:pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
             {/* Headline */}
             <h2 className="md:col-span-2 lg:row-start-1 self-start uppercase whitespace-nowrap text-white">
               About Me
@@ -1989,7 +1981,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         {/* Projects Section */}
         <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
-          <div className="relative lg:absolute pl-5 pt-12.5 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
+          <div className="relative lg:absolute pl-5 pt-24 md:pt-28 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -2002,7 +1994,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
-                <Link href={`/projects/${project.slug}`}>
+                <Link href={`/work/${project.slug}`}>
                   <span className="project-pill__flair" aria-hidden="true" />
                   <span className="button-flair__label inline-flex items-center">
                     {project.name}
@@ -2029,8 +2021,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
         
-        <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
-          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-12.5 lg:pt-30 lg:pb-20">
+        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 md:pt-28 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
@@ -2048,7 +2040,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 size-[1em]" />
+                    <ArrowUpRight className="shrink-0 size-[1em]" />
                 </a>
               </div>
               <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
@@ -2059,7 +2051,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>Linkedin</span>
                     <span aria-hidden="true" className="text-primary-color">Linkedin</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
                 className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
@@ -2067,7 +2059,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>Github</span>
                     <span aria-hidden="true" className="text-primary-color">Github</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 
                 <a
@@ -2077,13 +2069,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>My Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-12.5 lg:pb-0 lg:pt-20">
-            <div className="relative size-full lg:w-auto lg:-mr-15">
+          <div className="flex-1 lg:min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 flex flex-col pt-4 pb-12.5 lg:pb-0 lg:pt-20">
+            <div className="relative flex-1 min-h-60 lg:min-h-0 lg:-mr-15">
               <Image
                 className="object-contain object-bottom lg:object-right p-2 lg:p-6 lg:pr-0 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"

@@ -31,6 +31,11 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 [data-admin] section[id] { scroll-margin-top: 5.5rem; }
 
+/* Reusable outlined button: square, bordered, filled with the page background.
+   Matches the homepage project pills (.projects li a) in shape, and gets the
+   same hover fill from ButtonFlair. Spacing around it is set where it is used. */
+.btn-outline { display: inline-flex; align-items: center; gap: .5em; padding: .625rem .875rem; border: 1px solid var(--color-foreground); border-radius: 0; background: var(--color-background); color: var(--color-foreground); font-size: var(--text-body); text-transform: uppercase; white-space: nowrap; }
+
 .button-flair {
   position: relative;
   isolation: isolate;
@@ -94,21 +99,20 @@ html.hide-scrollbar::-webkit-scrollbar {
    the right. */
 .case-glance { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: clamp(3rem, 8vw, 8rem); align-items: start; margin-top: clamp(4rem, 8vw, 8rem); }
 .case-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
-.case-facts span, .case-narrative > span, .case-system-grid > div > span, .case-build-grid span, .case-outcome-grid span { display: block; margin-bottom: 1.2rem; opacity: .5; font-size: .75rem; text-transform: uppercase; }
+.case-facts span, .case-narrative > span, .case-system-grid > div > span, .case-build-grid span { display: block; margin-bottom: 1.2rem; opacity: .5; font-size: .75rem; text-transform: uppercase; }
 /* Overview row: the labels read as titles (bold, body-sized, full colour) and
    the content beneath them is the muted part. */
 .case-facts span, .case-narrative > span { opacity: 1; font-size: var(--case-body); font-weight: 700; color: var(--color-foreground); }
 .case-facts p, .case-narrative > p { opacity: .9; }
 .case-narrative { max-width: 62rem; }
 .case-narrative > p { line-height: 1.45; }
-/* The live-site button under the overview matches the homepage's project
-   pills (.projects li a) in shape and hover fill, but is outlined and filled
-   with the page background rather than white. */
-.case-narrative .case-visit { display: inline-flex; margin-top: 2.5rem; padding: .625rem .875rem; border: 1px solid var(--color-foreground); border-radius: 0; background: var(--color-background); color: var(--color-foreground); font-size: var(--text-body); white-space: nowrap; }
+.case-narrative .btn-outline { margin-top: 2.5rem; }
 .case-narrative .rich-text { font-size: clamp(1.1rem, 1.6vw, 1.5rem); }
 
 .case-challenge h2 { max-width: 11ch; }
 .case-side-copy { width: 75%; margin: clamp(3rem, 6vw, 6rem) 0 clamp(4rem, 8vw, 8rem) auto; }
+/* Problem and process: on desktop the copy starts at the middle of the section. */
+@media (min-width: 1024px) { .case-challenge .case-side-copy { width: 50%; } }
 .case-media-pair { display: grid; grid-template-columns: 1.2fr .8fr; gap: 1.5rem; align-items: end; }
 .case-media-pair .case-media:last-child { min-height: 34rem; }
 .case-insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: clamp(5rem, 10vw, 10rem); border-top: 1px solid var(--case-line); }
@@ -133,6 +137,9 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-solution-split .case-side-copy { --case-body: 16px; width: auto; margin: 0; text-align: justify; }
 .case-solution-media { min-width: 0; }
 .case-solution-media:only-child { grid-column: 1 / -1; }
+/* On desktop the copy stays in view below the fixed header (5rem) while the
+   taller mockup column scrolls past it. */
+@media (min-width: 1024px) { .case-solution-split .case-side-copy { position: sticky; top: 7rem; } }
 @media (max-width: 1023.98px) { .case-solution-split { grid-template-columns: 1fr; } }
 
 /* Device mockups in the solution's image column, stacked in three bands: the
@@ -186,7 +193,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-feature div > span { color: var(--color-primary-color); }
 .case-feature div > p { max-width: 30rem; font-size: clamp(1rem, 1.4vw, 1.25rem); }
 
-.case-system-grid, .case-build-grid, .case-outcome-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: clamp(5rem, 9vw, 9rem); padding-top: 2rem; border-top: 1px solid var(--case-line); }
+.case-system-grid, .case-build-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: clamp(5rem, 9vw, 9rem); padding-top: 2rem; border-top: 1px solid var(--case-line); }
 .case-system-grid > div, .case-build-grid > div { min-height: 18rem; }
 .case-system-grid strong { display: block; font: 700 clamp(5rem, 10vw, 10rem)/.8 var(--font-heading); }
 .case-system-grid li { border-bottom: 1px solid var(--case-line); padding-block: .7rem; text-transform: uppercase; }
@@ -195,10 +202,34 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-device-mobile { width: 18%; min-height: 31rem; border: .6rem solid var(--color-foreground); border-radius: 1.5rem; }
 .case-device-tablet { width: 29%; min-height: 26rem; border: .6rem solid var(--color-foreground); border-radius: 1rem; }
 .case-device-desktop { width: 46%; min-height: 29rem; border: .6rem solid var(--color-foreground); }
-.case-outcome-lead { max-width: 48rem; margin: clamp(3rem, 6vw, 6rem) 0 0 auto; }
-.case-outcome-grid { grid-template-columns: repeat(2, 1fr); max-width: 64rem; margin-left: auto; }
-.case-outcome-grid p { padding-block: 1rem; border-bottom: 1px solid var(--case-line); }
-.case-visit { display: inline-block; margin-top: 4rem; border: 1px solid currentColor; border-radius: 999px; padding: 1rem 1.5rem; color: inherit; text-transform: uppercase; }
+
+/* Let's talk: a deep-teal band before the next project, echoing the home
+   page's "Say Hello" section. */
+.case-cta { border-top: 0; background: var(--color-deep-teal); color: var(--color-text-white); }
+/* The base styles colour every p and h2 dark; on teal they take the band's white. */
+.case-cta p, .case-cta h2 { color: inherit; }
+/* Set like the home page's "Say Hello." heading, a size smaller; it keeps
+   the section heading's position. */
+.case-cta h2 { max-width: none; margin: 0; font-family: var(--font-editorial); font-size: clamp(3.6rem, 7.2vw, 9rem); line-height: 1; letter-spacing: normal; text-transform: uppercase; white-space: nowrap; }
+/* On desktop the heading and the copy each take half the section, centred
+   against each other, so the band has no empty corners; below lg they stack. */
+.case-cta-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; margin-top: clamp(2rem, 5vw, 5rem); }
+@media (max-width: 1023.98px) { .case-cta-split { grid-template-columns: minmax(0, 1fr); gap: clamp(2.5rem, 6vw, 4rem); } }
+.case-cta-body { display: flex; flex-direction: column; gap: clamp(2rem, 4vw, 3.5rem); font-size: var(--case-body); }
+.case-cta-body > p { max-width: 34rem; font-size: var(--case-body); line-height: 1.5; }
+.case-cta-email { container-type: inline-size; }
+.case-cta-email > span, .case-cta-links a { text-transform: uppercase; font-size: .8rem; letter-spacing: .04em; }
+.case-cta-email > span { display: block; margin-bottom: .75rem; }
+/* Monospace: 26 characters at 0.6em, a 0.4em gap and a 1em arrow make the
+   row 17em wide, so 100cqw / 17 fills the column. */
+.case-cta-email a { display: inline-flex; max-width: 100%; align-items: center; gap: .4em; padding-bottom: .35em; border-bottom: 2px solid currentColor; color: inherit; font-size: min(calc(100cqw / 17), 2.25rem); white-space: nowrap; }
+.case-cta-email a > svg { flex: none; width: 1em; height: 1em; }
+.case-cta-email .contact-button__label > span:last-child { color: var(--color-primary-color); }
+.case-cta-links { display: flex; flex-wrap: wrap; gap: 1rem 2rem; }
+.case-cta-links a { display: inline-flex; align-items: center; gap: .4em; color: inherit; transition: color .3s ease; }
+.case-cta-links a > svg { flex: none; width: .85em; height: .85em; }
+.case-cta-links a:hover { color: var(--color-primary-color); }
+.case-cta + .case-next { border-top: 0; }
 
 .case-next { border-top: 1px solid var(--case-line); }
 .case-next-link { display: block; color: var(--color-foreground); }
@@ -208,13 +239,37 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-next-heading h2 { max-width: none; font-size: clamp(3.5rem, 10vw, 10rem); letter-spacing: -.06em; }
 .case-next-heading > span { font-size: clamp(3rem, 8vw, 8rem); transition: transform .35s ease; }
 .case-next-link:hover .case-next-heading > span { transform: translate(12px, -12px); }
-.case-next .case-media { min-height: min(55vw, 50rem); }
+/* Underline under the project name while the name itself is hovered (or the
+   link has keyboard focus), drawn in from the left with the same timing as
+   the header's active link. */
+.case-next-heading h2 { position: relative; }
+.case-next-heading h2::after { content: ''; position: absolute; inset: auto 0 -.08em; height: max(2px, .03em); background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .45s cubic-bezier(0.76, 0, 0.24, 1); }
+.case-next-heading h2:hover::after, .case-next-link:focus-visible .case-next-heading h2::after { transform: scaleX(1); }
 .case-bottom { display: flex; gap: 2rem; padding-block: 5rem 6rem; text-transform: uppercase; }
 .case-bottom a { color: inherit; }
 .case-bottom a:last-child { margin-left: auto; }
 
+/* 404 page: one screen tall, with a giant "404" whose zero is a screen
+   showing static. Sizes inside .nf-code are in em, so they follow the digits. */
+.nf { display: flex; flex-direction: column; min-height: 100svh; padding-top: clamp(7rem, 12vw, 10rem); padding-bottom: clamp(3rem, 6vw, 6rem); }
+.nf-stage { position: relative; flex: 1; display: grid; place-items: center; min-height: 0; padding-block: clamp(2rem, 5vw, 4rem); }
+.nf-code { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: .05em; max-width: none; margin: 0; font-size: min(44vw, 50svh); line-height: .8; letter-spacing: -.06em; }
+.nf-screen { position: relative; flex: none; width: .62em; height: .74em; overflow: hidden; border: .035em solid var(--color-foreground); border-radius: .15em; background: #0d1414; rotate: -5deg; }
+.nf-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+/* Scanlines and a darker rim over the static. */
+.nf-screen::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, .28) 0 2px, transparent 2px 4px), radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, .55) 100%); }
+.nf-screen-label { position: absolute; z-index: 1; top: 50%; left: 50%; translate: -50% -50%; padding: .35em .6em; background: var(--color-primary-color); color: var(--color-foreground); font-family: var(--font-sans); font-size: clamp(9px, 1.1vw, 15px); font-weight: 500; line-height: 1.2; letter-spacing: .08em; white-space: nowrap; animation: nf-blink 1.6s steps(1) infinite; }
+/* The squiggle draws itself in behind the digits. */
+.nf-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.nf-path path { fill: none; stroke: var(--color-primary-color); stroke-width: 2px; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; animation: nf-draw 2.6s cubic-bezier(.76, 0, .24, 1) .3s both; }
+.nf-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem 3rem; }
+.nf-foot p { max-width: 34rem; font-size: var(--case-body); text-transform: uppercase; }
+@keyframes nf-blink { 0%, 60% { opacity: 1; } 60.01%, 100% { opacity: 0; } }
+@keyframes nf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .nf-screen-label, .nf-path path { animation: none; } }
+
 /* All body copy on the project page shares one size, set by --case-body. */
-.case-hero-copy, .case-narrative > p, .case-side-copy, .case-side-copy p, .case-outcome-lead, .case-outcome-grid p, .case-next-link .case-shell > p:not(.case-eyebrow) { font-size: var(--case-body); }
+.case-hero-copy, .case-narrative > p, .case-side-copy, .case-side-copy p { font-size: var(--case-body); }
 .case-facts p { font-size: 15px; }
 @media (max-width: 1023.98px) { .case-study { --case-body: 17px; } }
 
@@ -236,7 +291,6 @@ html.hide-scrollbar::-webkit-scrollbar {
   .case-system-grid > div, .case-build-grid > div { min-height: auto; padding-bottom: 3rem; }
   .case-devices { align-items: center; flex-direction: column; }
   .case-device-mobile, .case-device-tablet, .case-device-desktop { width: min(100%, 30rem); min-height: 34rem; }
-  .case-outcome-grid { grid-template-columns: 1fr; }
   .case-hero { padding-top: 6rem; }
   .case-hero-meta { gap: 1rem; flex-wrap: wrap; }
   .case-media, .case-hero-image { min-height: 18rem; }
@@ -245,9 +299,7 @@ html.hide-scrollbar::-webkit-scrollbar {
   .case-device-mobile, .case-device-tablet, .case-device-desktop { min-height: 24rem; }
   .case-next-heading { gap: 1rem; }
   .case-next-heading h2 { min-width: 0; overflow-wrap: anywhere; }
-  .case-next .case-media { min-height: 18rem; }
   .case-bottom { flex-wrap: wrap; gap: 1rem 1.5rem; padding-block: 3rem 5rem; }
-  .case-visit { margin-top: 2.5rem; padding: .85rem 1.25rem; }
 }
 
 @media (max-width: 479px) {
@@ -780,17 +832,18 @@ html.hide-scrollbar::-webkit-scrollbar {
     flex: 0 0 auto;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem;
+    gap: 1.25rem;
+    padding: 1.25rem;
     background: #fff;
     border: 1px solid var(--color-foreground);
+    border-radius: 15px;
     user-select: none;
   }
 
   .pc-card-copy {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.75rem;
     flex: 1 1 0;
     min-width: 0;
   }
@@ -853,8 +906,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     align-items: center;
     height: 2.25rem;
     padding-inline: 0.5rem;
-    background: #fff;
-    border: 1px solid var(--color-foreground);
   }
 
   .pc-dot {
@@ -881,12 +932,9 @@ html.hide-scrollbar::-webkit-scrollbar {
   }
 
   .project-description {
-    perspective: 1000px;
-    transform-style: preserve-3d;
-    will-change: transform, opacity;
+    will-change: opacity;
     max-width: 320px;
     pointer-events: none;
-    transform-origin: center center;
   }
 
   .project-description h3 {
@@ -895,9 +943,9 @@ html.hide-scrollbar::-webkit-scrollbar {
     line-height: 1.3;
     font-weight: 600;
     letter-spacing: -0.01em;
-    text-transform: none;
+    text-transform: uppercase;
     color: var(--color-foreground);
-    margin: 0 0 0.35rem;
+    margin: 0 0 25px;
   }
 
   .project-description p {
@@ -905,19 +953,21 @@ html.hide-scrollbar::-webkit-scrollbar {
     line-height: 1.5;
     font-size: 0.85rem;
     margin: 0;
+    text-transform: uppercase;
     font-weight: 400;
     color: rgba(36, 33, 36, 0.6);
   }
 
   .project-description [data-project-position] {
     color: var(--color-primary-color);
+    margin-bottom: 25px;
   }
 
   .project-description [data-project-tags] {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-block: 0.6rem;
+    gap: 0.6rem;
+    margin-block: 25px;
   }
 
   .project-description [data-project-tags]:empty {
