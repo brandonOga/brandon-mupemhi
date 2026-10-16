@@ -15,7 +15,7 @@ import { vertexShader, fragmentShader } from "./components/shaders";
 import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
-import { FiArrowUpRight } from "react-icons/fi";
+import ArrowUpRight from "./components/ArrowUpRight";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
 import ProjectCarousel from "./components/ProjectCarousel";
@@ -2040,7 +2040,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 size-[1em]" />
+                    <ArrowUpRight className="shrink-0 size-[1em]" />
                 </a>
               </div>
               <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
@@ -2051,7 +2051,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>Linkedin</span>
                     <span aria-hidden="true" className="text-primary-color">Linkedin</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
                 className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
@@ -2059,7 +2059,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>Github</span>
                     <span aria-hidden="true" className="text-primary-color">Github</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 
                 <a
@@ -2069,7 +2069,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>My Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
               </div>
             </div>

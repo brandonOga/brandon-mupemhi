@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { FiArrowLeft, FiArrowRight, FiArrowUpRight } from "react-icons/fi";
+import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
+import ArrowUpRight from "./ArrowUpRight";
 import type { ProjectCard } from "@/lib/projects";
 
 const CARD_GAP = 12;
@@ -81,7 +82,7 @@ export default function ProjectCarousel({
                 tabIndex={i === index ? 0 : -1}
                 aria-label={`View ${project.name}`}
               >
-                View <FiArrowUpRight aria-hidden="true" />
+                View <ArrowUpRight />
               </Link>
             </div>
           ))}
