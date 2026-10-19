@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import ArrowUpRight from "@/app/components/ArrowUpRight";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getProjectBySlug, getPublishedProjects, getPublishedSlugs } from "@/lib/projects";
 import { problemProcessHtml, solutionHtml } from "@/lib/caseStudyHtml";
 import { deviceFrameKey, devicePreset, deviceSlots } from "@/lib/devices";
+import Noise from "@/app/components/Noise";
 import BackLink from "./BackLink";
 import DeviceShowcase from "./DeviceShowcase";
 
@@ -59,6 +61,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   }));
 
   return <main className="case-study" id="top">
+    <Noise patternSize={250} patternScaleX={1} patternScaleY={1} patternRefreshInterval={2} patternAlpha={15} />
     <section className="case-hero case-shell">
       <BackLink />
       <div className="case-hero-meta"><Eyebrow number={`${pad(currentIndex + 1)} /`}>Selected work</Eyebrow><p>{project.year || "—"}</p></div>
@@ -73,7 +76,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       <div className="case-glance">
         <div className="case-narrative">
           <span>01 / The project</span><p>{cs.overview || project.description}</p>
-          {project.url && <a className="case-visit" href={project.url} target="_blank" rel="noreferrer">View live site ↗</a>}
+          {project.url && <a className="btn-outline" href={project.url} target="_blank" rel="noreferrer">View live site <ArrowUpRight /></a>}
         </div>
         <div className="case-facts">
           <div><span>Role</span>{roleLines.map((line) => <p key={line}>{line}</p>)}</div>
@@ -103,13 +106,34 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       </div>
     </div></section>
 
-    <section className="case-section case-shell case-outcome">
-      <Eyebrow number="04 /">Outcome</Eyebrow><h2>What the work delivered.</h2><p className="case-outcome-lead">{cs.outcome || project.description}</p>
-      {(cs.what_worked.length > 0 || cs.improvements.length > 0) && <div className="case-outcome-grid"><div><span>What worked</span>{cs.what_worked.map((item) => <p key={item}>{item}</p>)}</div><div><span>Next iteration</span>{cs.improvements.map((item) => <p key={item}>{item}</p>)}</div></div>}
-      {project.url && <a className="case-visit" href={project.url} target="_blank" rel="noreferrer">Visit live project ↗</a>}
-    </section>
+    <section className="case-section case-cta" aria-labelledby="case-cta-heading"><div className="case-shell">
+      <Eyebrow number="04 /">Work together</Eyebrow>
+      {/* The heading in the left half, the copy in the right half, centred
+          against each other. */}
+      <div className="case-cta-split">
+        <h2 id="case-cta-heading">Let&rsquo;s<br />talk.</h2>
+        <div className="case-cta-body">
+          <p>Have a project in mind, or want to hear more about how this one came together? I&rsquo;d love to hear from you.</p>
+          <div className="case-cta-email">
+            <span>Email me</span>
+            <a href="mailto:brandoneemupemhi@gmail.com" className="contact-swap-button">
+              <span className="contact-button__label">
+                <span>brandoneemupemhi@gmail.com</span>
+                <span aria-hidden="true">brandoneemupemhi@gmail.com</span>
+              </span>
+              <ArrowUpRight />
+            </a>
+          </div>
+          <div className="case-cta-links">
+            <a href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer">LinkedIn <ArrowUpRight /></a>
+            <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight /></a>
+            <a href="/cv.pdf" target="_blank" rel="noopener noreferrer">Resume <ArrowUpRight /></a>
+          </div>
+        </div>
+      </div>
+    </div></section>
 
-    {nextProject && <section className="case-next"><Link href={`/projects/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.name}</h2><span>↗</span></div><p>{nextProject.description}</p></div><Media src={nextProject.cover_image} alt={`${nextProject.name} project`} /></Link></section>}
+    {nextProject && <section className="case-next"><Link href={`/work/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.name}</h2><span><ArrowUpRight /></span></div></div></Link></section>}
     <div className="case-bottom case-shell"><Link href="/">Home</Link><Link href="/#about">About</Link><a href="#top">↑ Back to top</a></div>
   </main>;
 }

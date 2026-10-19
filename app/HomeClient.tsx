@@ -15,13 +15,60 @@ import { vertexShader, fragmentShader } from "./components/shaders";
 import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
-import { FiArrowUpRight } from "react-icons/fi";
+import ArrowUpRight from "./components/ArrowUpRight";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
 import ProjectCarousel from "./components/ProjectCarousel";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 
 let preloaderHasPlayed = false;
+
+// About section content: the five process steps, skill groups and timeline.
+const ABOUT_PROCESS = [
+  { title: 'Discover', body: 'Understand the problem, target audience and goals of the project.' },
+  { title: 'Define', body: 'Organise ideas, map user journeys and establish the structure and functionality.' },
+  { title: 'Design', body: 'Explore concepts, create wireframes and design intuitive, engaging interfaces.' },
+  { title: 'Develop', body: 'Bring designs to life through responsive layouts, clean code and functional experiences.' },
+  { title: 'Refine', body: 'Test the experience, gather feedback and make improvements where needed.' },
+];
+
+const ABOUT_SKILLS: { title: string; items: string[]; tools?: string }[] = [
+  {
+    title: 'UI/UX Design',
+    items: ['User Research', 'Wireframing', 'Prototyping', 'Interface Design', 'Responsive Design', 'User Flows'],
+    tools: 'Figma, Adobe XD, Photoshop',
+  },
+  {
+    title: 'Frontend Development',
+    items: ['HTML', 'CSS', 'JavaScript', 'React', 'Next.js', 'Tailwind CSS'],
+  },
+  {
+    title: 'WordPress Development',
+    items: ['WordPress', 'Elementor Pro', 'JetEngine', 'JetSmartFilters', 'JetFormBuilder', 'WPML', 'LearnDash'],
+  },
+];
+
+// TODO: add the internship employer and dates, and confirm the exact degree title.
+const ABOUT_TIMELINE = [
+  {
+    kind: 'Experience — Current',
+    place: 'Beedesigned Studio',
+    role: 'UI/UX Designer & Developer',
+    body: 'Working across UI/UX design, WordPress development and website maintenance, helping transform project requirements into functional and engaging digital experiences.',
+  },
+  {
+    kind: 'Internship',
+    place: 'Previous Experience',
+    role: 'Junior Web Developer Intern',
+    body: 'An opportunity to build my development skills, gain practical experience and develop a stronger understanding of creating and maintaining websites.',
+  },
+  {
+    kind: 'Education',
+    place: 'National University of Science and Technology (NUST)',
+    role: "Bachelor's Degree in Computer Science",
+    body: 'My academic background gave me a foundation in computing and problem-solving that continues to inform how I approach design and development.',
+  },
+];
 
 export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const root = useRef<HTMLDivElement>(null);
@@ -433,11 +480,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       if (!target) return;
       lenis.resize();
       if (isStacked) {
-        // Sections after the hero only pad their top by 50px, so stop them
-        // below the fixed header rather than underneath it.
-        const headerHeight = document.querySelector<HTMLElement>('header')?.offsetHeight ?? 64;
-        const offset = target === sections[0] ? 0 : -headerHeight;
-        lenis.scrollTo(target, { offset, immediate, force: true, duration: 1.2 });
+        // The section's top lands on the top of the viewport, behind the
+        // fixed header.
+        lenis.scrollTo(target, { immediate, force: true, duration: 1.2 });
         return;
       }
       if (!horizontalTrigger) return;
@@ -1192,12 +1237,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // the monitor's left/right rotation.
         shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
 
-        // Apply same mouse tracking to description element
-        const descElement = document.querySelector('.project-description') as HTMLElement;
-        if (descElement) {
-          descElement.style.transform = `rotateX(${lerpedMouse.y * 0.35}rad) rotateY(${-(lerpedMouse.x * 0.3)}rad)`;
-        }
-
         renderer.render(scene, camera);
       }
 
@@ -1649,12 +1688,16 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
         return { el, split, lines };
       });
+      // A tall section (About) splits into data-reveal-group blocks so each
+      // reveals when it arrives rather than all at once off screen.
+      const revealGroupOf = (el: HTMLElement) =>
+        el.closest<HTMLElement>('[data-reveal-group]') ?? el.closest('section');
       const textSections = Array.from(
-        new Set(entranceTexts.map((el) => el.closest('section')).filter(Boolean))
+        new Set(entranceTexts.map(revealGroupOf).filter(Boolean))
       ) as HTMLElement[];
       textSections.forEach((section) => {
         const sectionEntries = entranceTextSplits.filter(
-          ({ el }) => el.closest('section') === section
+          ({ el }) => revealGroupOf(el) === section
         );
         const sectionLines = sectionEntries.flatMap(({ lines }) => lines);
         const obs = new IntersectionObserver(([entry]) => {
@@ -1871,8 +1914,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-full lg:w-screen h-svh lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
-          <div className="h-full min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
+          <div className="flex-1 lg:flex-none lg:h-full lg:min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
@@ -1886,12 +1929,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-full lg:w-1/2 flex-1 min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
+            <div className = "w-full lg:w-1/2 flex-1 lg:min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
                 <p className="text-xs uppercase">Available for Work</p>
               </div>
-              <div className="relative w-full flex-1 min-h-0 lg:flex-none lg:h-[40vh]">
+              <div className="relative w-full flex-1 min-h-60 lg:min-h-0 lg:flex-none lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
                   <Image
                     className="img object-cover will-change-transform"
@@ -1908,80 +1951,125 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
 
-        {/*About Section — numbered grid around a centered portrait. Scrolls
+        {/*About Section — intro around a centered portrait, then numbered
+            blocks for process, skills, timeline and life off screen. Scrolls
             vertically when its content is taller than the viewport (see the
             horizontal scroll timeline, which pauses the track here and scrubs this
-            panel's scrollTop before resuming horizontal). */}
+            panel's scrollTop before resuming horizontal). Each data-reveal-group
+            runs its own line entrance, so lower blocks animate as they arrive. */}
         <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* DEBUG grid lines — amber outline = grid bounds, dashed blue = each
-              cell/item span. Remove this row of outline-* utilities when done. */}
-          <div className="grid min-h-full w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] lg:grid-rows-[auto_auto_1fr_auto] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15 px-5 md:px-10 lg:px-15 pt-12.5 lg:pt-20 pb-12.5 lg:pb-20 outline-[2px] outline-dashed outline-amber-500/70 [&>*]:outline-[1px] [&>*]:outline-dashed [&>*]:outline-blue-500/0">
-            {/* Headline */}
-            <h2 className="md:col-span-2 lg:row-start-1 self-start uppercase whitespace-nowrap text-white">
-              About Me
-            </h2>
+          <div className="flex flex-col gap-20 lg:gap-30 px-5 md:px-10 lg:px-15 pt-24 md:pt-28 lg:pt-20 pb-12.5 lg:pb-20 text-white">
+            {/* Intro — headline, tagline, portrait and 01 */}
+            <div data-reveal-group className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15">
+              <h2 className="text-white md:col-span-2 lg:col-span-3 self-start uppercase whitespace-nowrap">
+                About Me
+              </h2>
 
-            {/* 01 — Who I Am */}
-            <div className="lg:col-start-3 lg:row-start-1 max-w-[20rem]">
-              <p className="font-mono text-primary-color mb-3">01</p>
-              <p className="text-[18px] font-bold uppercase mb-2 text-white">Who I Am</p>
-              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
-                UI/UX designer and frontend developer creating thoughtful digital experiences where design, usability, and code come together.
-              </p>
+              {/* Tagline motif */}
+              <div className="md:col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-2 self-start">
+                <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
+              </div>
+
+              <div className="about-image-reveal md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-2 relative w-full aspect-[4/5] md:aspect-[16/11] lg:aspect-[4/5] overflow-hidden will-change-[clip-path]">
+                <Image
+                  className="object-cover grayscale will-change-transform"
+                  src="/images/brandon4.jpg"
+                  alt="Brandon Mupemhi"
+                  priority
+                  fill
+                  sizes="(max-width: 1023px) 100vw, 34vw"
+                />
+              </div>
+
+              {/* 01 — Who I Am */}
+              <div className="md:col-span-2 lg:col-span-1 lg:col-start-3 lg:row-start-2 lg:self-end max-w-[26rem]">
+                <p className="font-mono text-primary-color mb-3">01</p>
+                <p className="text-white text-[18px] font-bold uppercase mb-2">Who I Am</p>
+                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
+                  I&apos;m a creative and detail-oriented UI/UX Designer and Developer with 4+ years of experience designing and developing user-centered web and mobile products. I enjoy turning ideas into intuitive, visually engaging digital experiences, combining design, technology and storytelling to create work that makes a difference.
+                </p>
+              </div>
             </div>
 
-            {/* 02 — My Journey */}
-            <div className="lg:col-start-2 lg:row-start-2 max-w-[24rem]">
-              <p className="font-mono text-primary-color mb-3">02</p>
-              <p className="text-[18px] font-bold uppercase mb-2 text-white">My Journey</p>
-              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
-                I started my design journey in 2022, and have since grown across UI/UX, web design, and frontend development — turning ideas into real digital products.
-              </p>
+            {/* 02 — My Process: five steps, a row at xl, a 2-up grid below */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-10 border-t border-white/20 pt-10">
+              <div className="max-w-[24rem]">
+                <p className="font-mono text-primary-color mb-3">02</p>
+                <p className="text-white text-[18px] font-bold uppercase mb-2">My Process</p>
+                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
+                  Every project starts with an idea and a problem to solve. I take time to understand the people I&apos;m designing for, explore different approaches and turn those ideas into practical solutions. From the first wireframe to the final build, I focus on creating experiences that balance usability, visual appeal and functionality.
+                </p>
+              </div>
+              <div role="list" aria-label="My approach" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-x-6 gap-y-10">
+                {ABOUT_PROCESS.map((step, index) => (
+                  <div key={step.title} role="listitem" className="relative border-t border-white/30 pt-6 md:last:col-span-2 xl:last:col-span-1">
+                    <span aria-hidden="true" className="absolute -top-1 left-0 size-2 rounded-full bg-primary-color" />
+                    <p className="text-[12px] text-white/60 mb-3">{String(index + 1).padStart(2, '0')}</p>
+                    <p className="text-white text-[16px] font-bold uppercase mb-2">{step.title}</p>
+                    <p className="text-[14px] font-light uppercase leading-relaxed text-white/80">{step.body}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Tagline motif */}
-            <div className="md:col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-3 self-center">
-              <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
+            {/* 03 — Skills & Expertise: three groups */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-10 border-t border-white/20 pt-10">
+              <div className="max-w-[24rem]">
+                <p className="font-mono text-primary-color mb-3">03</p>
+                <p className="text-white text-[18px] font-bold uppercase mb-2">Skills &amp; Expertise</p>
+                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
+                  My work spans design and development, allowing me to approach projects from different perspectives. I enjoy shaping the user experience, crafting thoughtful interfaces and bringing them to life through code, with each skill contributing to a more cohesive final product.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-10">
+                {ABOUT_SKILLS.map((group) => (
+                  <div key={group.title}>
+                    <p className="text-[16px] font-bold uppercase text-primary-color pb-3 border-b border-white/30">{group.title}</p>
+                    <ul>
+                      {group.items.map((item) => (
+                        <li key={item} className="text-[14px] font-light uppercase py-2.5 border-b border-white/15">{item}</li>
+                      ))}
+                    </ul>
+                    {group.tools && (
+                      <p className="text-[12px] uppercase mt-4 text-white/60">Tools: <span className="text-white">{group.tools}</span></p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* 03 — Approach */}
-            <div className="lg:col-start-3 lg:row-start-3 max-w-[20rem]">
-              <p className="font-mono text-primary-color mb-3">03</p>
-              <p className="text-[18px] font-bold uppercase mb-2 text-white">Approach</p>
-              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
-                I design with development in mind — balancing visual detail, usability, and technical feasibility to create experiences that work beyond the mockup.
-              </p>
+            {/* 04 — Education & Experience: timeline */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-10 border-t border-white/20 pt-10">
+              <div className="max-w-[24rem]">
+                <p className="font-mono text-primary-color mb-3">04</p>
+                <p className="text-white text-[18px] font-bold uppercase mb-2">Education &amp; Experience</p>
+                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
+                  My background combines formal education in Computer Science with hands-on experience working on real-world digital projects. Each project has helped me grow as a designer and developer, strengthen my problem-solving skills and better understand what it takes to turn ideas into effective digital products.
+                </p>
+              </div>
+              <div role="list" aria-label="Education and experience" className="relative flex flex-col gap-12 border-l border-white/30 pl-8 md:pl-10">
+                {ABOUT_TIMELINE.map((entry) => (
+                  <div key={entry.place} role="listitem" className="relative grid grid-cols-1 md:grid-cols-[10rem_1fr] xl:grid-cols-[14rem_1fr] gap-x-8 gap-y-2">
+                    <span aria-hidden="true" className="absolute top-1 -left-8 md:-left-10 -translate-x-1/2 size-3 rounded-full border-2 border-primary-color bg-deep-teal" />
+                    <p className="text-[12px] uppercase text-white/60">{entry.kind}</p>
+                    <div>
+                      <p className="text-white text-[16px] font-bold uppercase">{entry.place}</p>
+                      <p className="text-[14px] uppercase text-primary-color mt-1 mb-3">{entry.role}</p>
+                      <p className="text-[14px] font-light uppercase leading-relaxed text-white/80 max-w-[36rem]">{entry.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Centered portrait — spans the middle column; taller than its
-                cell, anchored to the top so it grows downward (the side
-                columns hold 04/05, so the extra height never overlaps text). */}
-            <div className="about-image-reveal md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-3 lg:row-span-2 self-start relative w-full aspect-[4/5] md:aspect-[16/11] lg:aspect-auto lg:min-h-175 overflow-hidden will-change-[clip-path]">
-              <Image
-                className="object-cover grayscale will-change-transform"
-                src="/images/brandon4.jpg"
-                alt="Brandon Mupemhi"
-                priority
-                fill
-                sizes="(max-width: 1023px) 100vw, 34vw"
-              />
-            </div>
-
-            {/* 04 — Experience */}
-            <div className="lg:col-start-1 lg:row-start-4 lg:self-end max-w-[20rem]">
-              <p className="font-mono text-primary-color mb-3">04</p>
-              <p className="text-[18px] font-bold uppercase mb-2 text-white">Experience</p>
-              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
-                I&apos;ve worked across websites and digital products for organisations in education, agriculture, technology, and other industries.
-              </p>
-            </div>
-
-            {/* 05 — Off Screen */}
-            <div className="lg:col-start-3 lg:row-start-4 lg:self-end max-w-[20rem]">
-              <p className="font-mono text-primary-color mb-3">05</p>
-              <p className="text-[18px] font-bold uppercase mb-2 text-white">Off Screen</p>
-              <p className="text-[14px] font-light uppercase leading-relaxed text-white/90">
-                When I&apos;m not designing or building, I&apos;m usually exploring new ideas, experimenting with motion, or finding inspiration far away from Figma.
+            {/* 05 — Beyond the Screen */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-6 border-t border-white/20 pt-10">
+              <div>
+                <p className="font-mono text-primary-color mb-3">05</p>
+                <p className="text-white text-[18px] font-bold uppercase">Beyond the Screen</p>
+              </div>
+              <p className="text-white text-[18px] md:text-[22px] font-light uppercase leading-relaxed max-w-[48rem]">
+                Outside of design and development, I&apos;m always curious about new ideas, visual storytelling and creative ways to use technology. I enjoy exploring motion, experimenting with interactive experiences and finding inspiration in things that challenge the ordinary. These interests often influence how I think about and approach my work.
               </p>
             </div>
           </div>
@@ -1989,7 +2077,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         {/* Projects Section */}
         <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
-          <div className="relative lg:absolute pl-5 pt-12.5 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
+          <div className="relative lg:absolute pl-5 pt-24 md:pt-28 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -2002,7 +2090,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
-                <Link href={`/projects/${project.slug}`}>
+                <Link href={`/work/${project.slug}`}>
                   <span className="project-pill__flair" aria-hidden="true" />
                   <span className="button-flair__label inline-flex items-center">
                     {project.name}
@@ -2029,8 +2117,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
         
-        <section id="say-hello" className="w-full lg:w-screen h-svh lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
-          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-12.5 lg:pt-30 lg:pb-20">
+        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+          <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 md:pt-28 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
@@ -2048,7 +2136,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                       <span>brandoneemupemhi@gmail.com</span>
                       <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
                     </span>
-                    <FiArrowUpRight aria-hidden="true" className="shrink-0 size-[1em]" />
+                    <ArrowUpRight className="shrink-0 size-[1em]" />
                 </a>
               </div>
               <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
@@ -2059,7 +2147,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>Linkedin</span>
                     <span aria-hidden="true" className="text-primary-color">Linkedin</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
                 className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
@@ -2067,7 +2155,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>Github</span>
                     <span aria-hidden="true" className="text-primary-color">Github</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
                 
                 <a
@@ -2077,13 +2165,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                     <span>My Resume</span>
                     <span aria-hidden="true" className="text-primary-color">Resume</span>
                   </span>
-                  <FiArrowUpRight aria-hidden="true" className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
                 </a>
               </div>
             </div>
           </div>
-          <div className="flex-1 min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 pt-4 pb-12.5 lg:pb-0 lg:pt-20">
-            <div className="relative size-full lg:w-auto lg:-mr-15">
+          <div className="flex-1 lg:min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 flex flex-col pt-4 pb-12.5 lg:pb-0 lg:pt-20">
+            <div className="relative flex-1 min-h-60 lg:min-h-0 lg:-mr-15">
               <Image
                 className="object-contain object-bottom lg:object-right p-2 lg:p-6 lg:pr-0 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"
