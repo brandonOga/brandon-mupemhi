@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    // Project pages moved from /projects/<slug> to /work/<slug>; keep old
+    // links and search results working.
+    return [{ source: "/projects/:slug", destination: "/work/:slug", permanent: true }];
+  },
   async rewrites() {
     // Serve the CV uploaded from /admin at /cv.pdf on this domain. Must match
     // CV_BUCKET / CV_PATH in lib/cv.ts. A public/cv.pdf file, if present, wins.

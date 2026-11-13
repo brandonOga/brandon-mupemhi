@@ -156,7 +156,7 @@ export async function saveProject(
 
   revalidatePath('/');
   revalidatePath('/admin');
-  revalidatePath(`/projects/${slug}`);
+  revalidatePath(`/work/${slug}`);
   redirect('/admin');
 }
 
@@ -277,6 +277,6 @@ export async function importProjects(formData: FormData) {
 
   revalidatePath('/');
   revalidatePath('/admin');
-  revalidatePath('/projects/[slug]', 'page');
+  revalidatePath('/work/[slug]', 'page');
   redirect(`/admin?imported=${candidates.length}`);
 }

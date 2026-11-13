@@ -23,7 +23,7 @@ const editorFont = "[font-family:system-ui,-apple-system,'Segoe_UI',Roboto,'Helv
 
 const sectionLinks = [
   ['project-intro', 'Intro'], ['snapshot', 'Overview'], ['problem', 'Problem'],
-  ['solution', 'Solution'], ['outcome', 'Outcome'],
+  ['solution', 'Solution'],
   ['media', 'Media'], ['settings', 'Publish'],
 ];
 
@@ -148,7 +148,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
           )}
         </div>
         <div className="flex items-center gap-3">
-        {project?.published && <Link href={`/projects/${project.slug}`} target="_blank" className="rounded-full border border-foreground/20 px-4 py-2 text-sm no-underline">Preview ↗</Link>}
+        {project?.published && <Link href={`/work/${project.slug}`} target="_blank" className="rounded-full border border-foreground/20 px-4 py-2 text-sm no-underline">Preview ↗</Link>}
         <Link href="/admin" className="text-sm no-underline opacity-60">
           ← Back
         </Link></div>
@@ -268,12 +268,11 @@ export default function ProjectForm({ project }: { project?: Project }) {
         <input key={key} type="hidden" name={`case_media_${key}`} value={caseStudy?.media[key] ?? ''} />
       ))}
 
-      <section id="outcome" className={card}>
-        <SectionHeading title="04 — Outcome and reflection" required note="Describe what was delivered, learned, and worth improving. Only use verified metrics." />
-        <Area name="case_outcome" label="Outcome" value={caseStudy?.outcome} />
-        <Repeater name="case_what_worked" label="What worked" itemLabel="point" values={caseStudy?.what_worked ?? []} />
-        <Repeater name="case_improvements" label="What I’d improve" itemLabel="point" values={caseStudy?.improvements ?? []} />
-      </section>
+      {/* The outcome and reflection section is no longer shown; its stored
+          values are passed through the same way. */}
+      <input type="hidden" name="case_outcome" value={caseStudy?.outcome ?? ''} />
+      <input type="hidden" name="case_what_worked" value={(caseStudy?.what_worked ?? []).join('\n')} />
+      <input type="hidden" name="case_improvements" value={(caseStudy?.improvements ?? []).join('\n')} />
 
       {/* Media */}
       <section id="media" className={card}>
