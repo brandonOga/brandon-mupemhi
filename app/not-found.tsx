@@ -28,7 +28,7 @@ export default function NotFound() {
       </div>
       <div className="nf-foot">
         <p>You took a wrong turn. This page doesn&apos;t exist, or it has moved.</p>
-        <Link className="btn-outline" href="/">Back to home</Link>
+        <Link className="keycap btn-outline" href="/">Back to home</Link>
       </div>
     </section>
   </main>;

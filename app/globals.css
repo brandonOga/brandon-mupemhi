@@ -17,6 +17,7 @@ html.hide-scrollbar::-webkit-scrollbar {
   --case-line: rgba(36, 33, 36, 0.2);
   /* Body text: 18px on desktop, stepping down on tablets and phones. */
   --case-body: 18px;
+  position: relative;
   overflow: clip;
   background: var(--color-background);
   color: var(--color-foreground);
@@ -31,10 +32,78 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 [data-admin] section[id] { scroll-margin-top: 5.5rem; }
 
-/* Reusable outlined button: square, bordered, filled with the page background.
-   Matches the homepage project pills (.projects li a) in shape, and gets the
-   same hover fill from ButtonFlair. Spacing around it is set where it is used. */
-.btn-outline { display: inline-flex; align-items: center; gap: .5em; padding: .625rem .875rem; border: 1px solid var(--color-foreground); border-radius: 0; background: var(--color-background); color: var(--color-foreground); font-size: var(--text-body); text-transform: uppercase; white-space: nowrap; }
+/* Site buttons are keycaps from the 3D model's beige keyboard. The element
+   is the key's darker skirt; its ::before is the lighter top face, inset
+   more at the bottom so the skirt shows as the key's front, and sits behind
+   the content (isolation keeps its z-index inside the key). The box shadows
+   are its outline, base and drop shadow; hover presses it down. Unlayered,
+   so it beats the component styles of the buttons that use it. */
+.keycap {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: .5em;
+  padding: .7rem 1rem 1.35rem;
+  border: 0;
+  border-radius: 7px;
+  background: #b4ab90;
+  color: #3a372d;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px #7c755f,
+    0 4px 0 #6d6752,
+    0 4px 0 1px #5c5644,
+    0 10px 16px rgb(0 0 0 / .35);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.keycap::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 2px 5px 8px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #e7e1cb 0%, #d5ceb4 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / .6),
+    inset 0 -2px 3px rgb(0 0 0 / .08),
+    0 1px 1px rgb(0 0 0 / .12);
+}
+
+.keycap svg { flex: none; }
+
+.keycap:hover,
+.keycap:focus-visible {
+  transform: translateY(3px);
+  box-shadow:
+    0 0 0 1px #7c755f,
+    0 1px 0 #6d6752,
+    0 1px 0 1px #5c5644,
+    0 4px 8px rgb(0 0 0 / .3);
+}
+
+.keycap:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 0 0 1px #7c755f,
+    0 2px 4px rgb(0 0 0 / .3);
+}
+
+.keycap:focus-visible {
+  outline: 2px solid var(--color-primary-color);
+  outline-offset: 4px;
+}
+
+/* Per-button tweaks, unlayered like .keycap so they can override it. */
+.projects .keycap { align-items: flex-start; }
+.keycap.pc-view { padding: .5rem .75rem 1.05rem; }
+.keycap.pc-arrow { display: grid; place-items: center; width: 2.5rem; height: 2.75rem; aspect-ratio: auto; padding: 0 0 6px; }
+
+/* Text button sizing; the keycap look comes from .keycap. Spacing around
+   it is set where it is used. */
+.btn-outline { font-size: var(--text-body); }
 
 .button-flair {
   position: relative;
@@ -75,23 +144,26 @@ html.hide-scrollbar::-webkit-scrollbar {
 @media (max-width: 1023.98px) { .case-section { padding-block: 50px; } }
 /* Section titles use the site's stepped h2 size (--text-h2), as on the homepage. */
 .case-section h2 { max-width: 12ch; margin-top: clamp(2rem, 5vw, 5rem); letter-spacing: -0.06em; }
-.case-eyebrow { display: flex; gap: 1rem; align-items: baseline; text-transform: uppercase; letter-spacing: .04em; }
+.case-eyebrow { display: flex; gap: 1rem; align-items: baseline; letter-spacing: .04em; }
 .case-eyebrow span { color: var(--color-primary-color); }
 .case-media { position: relative; overflow: hidden; min-height: 24rem; background: #deded7; }
 .case-media img { transition: transform .8s cubic-bezier(.2,.8,.2,1); }
 .case-media:hover img { transform: scale(1.025); }
-.case-media-placeholder { position: absolute; inset: 0; display: grid; place-items: center; opacity: .45; text-transform: uppercase; }
+.case-media-placeholder { position: absolute; inset: 0; display: grid; place-items: center; opacity: .45; }
 
-.case-hero { min-height: 100svh; padding-top: clamp(7rem, 12vw, 10rem); padding-bottom: clamp(3rem, 6vw, 6rem); display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; align-content: start; }
-.case-back { grid-column: 1 / -1; justify-self: start; display: inline-flex; gap: .5rem; align-items: center; margin-bottom: clamp(1.5rem, 3vw, 3rem); padding-block: .5rem; color: inherit; text-transform: uppercase; }
-.case-back span { display: inline-block; transform: rotate(-90deg); transition: transform .35s ease; }
-.case-back:hover span { transform: translateX(-4px) rotate(-90deg); }
-.case-hero-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; text-transform: uppercase; }
+.case-hero { min-height: 100svh; padding-top: clamp(6rem, 8vw, 8rem); padding-bottom: clamp(3rem, 6vw, 6rem); display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; align-content: start; }
+/* Pinned to the page corner (it scrolls away with the page), outside the centred shell. */
+.case-back { position: absolute; top: 30px; left: 30px; z-index: 1; }
+/* On phones the shortened "Back" button moves to the top-right corner. */
+@media (max-width: 639.98px) { .case-back { left: auto; right: 30px; } }
+.case-back svg { flex: none; transition: transform .35s ease; }
+.case-back:hover svg { transform: translateX(-4px); }
+.case-hero-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; }
 .case-title { grid-column: 1 / -1; max-width: none; margin-top: clamp(2rem, 4vw, 4rem); font-size: clamp(4rem, 14vw, 14rem); line-height: .78; letter-spacing: -.075em; overflow-wrap: anywhere; }
-.case-hero-copy { grid-column: 6 / -1; max-width: 46rem; margin: clamp(2rem, 5vw, 5rem) 0; text-transform: uppercase; }
+.case-hero-copy { grid-column: 6 / -1; max-width: 46rem; margin: clamp(2rem, 5vw, 5rem) 0; }
 .case-hero-copy > p { font-size: inherit; }
 .case-tags { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 2rem; }
-.case-tags span { border: 1px solid currentColor; border-radius: 999px; padding: .55rem .9rem; font-size: .72rem; text-transform: uppercase; }
+.case-tags span { border: 1px solid currentColor; border-radius: 999px; padding: .55rem .9rem; font-size: .72rem; }
 .case-hero-image { grid-column: 1 / -1; min-height: min(72vw, 58rem); }
 
 .case-overview h2 { max-width: 9ch; }
@@ -99,7 +171,7 @@ html.hide-scrollbar::-webkit-scrollbar {
    the right. */
 .case-glance { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: clamp(3rem, 8vw, 8rem); align-items: start; margin-top: clamp(4rem, 8vw, 8rem); }
 .case-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
-.case-facts span, .case-narrative > span, .case-system-grid > div > span, .case-build-grid span { display: block; margin-bottom: 1.2rem; opacity: .5; font-size: .75rem; text-transform: uppercase; }
+.case-facts span, .case-narrative > span, .case-system-grid > div > span, .case-build-grid span { display: block; margin-bottom: 1.2rem; opacity: .5; font-size: .75rem; }
 /* Overview row: the labels read as titles (bold, body-sized, full colour) and
    the content beneath them is the muted part. */
 .case-facts span, .case-narrative > span { opacity: 1; font-size: var(--case-body); font-weight: 700; color: var(--color-foreground); }
@@ -122,7 +194,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-insights p { max-width: 25rem; font-size: clamp(1rem, 1.4vw, 1.3rem); }
 
 .case-flow-track { display: grid; grid-template-columns: repeat(6, minmax(10rem, 1fr)); margin-top: clamp(5rem, 9vw, 9rem); overflow-x: auto; }
-.case-flow-track div { position: relative; padding: 1.25rem 1rem; border-top: 1px solid currentColor; text-transform: uppercase; }
+.case-flow-track div { position: relative; padding: 1.25rem 1rem; border-top: 1px solid currentColor; }
 .case-flow-track div::after { content: ''; position: absolute; top: -4px; right: 0; width: 7px; aspect-ratio: 1; border-radius: 50%; background: var(--color-primary-color); }
 .case-flow-track span { display: block; margin-bottom: 4rem; opacity: .5; }
 .case-explore-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: clamp(5rem, 8vw, 8rem); }
@@ -137,9 +209,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-solution-split .case-side-copy { --case-body: 16px; width: auto; margin: 0; text-align: justify; }
 .case-solution-media { min-width: 0; }
 .case-solution-media:only-child { grid-column: 1 / -1; }
-/* On desktop the copy stays in view below the fixed header (5rem) while the
-   taller mockup column scrolls past it. */
-@media (min-width: 1024px) { .case-solution-split .case-side-copy { position: sticky; top: 7rem; } }
+/* On desktop the copy stays in view while the taller mockup column scrolls past it. */
+@media (min-width: 1024px) { .case-solution-split .case-side-copy { position: sticky; top: 2rem; } }
 @media (max-width: 1023.98px) { .case-solution-split { grid-template-columns: 1fr; } }
 
 /* Device mockups in the solution's image column, stacked in three bands: the
@@ -196,7 +267,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-system-grid, .case-build-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: clamp(5rem, 9vw, 9rem); padding-top: 2rem; border-top: 1px solid var(--case-line); }
 .case-system-grid > div, .case-build-grid > div { min-height: 18rem; }
 .case-system-grid strong { display: block; font: 700 clamp(5rem, 10vw, 10rem)/.8 var(--font-heading); }
-.case-system-grid li { border-bottom: 1px solid var(--case-line); padding-block: .7rem; text-transform: uppercase; }
+.case-system-grid li { border-bottom: 1px solid var(--case-line); padding-block: .7rem; }
 .case-build-grid > p { font-size: clamp(1.1rem, 1.7vw, 1.5rem); }
 .case-devices { display: flex; align-items: end; justify-content: center; gap: clamp(1rem, 3vw, 3rem); margin-top: clamp(5rem, 9vw, 9rem); padding: clamp(2rem, 5vw, 5rem); background: #e7e7df; }
 .case-device-mobile { width: 18%; min-height: 31rem; border: .6rem solid var(--color-foreground); border-radius: 1.5rem; }
@@ -218,16 +289,17 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-cta-body { display: flex; flex-direction: column; gap: clamp(2rem, 4vw, 3.5rem); font-size: var(--case-body); }
 .case-cta-body > p { max-width: 34rem; font-size: var(--case-body); line-height: 1.5; }
 .case-cta-email { container-type: inline-size; }
-.case-cta-email > span, .case-cta-links a { text-transform: uppercase; font-size: .8rem; letter-spacing: .04em; }
+.case-cta-email > span, .case-cta-links a { font-size: .8rem; letter-spacing: .04em; }
 .case-cta-email > span { display: block; margin-bottom: .75rem; }
-/* Monospace: 26 characters at 0.6em, a 0.4em gap and a 1em arrow make the
-   row 17em wide, so 100cqw / 17 fills the column. */
-.case-cta-email a { display: inline-flex; max-width: 100%; align-items: center; gap: .4em; padding-bottom: .35em; border-bottom: 2px solid currentColor; color: inherit; font-size: min(calc(100cqw / 17), 2.25rem); white-space: nowrap; }
-.case-cta-email a > svg { flex: none; width: 1em; height: 1em; }
-.case-cta-email .contact-button__label > span:last-child { color: var(--color-primary-color); }
+/* Monospace: 26 characters plus two parentheses at 0.6em each make 16.8em.
+   The parentheses sit mid-cell, so each is pulled 0.12em outward to put its
+   curve on the column edge, leaving a 16.56em row: 100cqw / 16.56 fills it. */
+.case-cta-email a { display: inline-flex; max-width: 100%; align-items: baseline; color: inherit; font-size: min(calc(100cqw / 16.56), 2.25rem); white-space: nowrap; }
+.case-cta-email a > span:first-child { margin-left: -.12em; }
+.case-cta-email a > span:last-child { margin-right: -.12em; }
+.case-cta-email-text { display: inline-block; padding-bottom: .35em; }
 .case-cta-links { display: flex; flex-wrap: wrap; gap: 1rem 2rem; }
-.case-cta-links a { display: inline-flex; align-items: center; gap: .4em; color: inherit; transition: color .3s ease; }
-.case-cta-links a > svg { flex: none; width: .85em; height: .85em; }
+.case-cta-links a { display: inline-flex; align-items: center; color: inherit; transition: color .3s ease; }
 .case-cta-links a:hover { color: var(--color-primary-color); }
 .case-cta + .case-next { border-top: 0; }
 
@@ -245,7 +317,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-next-heading h2 { position: relative; }
 .case-next-heading h2::after { content: ''; position: absolute; inset: auto 0 -.08em; height: max(2px, .03em); background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .45s cubic-bezier(0.76, 0, 0.24, 1); }
 .case-next-heading h2:hover::after, .case-next-link:focus-visible .case-next-heading h2::after { transform: scaleX(1); }
-.case-bottom { display: flex; gap: 2rem; padding-block: 5rem 6rem; text-transform: uppercase; }
+.case-bottom { display: flex; gap: 2rem; padding-block: 5rem 6rem; }
 .case-bottom a { color: inherit; }
 .case-bottom a:last-child { margin-left: auto; }
 
@@ -263,7 +335,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .nf-path { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .nf-path path { fill: none; stroke: var(--color-primary-color); stroke-width: 2px; stroke-linecap: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; animation: nf-draw 2.6s cubic-bezier(.76, 0, .24, 1) .3s both; }
 .nf-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1.5rem 3rem; }
-.nf-foot p { max-width: 34rem; font-size: var(--case-body); text-transform: uppercase; }
+.nf-foot p { max-width: 34rem; font-size: var(--case-body); }
 @keyframes nf-blink { 0%, 60% { opacity: 1; } 60.01%, 100% { opacity: 0; } }
 @keyframes nf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .nf-screen-label, .nf-path path { animation: none; } }
@@ -377,6 +449,7 @@ html.hide-scrollbar::-webkit-scrollbar {
     src: url("/fonts/Slito-Regular.otf") format("opentype");
 }
 
+
 @font-face {
     font-family: "PP Editorial Old";
     font-display: swap;
@@ -450,12 +523,14 @@ html.hide-scrollbar::-webkit-scrollbar {
      (100px/6.25rem) are preserved as the 2xl values. */
   --text-h1: 2.5rem;    --text-h1--line-height: 0.9em;   --text-h1--font-weight: 800; 
   --text-h2: 32px;      --text-h2--line-height: 1.1em;   --text-h2--font-weight: 800; 
-  --text-h3: 17px;      --text-h3--line-height: 1.4em;   --text-h3--font-weight: 800;
+  --text-h3: 22px;      --text-h3--line-height: 1.2em;   --text-h3--font-weight: 800;
   --text-h4: 16px;      --text-h4--line-height: 1.4em;   --text-h4--font-weight: 700;
   --text-h5: 15px;      --text-h5--line-height: 1.4em;   --text-h5--font-weight: 600;
   --text-h6: 14px;      --text-h6--line-height: 1.4em;   --text-h6--font-weight: 600;
   --text-body: 14px;    --text-body--line-height: 1.6em; --text-body--font-weight: 400;
   --text-body-2: 16px;  --text-body-2--line-height: 1.4em; --text-body-2--font-weight: 400;
+  /* Lead paragraph (About intro): 16px here, up to 22px at 2xl. */
+  --text-lead: 16px;
 
   --shadow-soft: 0 0 0 1px rgba(0, 0, 0, 0.1);
   --shadow-medium: rgb(0, 0, 0, 0.1) 0px 0px 0px 1px;
@@ -478,12 +553,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: -0.1; */
     --text-h1: 3.375rem;
     --text-h2: 48px;
-    --text-h3: 21px;
+    --text-h3: 28px;
     --text-h4: 19px;
     --text-h5: 17px;
     --text-h6: 15px;
     --text-body: 14px;
     --text-body-2: 16px;
+    --text-lead: 16px;
   }
 }
 
@@ -494,12 +570,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: -0.05; */
     --text-h1: 3.75rem;
     --text-h2: 56px;
-    --text-h3: 22px;
+    --text-h3: 32px;
     --text-h4: 20px;
     --text-h5: 18px;
     --text-h6: 15px;
     --text-body: 15px;
     --text-body-2: 17px;
+    --text-lead: 17px;
   }
 }
 
@@ -510,12 +587,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: -0.15; */
     --text-h1: 4.625rem;
     --text-h2: 70px;
-    --text-h3: 26px;
+    --text-h3: 38px;
     --text-h4: 23px;
     --text-h5: 19px;
     --text-h6: 16px;
     --text-body: 15px;
     --text-body-2: 17px;
+    --text-lead: 18px;
   }
 }
 
@@ -526,12 +604,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: 0; */
     --text-h1: 5rem;
     --text-h2: 76px;
-    --text-h3: 28px;
+    --text-h3: 42px;
     --text-h4: 24px;
     --text-h5: 20px;
     --text-h6: 17px;
     --text-body: 15px;
     --text-body-2: 17px;
+    --text-lead: 19px;
   }
 }
 
@@ -542,12 +621,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: -0.15; */
     --text-h1: 5.375rem;
     --text-h2: 86px;
-    --text-h3: 29px;
+    --text-h3: 46px;
     --text-h4: 25px;
     --text-h5: 21px;
     --text-h6: 17px;
     --text-body: 16px;
     --text-body-2: 18px;
+    --text-lead: 20px;
   }
 }
 
@@ -558,12 +638,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: 0; */
     --text-h1: 6rem;
     --text-h2: 94px;
-    --text-h3: 32px;
+    --text-h3: 50px;
     --text-h4: 27px;
     --text-h5: 22px;
     --text-h6: 18px;
     --text-body: 16px;
     --text-body-2: 18px;
+    --text-lead: 21px;
   }
 }
 
@@ -574,12 +655,13 @@ html.hide-scrollbar::-webkit-scrollbar {
     /* --project-model-y: 0; */
     --text-h1: 6.25rem;
     --text-h2: 100px;
-    --text-h3: 33px;
+    --text-h3: 54px;
     --text-h4: 28px;
     --text-h5: 23px;
     --text-h6: 18px;
     --text-body: 16px;
     --text-body-2: 18px;
+    --text-lead: 22px;
   }
 }
 
@@ -690,6 +772,182 @@ html.hide-scrollbar::-webkit-scrollbar {
     overflow: hidden;
   }
 
+  /* About statement: each word rises through a mask that SplitText makes
+     exactly one (0.95) line tall, which clips the serif's capitals and the
+     tail of the J. Pad the mask outward and cancel it with negative margins,
+     so it clips further out without changing the layout or line spacing. */
+  .about-statement__word-mask {
+    padding: 0.12em 0.06em 0.2em;
+    margin: -0.12em -0.06em -0.2em;
+  }
+
+  /* About's subsection titles are plain h3s and the skills and experience
+     entry names h5s, sized by the base heading styles above. */
+
+  /* At lg (where About scrolls inside itself) each skills group and each
+     experience entry pins, one name row (--pin-head: the 0.75rem rule gap,
+     the h5's 1.4em line and 0.75rem below) under the one before it, so the
+     later one covers all but that row. --i is its index, set inline in
+     HomeClient. */
+  @media (min-width: 64rem) {
+    .about-pin {
+      --pin-head: calc(0.75rem + var(--text-h5) * 1.4 + 0.75rem);
+      position: sticky;
+      top: calc(6rem + var(--i) * var(--pin-head));
+      background: var(--color-deep-teal);
+      padding-bottom: 2rem;
+    }
+  }
+
+  /* About process: each step is an icon ring, a numbered label and its copy.
+     Below xl the steps stack along a dashed rail. At xl they wind, 01–03
+     left to right and 04–05 right to left, on one dashed SVG path whose
+     shape HomeClient's "About process, xl" block measures from the icons.
+     The timeline is static: nothing here changes as About scrolls. */
+  .about-process-wrap {
+    position: relative;
+  }
+
+  .about-process {
+    display: grid;
+    gap: 2.5rem;
+  }
+
+  .about-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    column-gap: 1rem;
+    row-gap: 0.75rem;
+    align-items: center;
+  }
+
+  .about-step::before {
+    content: '';
+    position: absolute;
+    top: 3.5rem;
+    bottom: -2.5rem;
+    left: 1.75rem;
+    border-left: 1px dashed rgb(255 255 255 / 0.3);
+  }
+
+  .about-step:last-child::before {
+    content: none;
+  }
+
+  .about-step__icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border: 1px solid rgb(255 255 255 / 0.3);
+    border-radius: 999px;
+    /* The section colour, so the circle hides the dashed path behind it. */
+    background: var(--color-deep-teal);
+    color: var(--color-primary-color);
+  }
+
+  .about-step__icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  /* The step number sits on its own line above the title. */
+  .about-step__label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--color-text-white);
+  }
+
+  .about-step__body {
+    grid-column: 2;
+    max-width: 36rem;
+    margin: 0;
+  }
+
+  .about-process__path {
+    display: none;
+  }
+
+  @media (min-width: 80rem) {
+    /* Room on the right for the path's turn, whose radius is half the
+       distance between the two rows. */
+    .about-process {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      column-gap: 3rem;
+      row-gap: 6rem;
+      padding-right: 8rem;
+    }
+
+    .about-step {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .about-step::before {
+      content: none;
+    }
+
+    .about-step__label {
+      margin: 1.375rem 0 0.5rem;
+    }
+
+    .about-step__body {
+      max-width: 19rem;
+    }
+
+    /* 04 sits under 03 and 05 under 02; the path runs back right to left. */
+    .about-step:nth-child(4) { grid-area: 2 / 3; }
+    .about-step:nth-child(5) { grid-area: 2 / 2; }
+
+    .about-process__path {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .about-process__path-line {
+      stroke: rgb(255 255 255 / 0.3);
+      stroke-width: 1;
+      stroke-dasharray: 4 7;
+    }
+  }
+
+  /* About portrait hover: the second photo replaces the first instantly.
+     Pointer devices only. */
+  .about-portrait-alt {
+    visibility: hidden;
+  }
+
+  @media (hover: hover) {
+    .about-portrait:hover .about-portrait-alt {
+      visibility: visible;
+    }
+  }
+
+  /* About portrait on desktop: runs from the bottom of the header down to a
+     fixed bottom edge, where a fully on-screen image would end (--portrait-base:
+     the screen less 19.5rem for the top padding, heading, gap and fixed footer).
+     The extra height beyond that — the heading's height (1.1 line-height) plus
+     the 3.75rem gap under it — grows upward beside "About Me" with a negative
+     top margin, so nothing below moves. */
+  @media (min-width: 64rem) {
+    .about-portrait {
+      --portrait-base: min(70vh, 100vh - 19.5rem);
+      --portrait-height: calc(var(--portrait-base) + var(--text-h2) * 1.1 + 3.75rem);
+      height: var(--portrait-height);
+      margin-top: calc(var(--portrait-base) - var(--portrait-height));
+    }
+  }
+
   /* Header nav: underline the link for the section in view. */
   .nav-link {
     position: relative;
@@ -741,7 +999,27 @@ html.hide-scrollbar::-webkit-scrollbar {
     transform: translateY(100%);
   }
 
+  /* An underline in the text colour that draws in from the left on hover. It's
+     a background painted into a transparent bottom border, so it sits below
+     the text without adding height. The 1.2 line-height keeps the box's bottom
+     edge, where the line is drawn, below the baseline: the inherited body
+     line-height is a fixed 22.4px, far shorter than the email's font size. */
+  .email-underline {
+    line-height: 1.2;
+    border-bottom: 3px solid transparent;
+    background: linear-gradient(currentColor 0 0) left bottom / 0% 3px no-repeat border-box;
+    transition: background-size 0.75s cubic-bezier(0.76, 0, 0.24, 1);
+  }
+
+  a:focus-visible .email-underline {
+    background-size: 100% 3px;
+  }
+
   @media (hover: hover) {
+    a:hover .email-underline {
+      background-size: 100% 3px;
+    }
+
     .contact-swap-button:hover > svg {
       color: var(--color-primary-color);
     }
@@ -770,37 +1048,17 @@ html.hide-scrollbar::-webkit-scrollbar {
     transform: scale(1.2);
    }
 
-   .projects li a {
-    @apply inline-flex py-2.5 px-3.5 text-foreground! bg-white! whitespace-nowrap;
+  /* Project tiles: keycaps (see .keycap) with the name top-left like the
+     model's key legends. */
+  .projects li {
+    margin-bottom: 0;
+  }
+
+  .projects li a {
+    align-items: flex-start;
+    min-width: 5rem;
     font-size: var(--text-body);
-    cursor: pointer;
-   }
-
-   .projects li a.button-flair::before {
-    content: none;
-   }
-
-   .project-pill__flair {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    border-radius: inherit;
-    pointer-events: none;
-   }
-
-   .project-pill__flair::before {
-    content: '';
-    position: absolute;
-    top: var(--button-flair-y);
-    left: var(--button-flair-x);
-    width: 175%;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: var(--button-flair-fill);
-    transform: translate(-50%, -50%) scale(var(--button-flair-scale));
-    will-change: transform, top, left;
-   }
+  }
 
   /* ── Work section, below lg: project carousel in place of the pills ── */
   .project-carousel {
@@ -850,7 +1108,6 @@ html.hide-scrollbar::-webkit-scrollbar {
 
   .pc-position {
     font-size: 0.6875rem;
-    text-transform: uppercase;
     color: rgba(36, 33, 36, 0.6);
   }
 
@@ -879,7 +1136,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
     font-size: 0.75rem;
-    text-transform: uppercase;
     color: var(--color-background);
     background: var(--color-foreground);
   }
@@ -923,14 +1179,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     border-radius: 4px;
   }
 
-  .projects li:hover a {
-      box-shadow: none !important;
-  }
-
-  .projects li a.button-flair:hover {
-    color: #fff !important;
-  }
-
   .project-description {
     will-change: opacity;
     max-width: 320px;
@@ -953,7 +1201,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     line-height: 1.5;
     font-size: 0.85rem;
     margin: 0;
-    text-transform: uppercase;
     font-weight: 400;
     color: rgba(36, 33, 36, 0.6);
   }
@@ -978,7 +1225,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     padding: 0.3rem 0.7rem;
     font-size: 0.72rem;
     line-height: 1.2;
-    text-transform: uppercase;
     color: var(--color-foreground);
     border: 1px solid currentColor;
     border-radius: 999px;

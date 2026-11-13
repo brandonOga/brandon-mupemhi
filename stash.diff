@@ -1,0 +1,285 @@
+﻿diff --git a/app/HomeClient.tsx b/app/HomeClient.tsx
+index 31608f8..e6615dd 100644
+--- a/app/HomeClient.tsx
++++ b/app/HomeClient.tsx
+@@ -158,10 +158,16 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+       const luminance = background[0] * 0.299 + background[1] * 0.587 + background[2] * 0.114;
+       return luminance < 90 ? [255, 255, 255] : [17, 17, 17];
+     });
+-    const sectionBorderColors = sectionTextColors.map((text): [number, number, number, number] => {
++    // The footer has no background or border over the Work section, so the 3D
++    // scene shows through; the header keeps its solid colour everywhere.
++    const footerTransparent = sections.map((section) => section.id === 'work');
++    const sectionBorderColors = sectionTextColors.map((text, index): [number, number, number, number] => {
++      if (footerTransparent[index]) return [229, 231, 235, 0];
+       const usesLightText = text[0] > 200 && text[1] > 200 && text[2] > 200;
+       return usesLightText ? [247, 246, 241, 0.3] : [229, 231, 235, 1];
+     });
++    const footerFill = (color: number[], index: number) =>
++      `rgba(${color.join(', ')}, ${footerTransparent[index] ? 0 : 1})`;
+ 
+     // Header/footer colours, progress bar and section counter, driven by the
+     // track's current horizontal offset.
+@@ -215,6 +221,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+         '--footer-background',
+         `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) 100%)`
+       );
++      const footerFrom = footerFill(fromBackground, fromIndex);
++      const footerTo = footerFill(toBackground, toIndex);
++      document.documentElement.style.setProperty(
++        '--footer-bar-background',
++        `linear-gradient(90deg, ${footerFrom} 0%, ${footerFrom} ${backgroundBoundary}px, ${footerTo} ${backgroundBoundary}px, ${footerTo} 100%)`
++      );
+       document.documentElement.style.setProperty(
+         '--footer-border-color',
+         `rgba(${footerBorder.slice(0, 3).map(Math.round).join(', ')}, ${footerBorder[3]})`
+@@ -430,11 +442,70 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+       return bounced;
+     };
+ 
++    // Entrance: each pill falls from just above the viewport under gravity,
++    // bounces to rest in its own slot, then hands back to the idle spring loop.
++    const PILL_GRAVITY = 1.1; // px per frame┬▓, at 60fps
++    const PILL_RESTITUTION = 0.42; // share of speed kept after each bounce
++    const PILL_SETTLE_SPEED = 2.5; // impacts slower than this come to rest
++    const pillDrops = skillPillEls.map(() => ({ active: false, launched: false, startAt: 0, rotation: 0 }));
++
+     const updateSkillPillTransform = (index: number) => {
+       const pill = skillPillEls[index];
+       if (!pill) return;
+       const { x, y } = skillPillPositions[index];
+-      pill.style.transform = `translate(${x}px, ${y}px)`;
++      pill.style.transform = `translate(${x}px, ${y}px) rotate(${pillDrops[index].rotation}deg)`;
++    };
++
++    const dropPills = (stagger = 0.12) => {
++      if (reduceMotion) {
++        gsap.set(skillPillEls, { clipPath: 'inset(0% 0% 0% 0%)' });
++        return;
++      }
++      const now = performance.now();
++      skillPillEls.forEach((pill, index) => {
++        if (dragState.activeIndex === index) return;
++        // Hidden in its slot until its turn to fall.
++        gsap.set(pill, { clipPath: 'inset(100% 0% 0% 0%)' });
++        Object.assign(pillDrops[index], {
++          active: true,
++          launched: false,
++          startAt: now + index * stagger * 1000,
++          rotation: 0,
++        });
++      });
++    };
++
++    const stepPillDrop = (index: number, now: number, dt: number) => {
++      const drop = pillDrops[index];
++      const pill = skillPillEls[index];
++      const position = skillPillPositions[index];
++      if (now < drop.startAt) return;
++
++      if (!drop.launched) {
++        drop.launched = true;
++        const layoutTop = pill.getBoundingClientRect().top - position.y;
++        position.x = 0;
++        position.vx = 0;
++        position.vy = 0;
++        position.y = -(layoutTop + pill.offsetHeight + 40);
++        drop.rotation = (Math.random() - 0.5) * 36;
++        gsap.set(pill, { clipPath: 'inset(0% 0% 0% 0%)' });
++      }
++
++      position.vy += PILL_GRAVITY * dt;
++      position.y += position.vy * dt;
++      if (position.y >= 0) {
++        position.y = 0;
++        if (position.vy < PILL_SETTLE_SPEED) {
++          position.vy = 0;
++          drop.rotation = 0;
++          drop.active = false;
++        } else {
++          position.vy *= -PILL_RESTITUTION;
++          drop.rotation *= -0.5;
++        }
++      }
++      updateSkillPillTransform(index);
+     };
+ 
+     const stopDrag = () => {
+@@ -472,9 +543,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+       dragRafId = requestAnimationFrame(decay);
+     };
+ 
++    let lastPillFrame = performance.now();
+     const animatePills = () => {
++      const now = performance.now();
++      const dt = Math.min((now - lastPillFrame) / (1000 / 60), 3);
++      lastPillFrame = now;
+       skillPillEls.forEach((pill, index) => {
+         if (dragState.activeIndex === index) return;
++        if (pillDrops[index].active) {
++          stepPillDrop(index, now, dt);
++          return;
++        }
+         const position = skillPillPositions[index];
+         const anchor = skillPillAnchors[index];
+ 
+@@ -531,6 +610,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+     skillPillEls.forEach((pill, index) => {
+       const onPointerDown = (event: PointerEvent) => {
+         event.preventDefault();
++        // Catching a pill mid-fall ends its drop.
++        pillDrops[index].active = false;
++        pillDrops[index].rotation = 0;
+         dragState.activeIndex = index;
+         dragState.startX = event.clientX;
+         dragState.startY = event.clientY;
+@@ -1073,13 +1155,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+         });
+       };
+ 
+-      // Skill pills: clip-path inset reveal directly on .skill-pill ÔÇö clip-path
+-      // doesn't touch `transform`, so it's safe even though the drag physics
+-      // loop writes style.transform on the same element every frame. Each
+-      // pill's JSX default state is already clipped (inset(100% ...)) so
+-      // there's no flash before this code runs. Collected once up front so
+-      // both the first-load entrance and the later scroll-into-view observer
+-      // can reuse the same `pillSlides`.
++      // Skill pills: each pill's JSX default state is clipped (inset(100% ...))
++      // so there's no flash before the entrance runs. dropPills (in the pill
++      // physics above) unclips each one as it starts to fall. Collected once
++      // up front for the return-visit path and the scroll-into-view observer.
+       const pillSlides = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
+ 
+       // ÔöÇÔöÇ Hero entrance (called from preloader timeline on first visit) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+@@ -1150,16 +1229,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+           }, heroSupportStart);
+         }
+ 
+-        // skill pills: clip-path inset reveal from bottom (bottom edge
+-        // appears first, then upward), staggered individually.
++        // skill pills: fall in under gravity (see dropPills), staggered.
+         if (pillSlides.length) {
+-          gsap.set(pillSlides, { clipPath: "inset(100% 0% 0% 0%)" });
+-          tl.to(pillSlides, {
+-            clipPath: "inset(0% 0% 0% 0%)",
+-            duration: 0.7,
+-            ease: "power3.out",
+-            stagger: 0.1,
+-          }, heroSupportStart + 0.25);
++          tl.call(() => dropPills(), [], heroSupportStart + 0.25);
+         }
+       };
+ 
+@@ -1252,7 +1324,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+         preloaderTL.call(animateHeroEntrance, [], ">-0.5");
+       } // end preloader
+ 
+-      // Skill pills: clip-path inset reveal whenever they scroll into view.
++      // Skill pills: drop in again whenever they scroll back into view.
+       const pillWrapperEl = document.querySelector<HTMLElement>(".skill-pill-wrapper");
+       if (pillWrapperEl && pillSlides.length) {
+         let firstEntryHandled = false;
+@@ -1262,17 +1334,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+             firstEntryHandled = true;
+             return;
+           }
+-          gsap.killTweensOf(pillSlides);
+-          gsap.fromTo(
+-            pillSlides,
+-            { clipPath: "inset(100% 0% 0% 0%)" },
+-            {
+-              clipPath: "inset(0% 0% 0% 0%)",
+-              duration: 0.7,
+-              ease: "power3.out",
+-              stagger: 0.1,
+-            }
+-          );
++          dropPills();
+         }, { threshold: 0.3 });
+         pillObserver.observe(pillWrapperEl);
+ 
+@@ -1472,6 +1534,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+       document.documentElement.style.removeProperty('--footer-color');
+       document.documentElement.style.removeProperty('--header-color');
+       document.documentElement.style.removeProperty('--footer-background');
++      document.documentElement.style.removeProperty('--footer-bar-background');
+       document.documentElement.style.removeProperty('--footer-border-color');
+       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
+         canvas.remove();
+@@ -1555,11 +1618,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+                 <p className="w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
+               </div>
+               <div className="w-full relative flex flex-wrap justify-start items-center gap-3 touch-none skill-pill-wrapper">
+-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
+-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+-                <p className="skill-pill cursor-grab active:cursor-grabbing bg-black text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
+-                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 border bg-background rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
++                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 bg-primary-color rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
++                <p className="skill-pill cursor-grab active:cursor-grabbing bg-deep-teal text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-2xl"/></p>
++                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 text-white bg-secondary-color rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
++                <p className="skill-pill cursor-grab active:cursor-grabbing bg-deep-teal text-white p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-2xl"/></p>
++                <p className="skill-pill cursor-grab active:cursor-grabbing  py-3 px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+               </div>
+             </div>
+             <div className = "w-1/2  h-full flex flex-col items-end justify-end gap-10">
+@@ -1697,7 +1760,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
+         </section>
+         
+         <section id="say-hello" className="w-screen h-screen bg-deep-teal shrink-0 flex  px-15">
+-          <div className="w-1/2 h-full flex flex-col gap-10 justify-between pb-20 pt-20">
++          <div className="w-1/2 h-full flex flex-col gap-10 justify-between pb-20 pt-30">
+             <div className="w-full flex flex-col gap-8 items-start">
+               <div className="w-full flex items-center justify-start gap-2">
+                 <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
+diff --git a/app/components/Footer.tsx b/app/components/Footer.tsx
+index f83eac1..14bbd22 100644
+--- a/app/components/Footer.tsx
++++ b/app/components/Footer.tsx
+@@ -8,12 +8,18 @@ export default function Footer() {
+   // The admin dashboard has its own chrome ÔÇö don't show the site footer there.
+   if (pathname.startsWith('/admin')) return null;
+ 
++  // Project pages scroll normally, so the footer sits at the end of the page
++  // instead of staying pinned to the bottom of the viewport.
++  const position = pathname.startsWith('/projects/')
++    ? 'relative w-full'
++    : 'w-screen fixed bottom-0 left-0 right-0 z-40';
++
+   return (
+     <footer
+-      className="w-screen fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between px-15 py-3 border-t pointer-events-none"
++      className={`${position} flex items-center justify-between px-15 py-3 border-t pointer-events-none`}
+       style={{
+         color: 'var(--footer-color, #65615d)',
+-        background: 'var(--footer-background, #fefff8)',
++        background: 'var(--footer-bar-background, var(--footer-background, #fefff8))',
+         borderColor: 'var(--footer-border-color, #e5e7eb)',
+       }}
+     >
+diff --git a/app/globals.css b/app/globals.css
+index f3317ea..a5ed6b7 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -268,10 +268,6 @@ html.hide-scrollbar::-webkit-scrollbar {
+   --color-secondary-color: #3B82F6;
+   --color-tertiary-color: #e2725b;
+   --color-text-white: #ffffff;
+-  --color-grey: #808080;
+-  --color-warning: #c70a0a;
+-  --color-accent-color: #fce5cd;
+-  --color-mustard: #e7ab23;
+   --color-off-white: #eceff1;
+   --color-site-black: #0A0A0A;
+   --color-deep-teal: #2F4F4F;
+@@ -284,8 +280,8 @@ html.hide-scrollbar::-webkit-scrollbar {
+      Stepped per breakpoint below (sm, md, lg, 1140, xl, 1440, 2xl) ÔÇö
+      h1's old max (100px/6.25rem) and h2's old hardcoded clamp max
+      (100px/6.25rem) are preserved as the 2xl values. */
+-  --text-h1: 2.5rem;    --text-h1--line-height: 1.1em;   --text-h1--font-weight: 800; --text-h1--color: #d9d9d9;
+-  --text-h2: 32px;      --text-h2--line-height: 1.1em;   --text-h2--font-weight: 800; --text-h2--color: #ff0000;
++  --text-h1: 2.5rem;    --text-h1--line-height: 0.9em;   --text-h1--font-weight: 800; 
++  --text-h2: 32px;      --text-h2--line-height: 1.1em;   --text-h2--font-weight: 800; 
+   --text-h3: 17px;      --text-h3--line-height: 1.4em;   --text-h3--font-weight: 800;
+   --text-h4: 16px;      --text-h4--line-height: 1.4em;   --text-h4--font-weight: 700;
+   --text-h5: 15px;      --text-h5--line-height: 1.4em;   --text-h5--font-weight: 600;

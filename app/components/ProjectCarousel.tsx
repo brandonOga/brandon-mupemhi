@@ -78,7 +78,7 @@ export default function ProjectCarousel({
               </div>
               <Link
                 href={`/work/${project.slug}`}
-                className="pc-view"
+                className="keycap pc-view"
                 tabIndex={i === index ? 0 : -1}
                 aria-label={`View ${project.name}`}
               >
@@ -90,7 +90,7 @@ export default function ProjectCarousel({
       </div>
 
       <div className="pc-controls">
-        <button type="button" className="pc-arrow" aria-label="Previous project" onClick={() => goTo(index - 1)}>
+        <button type="button" className="keycap pc-arrow" aria-label="Previous project" onClick={() => goTo(index - 1)}>
           <FiArrowLeft aria-hidden="true" />
         </button>
         <div className="pc-dots" role="tablist" aria-label="Project pages">
@@ -119,7 +119,7 @@ export default function ProjectCarousel({
             </button>
           ))}
         </div>
-        <button type="button" className="pc-arrow" aria-label="Next project" onClick={() => goTo(index + 1)}>
+        <button type="button" className="keycap pc-arrow" aria-label="Next project" onClick={() => goTo(index + 1)}>
           <FiArrowRight aria-hidden="true" />
         </button>
       </div>

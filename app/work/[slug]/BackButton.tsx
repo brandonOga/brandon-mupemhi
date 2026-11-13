@@ -4,7 +4,7 @@ export default function BackButton() {
   return (
     <Link
       href="/"
-      className="inline-flex items-center gap-2 uppercase text-sm tracking-widest hover:opacity-60 transition-opacity"
+      className="inline-flex items-center gap-2 text-sm tracking-widest hover:opacity-60 transition-opacity"
     >
       ← Back
     </Link>

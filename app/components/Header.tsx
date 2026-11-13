@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation';
 import { useTransitionRouter } from 'next-transition-router';
 
 const menuItems = [
-  { label: 'home',      id: 'home' },
-  { label: 'about',     id: 'about' },
-  { label: 'work',      id: 'work' },
-  { label: 'say hello', id: 'say-hello' },
+  { label: 'Home',      id: 'home' },
+  { label: 'About',     id: 'about' },
+  { label: 'Work',      id: 'work' },
+  { label: 'Say hello', id: 'say-hello' },
 ];
 
 const subscribeToSection = (onChange: () => void) => {
@@ -26,11 +26,11 @@ export default function Header() {
     () => null
   );
 
-  // The admin dashboard has its own chrome — don't show the site nav there.
-  if (pathname.startsWith('/admin')) return null;
+  // The admin dashboard has its own chrome, and project pages carry their own
+  // back and bottom links — don't show the site nav on either.
+  if (pathname.startsWith('/admin') || pathname.startsWith('/work/')) return null;
 
-  // Project pages belong to Work; elsewhere it's whichever section is in view.
-  const activeId = pathname === '/' ? homeSection : pathname.startsWith('/work/') ? 'work' : null;
+  const activeId = pathname === '/' ? homeSection : null;
 
   const goToSection = (id: string) => {
     if (pathname === '/') {
@@ -52,7 +52,7 @@ export default function Header() {
         background: 'var(--header-background, var(--footer-background, #fefff8))',
       }}
     >
-      <nav className="w-full h-16 md:h-20 flex items-center justify-between gap-3 px-5 md:px-10 lg:px-15">
+      <nav className="w-full h-16 md:h-20 flex items-center justify-between gap-3 px-5 md:px-7.5">
         {/* Left Menu */}
         <ul className="flex gap-4 sm:gap-6 md:gap-8">
           {menuItems.slice(0, 2).map(({ label, id }) => (
