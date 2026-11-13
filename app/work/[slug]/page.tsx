@@ -8,6 +8,7 @@ import { problemProcessHtml, solutionHtml } from "@/lib/caseStudyHtml";
 import { deviceFrameKey, devicePreset, deviceSlots } from "@/lib/devices";
 import Noise from "@/app/components/Noise";
 import BackLink from "./BackLink";
+import BackToTop from "./BackToTop";
 import DeviceShowcase from "./DeviceShowcase";
 
 export const revalidate = 60;
@@ -76,7 +77,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       <div className="case-glance">
         <div className="case-narrative">
           <span>01 / The project</span><p>{cs.overview || project.description}</p>
-          {project.url && <a className="btn-outline" href={project.url} target="_blank" rel="noreferrer">View live site <ArrowUpRight /></a>}
+          {project.url && <a className="keycap btn-outline" href={project.url} target="_blank" rel="noreferrer">View live site <ArrowUpRight /></a>}
         </div>
         <div className="case-facts">
           <div><span>Role</span>{roleLines.map((line) => <p key={line}>{line}</p>)}</div>
@@ -116,24 +117,22 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           <p>Have a project in mind, or want to hear more about how this one came together? I&rsquo;d love to hear from you.</p>
           <div className="case-cta-email">
             <span>Email me</span>
-            <a href="mailto:brandoneemupemhi@gmail.com" className="contact-swap-button">
-              <span className="contact-button__label">
-                <span>brandoneemupemhi@gmail.com</span>
-                <span aria-hidden="true">brandoneemupemhi@gmail.com</span>
-              </span>
-              <ArrowUpRight />
+            <a href="mailto:brandoneemupemhi@gmail.com">
+              <span aria-hidden="true">(</span>
+              <span className="case-cta-email-text email-underline">brandoneemupemhi@gmail.com</span>
+              <span aria-hidden="true">)</span>
             </a>
           </div>
           <div className="case-cta-links">
-            <a href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer">LinkedIn <ArrowUpRight /></a>
-            <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight /></a>
-            <a href="/cv.pdf" target="_blank" rel="noopener noreferrer">Resume <ArrowUpRight /></a>
+            <a href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">(</span>LinkedIn<span aria-hidden="true">)</span></a>
+            <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">(</span>GitHub<span aria-hidden="true">)</span></a>
+            <a href="/cv.pdf" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">(</span>Resume<span aria-hidden="true">)</span></a>
           </div>
         </div>
       </div>
     </div></section>
 
     {nextProject && <section className="case-next"><Link href={`/work/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.name}</h2><span><ArrowUpRight /></span></div></div></Link></section>}
-    <div className="case-bottom case-shell"><Link href="/">Home</Link><Link href="/#about">About</Link><a href="#top">↑ Back to top</a></div>
+    <div className="case-bottom case-shell"><Link href="/">Home</Link><Link href="/#about">About</Link><BackToTop /></div>
   </main>;
 }

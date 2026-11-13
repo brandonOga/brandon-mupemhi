@@ -1,0 +1,144 @@
+[1mdiff --git a/app/HomeClient.tsx b/app/HomeClient.tsx[m
+[1mindex 31608f8..e6615dd 100644[m
+[1m--- a/app/HomeClient.tsx[m
+[1m+++ b/app/HomeClient.tsx[m
+[36m@@ -158,10 +158,16 @@[m [mexport default function HomeClient({ projects }: { projects: ProjectCard[] }) {[m
+       const luminance = background[0] * 0.299 + background[1] * 0.587 + background[2] * 0.114;[m
+       return luminance < 90 ? [255, 255, 255] : [17, 17, 17];[m
+     });[m
+[31m-    const sectionBorderColors = sectionTextColors.map((text): [number, number, number, number] => {[m
+[32m+[m[32m    // The footer has no background or border over the Work section, so the 3D[m
+[32m+[m[32m    // scene shows through; the header keeps its solid colour everywhere.[m
+[32m+[m[32m    const footerTransparent = sections.map((section) => section.id === 'work');[m
+[32m+[m[32m    const sectionBorderColors = sectionTextColors.map((text, index): [number, number, number, number] => {[m
+[32m+[m[32m      if (footerTransparent[index]) return [229, 231, 235, 0];[m
+       const usesLightText = text[0] > 200 && text[1] > 200 && text[2] > 200;[m
+       return usesLightText ? [247, 246, 241, 0.3] : [229, 231, 235, 1];[m
+     });[m
+[32m+[m[32m    const footerFill = (color: number[], index: number) =>[m
+[32m+[m[32m      `rgba(${color.join(', ')}, ${footerTransparent[index] ? 0 : 1})`;[m
+ [m
+     // Header/footer colours, progress bar and section counter, driven by the[m
+     // track's current horizontal offset.[m
+[36m@@ -215,6 +221,12 @@[m [mexport default function HomeClient({ projects }: { projects: ProjectCard[] }) {[m
+         '--footer-background',[m
+         `linear-gradient(90deg, rgb(${fromBackground.join(', ')}) 0%, rgb(${fromBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) ${backgroundBoundary}px, rgb(${toBackground.join(', ')}) 100%)`[m
+       );[m
+[32m+[m[32m      const footerFrom = footerFill(fromBackground, fromIndex);[m
+[32m+[m[32m      const footerTo = footerFill(toBackground, toIndex);[m
+[32m+[m[32m      document.documentElement.style.setProperty([m
+[32m+[m[32m        '--footer-bar-background',[m
+[32m+[m[32m        `linear-gradient(90deg, ${footerFrom} 0%, ${footerFrom} ${backgroundBoundary}px, ${footerTo} ${backgroundBoundary}px, ${footerTo} 100%)`[m
+[32m+[m[32m      );[m
+       document.documentElement.style.setProperty([m
+         '--footer-border-color',[m
+         `rgba(${footerBorder.slice(0, 3).map(Math.round).join(', ')}, ${footerBorder[3]})`[m
+[36m@@ -430,11 +442,70 @@[m [mexport default function HomeClient({ projects }: { projects: ProjectCard[] }) {[m
+       return bounced;[m
+     };[m
+ [m
+[32m+[m[32m    // Entrance: each pill falls from just above the viewport under gravity,[m
+[32m+[m[32m    // bounces to rest in its own slot, then hands back to the idle spring loop.[m
+[32m+[m[32m    const PILL_GRAVITY = 1.1; // px per frame², at 60fps[m
+[32m+[m[32m    const PILL_RESTITUTION = 0.42; // share of speed kept after each bounce[m
+[32m+[m[32m    const PILL_SETTLE_SPEED = 2.5; // impacts slower than this come to rest[m
+[32m+[m[32m    const pillDrops = skillPillEls.map(() => ({ active: false, launched: false, startAt: 0, rotation: 0 }));[m
+[32m+[m
+     const updateSkillPillTransform = (index: number) => {[m
+       const pill = skillPillEls[index];[m
+       if (!pill) return;[m
+       const { x, y } = skillPillPositions[index];[m
+[31m-      pill.style.transform = `translate(${x}px, ${y}px)`;[m
+[32m+[m[32m      pill.style.transform = `translate(${x}px, ${y}px) rotate(${pillDrops[index].rotation}deg)`;[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    const dropPills = (stagger = 0.12) => {[m
+[32m+[m[32m      if (reduceMotion) {[m
+[32m+[m[32m        gsap.set(skillPillEls, { clipPath: 'inset(0% 0% 0% 0%)' });[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+[32m+[m[32m      const now = performance.now();[m
+[32m+[m[32m      skillPillEls.forEach((pill, index) => {[m
+[32m+[m[32m        if (dragState.activeIndex === index) return;[m
+[32m+[m[32m        // Hidden in its slot until its turn to fall.[m
+[32m+[m[32m        gsap.set(pill, { clipPath: 'inset(100% 0% 0% 0%)' });[m
+[32m+[m[32m        Object.assign(pillDrops[index], {[m
+[32m+[m[32m          active: true,[m
+[32m+[m[32m          launched: false,[m
+[32m+[m[32m          startAt: now + index * stagger * 1000,[m
+[32m+[m[32m          rotation: 0,[m
+[32m+[m[32m        });[m
+[32m+[m[32m      });[m
+[32m+[m[32m    };[m
+[32m+[m
+[32m+[m[32m    const stepPillDrop = (index: number, now: number, dt: number) => {[m
+[32m+[m[32m      const drop = pillDrops[index];[m
+[32m+[m[32m      const pill = skillPillEls[index];[m
+[32m+[m[32m      const position = skillPillPositions[index];[m
+[32m+[m[32m      if (now < drop.startAt) return;[m
+[32m+[m
+[32m+[m[32m      if (!drop.launched) {[m
+[32m+[m[32m        drop.launched = true;[m
+[32m+[m[32m        const layoutTop = pill.getBoundingClientRect().top - position.y;[m
+[32m+[m[32m        position.x = 0;[m
+[32m+[m[32m        position.vx = 0;[m
+[32m+[m[32m        position.vy = 0;[m
+[32m+[m[32m        position.y = -(layoutTop + pill.offsetHeight + 40);[m
+[32m+[m[32m        drop.rotation = (Math.random() - 0.5) * 36;[m
+[32m+[m[32m        gsap.set(pill, { clipPath: 'inset(0% 0% 0% 0%)' });[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      position.vy += PILL_GRAVITY * dt;[m
+[32m+[m[32m      position.y += position.vy * dt;[m
+[32m+[m[32m      if (position.y >= 0) {[m
+[32m+[m[32m        position.y = 0;[m
+[32m+[m[32m        if (position.vy < PILL_SETTLE_SPEED) {[m
+[32m+[m[32m          position.vy = 0;[m
+[32m+[m[32m          drop.rotation = 0;[m
+[32m+[m[32m          drop.active = false;[m
+[32m+[m[32m        } else {[m
+[32m+[m[32m          position.vy *= -PILL_RESTITUTION;[m
+[32m+[m[32m          drop.rotation *= -0.5;[m
+[32m+[m[32m        }[m
+[32m+[m[32m      }[m
+[32m+[m[32m      updateSkillPillTransform(index);[m
+     };[m
+ [m
+     const stopDrag = () => {[m
+[36m@@ -472,9 +543,17 @@[m [mexport default function HomeClient({ projects }: { projects: ProjectCard[] }) {[m
+       dragRafId = requestAnimationFrame(decay);[m
+     };[m
+ [m
+[32m+[m[32m    let lastPillFrame = performance.now();[m
+     const animatePills = () => {[m
+[32m+[m[32m      const now = performance.now();[m
+[32m+[m[32m      const dt = Math.min((now - lastPillFrame) / (1000 / 60), 3);[m
+[32m+[m[32m      lastPillFrame = now;[m
+       skillPillEls.forEach((pill, index) => {[m
+         if (dragState.activeIndex === index) return;[m
+[32m+[m[32m        if (pillDrops[index].active) {[m
+[32m+[m[32m          stepPillDrop(index, now, dt);[m
+[32m+[m[32m          return;[m
+[32m+[m[32m        }[m
+         const position = skillPillPositions[index];[m
+         const anchor = skillPillAnchors[index];[m
+ [m
+[36m@@ -531,6 +610,9 @@[m [mexport default function HomeClient({ projects }: { projects: ProjectCard[] }) {[m
+     skillPillEls.forEach((pill, index) => {[m
+       const onPointerDown = (event: PointerEvent) => {[m
+         event.preventDefault();[m
+[32m+[m[32m        // Catching a pill mid-fall ends its drop.[m
+[32m+[m[32m        pillDrops[index].active = false;[m
+[32m+[m[32m        pillDrops[index].rotation = 0;[m
+         dragState.activeIndex = index;[m
+         dragState.startX = event.clientX;[m
+         dragState.startY = event.clientY;[m
+[36m@@ -1073,13 +1155,10 @@[m [mexport default function HomeClient({ projects }: { projects: ProjectCard[] }) {[m
+         });[m
+       };[m
+ [m
+[31m-      // Skill pills: clip-path inset reveal directly on .skill-pill — clip-path[m
+[31m-      // doesn't touch `transform`, so it's safe even though the drag physics[m
+[31m-      // loop writes style.transform on the same element every frame. Each[m
+[31m-      // pill's JSX default state is already clipped (inset(100% ...)) so[m
+[31m-      // there's no fla

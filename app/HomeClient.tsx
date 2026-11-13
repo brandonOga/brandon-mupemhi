@@ -2,6 +2,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import {useRef, useLayoutEffect} from "react";
+import type { CSSProperties } from "react";
+import ArrowUpRight from "./components/ArrowUpRight";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
@@ -15,7 +17,6 @@ import { vertexShader, fragmentShader } from "./components/shaders";
 import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
-import ArrowUpRight from "./components/ArrowUpRight";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
 import ProjectCarousel from "./components/ProjectCarousel";
@@ -24,12 +25,33 @@ gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 let preloaderHasPlayed = false;
 
 // About section content: the five process steps, skill groups and timeline.
+// Each step's icon is the inner paths of a 24×24 stroke SVG.
 const ABOUT_PROCESS = [
-  { title: 'Discover', body: 'Understand the problem, target audience and goals of the project.' },
-  { title: 'Define', body: 'Organise ideas, map user journeys and establish the structure and functionality.' },
-  { title: 'Design', body: 'Explore concepts, create wireframes and design intuitive, engaging interfaces.' },
-  { title: 'Develop', body: 'Bring designs to life through responsive layouts, clean code and functional experiences.' },
-  { title: 'Refine', body: 'Test the experience, gather feedback and make improvements where needed.' },
+  {
+    title: 'Discover',
+    body: 'Understand the problem, target audience and goals of the project.',
+    icon: <><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></>,
+  },
+  {
+    title: 'Define',
+    body: 'Organise ideas, map user journeys and establish the structure and functionality.',
+    icon: <><circle cx="5.5" cy="18.5" r="2" /><circle cx="18.5" cy="5.5" r="2" /><path d="M7.5 18.5h7a3 3 0 0 0 0-6h-5a3 3 0 0 1 0-6h7" /></>,
+  },
+  {
+    title: 'Design',
+    body: 'Explore concepts, create wireframes and design intuitive, engaging interfaces.',
+    icon: <><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.6 7.6" /><circle cx="11" cy="11" r="2" /></>,
+  },
+  {
+    title: 'Develop',
+    body: 'Bring designs to life through responsive layouts, clean code and functional experiences.',
+    icon: <><path d="M8 7l-5 5 5 5" /><path d="M16 7l5 5-5 5" /><path d="M13.5 4l-3 16" /></>,
+  },
+  {
+    title: 'Refine',
+    body: 'Test the experience, gather feedback and make improvements where needed.',
+    icon: <><path d="M4 7h10" /><path d="M18 7h2" /><circle cx="16" cy="7" r="2" /><path d="M4 17h2" /><path d="M10 17h10" /><circle cx="8" cy="17" r="2" /></>,
+  },
 ];
 
 const ABOUT_SKILLS: { title: string; items: string[]; tools?: string }[] = [
@@ -502,10 +524,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       setTimeout(() => sessionStorage.removeItem('scroll-to-section'), 0);
     }
 
-    const skillPillContainer = root.current?.querySelector('.skill-pill-wrapper') as HTMLElement | null;
-    const skillPillEls = skillPillContainer
-      ? Array.from(skillPillContainer.querySelectorAll<HTMLParagraphElement>('.skill-pill'))
-      : [];
+    // Draggable pills: the hero's skill pills and About's skill groups. Each
+    // .skill-pill-wrapper is its own playground; a pill stays inside its own.
+    const heroPillWrapper = root.current?.querySelector<HTMLElement>('.hero .skill-pill-wrapper') ?? null;
+    const skillPillEls = Array.from(
+      root.current?.querySelectorAll<HTMLElement>('.skill-pill-wrapper .skill-pill') ?? []
+    );
+    const pillWrapperOf = (index: number) =>
+      skillPillEls[index]?.closest<HTMLElement>('.skill-pill-wrapper') ?? null;
     const skillPillAnchors = skillPillEls.map(() => ({ x: 0, y: 0 }));
     const skillPillPositions = skillPillEls.map(() => ({ x: 0, y: 0, vx: 0, vy: 0 }));
 
@@ -524,9 +550,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       vy: 0,
     };
 
-    const getWrapperBounds = () => {
-      if (!skillPillContainer) return null;
-      const rect = skillPillContainer.getBoundingClientRect();
+    const getWrapperBounds = (index: number) => {
+      const wrapper = pillWrapperOf(index);
+      if (!wrapper) return null;
+      const rect = wrapper.getBoundingClientRect();
       return {
         left: rect.left,
         top: rect.top,
@@ -538,7 +565,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     const clampPill = (index: number, bounce = false) => {
       const pill = skillPillEls[index];
       const position = skillPillPositions[index];
-      const wrapperBounds = getWrapperBounds();
+      const wrapperBounds = getWrapperBounds(index);
       if (!pill || !wrapperBounds) return;
 
       const pillRect = pill.getBoundingClientRect();
@@ -605,20 +632,24 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       pill.style.transform = `translate(${x}px, ${y}px) rotate(${pillDrops[index].rotation}deg)`;
     };
 
-    const dropPills = (stagger = 0.12) => {
+    // Drops the pills of one wrapper (the hero's by default), staggered in order.
+    const dropPills = (wrapper: HTMLElement | null = heroPillWrapper, stagger = 0.12) => {
+      const indices = skillPillEls
+        .map((_, index) => index)
+        .filter((index) => pillWrapperOf(index) === wrapper);
       if (reduceMotion) {
-        gsap.set(skillPillEls, { clipPath: 'inset(0% 0% 0% 0%)' });
+        gsap.set(indices.map((index) => skillPillEls[index]), { clipPath: 'inset(0% 0% 0% 0%)' });
         return;
       }
       const now = performance.now();
-      skillPillEls.forEach((pill, index) => {
+      indices.forEach((index, order) => {
         if (dragState.activeIndex === index) return;
         // Hidden in its slot until its turn to fall.
-        gsap.set(pill, { clipPath: 'inset(100% 0% 0% 0%)' });
+        gsap.set(skillPillEls[index], { clipPath: 'inset(100% 0% 0% 0%)' });
         Object.assign(pillDrops[index], {
           active: true,
           launched: false,
-          startAt: now + index * stagger * 1000,
+          startAt: now + order * stagger * 1000,
           rotation: 0,
         });
       });
@@ -785,600 +816,628 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     window.addEventListener('pointerup', handleSkillPointerUp);
     window.addEventListener('pointercancel', handleSkillPointerUp);
 
-    let threeRafId = 0;
-    let stageResizeObserver: ResizeObserver | undefined;
+    const monitorCleanups: Array<() => void> = [];
 
     const ctx = gsap.context(() => {
-      const container = projectsRef.current!;
-      // The canvas lives in the stage: the whole section on desktop, the
-      // band between the heading and the carousel once the layout stacks.
-      const stage = modelStageRef.current!;
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(
-        60,
-        stage.clientWidth / stage.clientHeight,
-        0.1, 
-        1000
-      );
-      camera.position.set(0, 0, 3);
-      camera.lookAt(0, 0, 0);
+      // The Work section's Macintosh monitor: scene, renderer and render loop,
+      // cursor tilt over the section, and its pills' covers on the screen.
+      // Returns its cleanup.
+      const setupMonitor = (container: HTMLElement, stage: HTMLElement) => {
+        // The canvas lives in the stage: the whole section on desktop, the
+        // band between the heading and the carousel once the layout stacks.
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+          60,
+          stage.clientWidth / stage.clientHeight,
+          0.1, 
+          1000
+        );
+        camera.position.set(0, 0, 3);
+        camera.lookAt(0, 0, 0);
 
-      const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-      threeCamera.current   = camera;
-      threeRenderer.current = renderer;
-      renderer.setSize(stage.clientWidth, stage.clientHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.25;
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.VSMShadowMap;
+        const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+        threeCamera.current   = camera;
+        threeRenderer.current = renderer;
+        renderer.setSize(stage.clientWidth, stage.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.25;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.VSMShadowMap;
 
-      renderer.domElement.style.position = 'absolute';
-      renderer.domElement.style.top = '0';
-      renderer.domElement.style.left = '0';
-      renderer.domElement.style.width = '100%';
-      renderer.domElement.style.height = '100%';
-      renderer.domElement.style.pointerEvents = 'none';
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.width = '100%';
+        renderer.domElement.style.height = '100%';
+        renderer.domElement.style.pointerEvents = 'none';
       
-      stage.appendChild(renderer.domElement);
+        stage.appendChild(renderer.domElement);
 
-      scene.add(new THREE.AmbientLight(0xffffff, 1));
+        scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-      directionalLight.position.set(15, 10, -5);
-      scene.add(directionalLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(15, 10, -5);
+        scene.add(directionalLight);
 
-      // Dedicated light purely for the cast shadow — kept
-      // separate from directionalLight (which comes in from a steep side
-      // angle for its rim-light look). This light sits to camera-right, so
-      // the model's projected shadow falls naturally toward the left.
-      const shadowLight = new THREE.DirectionalLight(0xffffff, 1.4);
-      shadowLight.position.set(5, 10, 2);
-      shadowLight.castShadow = true;
-      shadowLight.shadow.mapSize.set(2048, 2048);
-      shadowLight.shadow.radius = 18;
-      shadowLight.shadow.bias = -1e-4;
-      shadowLight.shadow.normalBias = 0.02;
-      shadowLight.shadow.camera.near = 0.1;
-      shadowLight.shadow.camera.far = 30;
-      shadowLight.shadow.camera.left = -4;
-      shadowLight.shadow.camera.right = 4;
-      shadowLight.shadow.camera.top = 4;
-      shadowLight.shadow.camera.bottom = -4;
+        // Dedicated light purely for the cast shadow — kept
+        // separate from directionalLight (which comes in from a steep side
+        // angle for its rim-light look). This light sits to camera-right, so
+        // the model's projected shadow falls naturally toward the left.
+        const shadowLight = new THREE.DirectionalLight(0xffffff, 1.4);
+        shadowLight.position.set(5, 10, 2);
+        shadowLight.castShadow = true;
+        shadowLight.shadow.mapSize.set(2048, 2048);
+        shadowLight.shadow.radius = 18;
+        shadowLight.shadow.bias = -1e-4;
+        shadowLight.shadow.normalBias = 0.02;
+        shadowLight.shadow.camera.near = 0.1;
+        shadowLight.shadow.camera.far = 30;
+        shadowLight.shadow.camera.left = -4;
+        shadowLight.shadow.camera.right = 4;
+        shadowLight.shadow.camera.top = 4;
+        shadowLight.shadow.camera.bottom = -4;
 
-      scene.add(shadowLight);
+        scene.add(shadowLight);
 
-      const topLight = new THREE.DirectionalLight(0xffffff, 1);
-      topLight.position.set(-5, -2.5, 0);
-      scene.add(topLight);
+        const topLight = new THREE.DirectionalLight(0xffffff, 1);
+        topLight.position.set(-5, -2.5, 0);
+        scene.add(topLight);
 
-      const monitorGroup = new THREE.Group();
-      monitorGroupRef.current = monitorGroup;
-      scene.add(monitorGroup);
+        const monitorGroup = new THREE.Group();
+        monitorGroupRef.current = monitorGroup;
+        scene.add(monitorGroup);
 
-      // Radial alpha map gives the circular tabletop a soft edge so it fades
-      // away before the horizontal scroll reaches the next section.
-      const floorAlphaCanvas = document.createElement('canvas');
-      floorAlphaCanvas.width = 256;
-      floorAlphaCanvas.height = 256;
-      const floorAlphaContext = floorAlphaCanvas.getContext('2d');
-      if (floorAlphaContext) {
-        const floorFade = floorAlphaContext.createRadialGradient(
-          128, 128, 128 * 0.62,
-          128, 128, 128
-        );
-        floorFade.addColorStop(0, '#ffffff');
-        floorFade.addColorStop(1, '#000000');
-        floorAlphaContext.fillStyle = floorFade;
-        floorAlphaContext.fillRect(0, 0, 256, 256);
-      }
-      const floorAlphaMap = new THREE.CanvasTexture(floorAlphaCanvas);
-
-      // Visible circular tabletop surface and shadow receiver. It stays in
-      // the scene root so it remains level while the monitor tilts on hover.
-      const shadowFloor = new THREE.Mesh(
-        new THREE.CircleGeometry(1.9, 128),
-        new THREE.MeshStandardMaterial({
-          color: 0xd9dcde,
-          roughness: 1,
-          metalness: 0,
-          alphaMap: floorAlphaMap,
-          opacity: 0.85,
-          transparent: true,
-          depthWrite: false,
-        })
-      );
-      // Fill the viewport horizontally and extend toward the camera. The
-      // radial alpha map is transparent where the surface meets the section
-      // edges, avoiding a hard cutoff during horizontal scrolling.
-      const floorRadius = 1.9;
-      const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
-      const updateFloorSize = () => {
-        const halfFovTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-        const cameraDistance = Math.abs(
-          camera.position.z - shadowFloor.position.z
-        );
-        const visibleHeight = 2 * halfFovTan * cameraDistance;
-        const visibleWidth = visibleHeight * camera.aspect;
-
-        // Stacked, the canvas is a short band that ends above the carousel,
-        // so a floor reaching toward the camera is sliced off in a straight
-        // line there. Pull its depth in until the faded rim lands on the
-        // band's bottom edge instead.
-        let depthScale = 1.15;
-        if (stackedStageQuery.matches) {
-          const drop = camera.position.y - shadowFloor.position.y;
-          const reach = camera.position.z - drop / halfFovTan - shadowFloor.position.z;
-          depthScale = Math.min(depthScale, Math.max(reach / floorRadius, 0.2));
-        }
-
-        shadowFloor.scale.set(visibleWidth / (floorRadius * 2), depthScale, 1);
-      };
-      updateFloorSize();
-      shadowFloor.rotation.x = -Math.PI / 2;
-      shadowFloor.position.y = -0.9;
-      shadowFloor.receiveShadow = true;
-      scene.add(shadowFloor);
-
-      let modelIsLoaded = false;
-      let restingModelY = 0;
-
-      // Fit the model to a share of the section's on-screen area instead of
-      // per-breakpoint scales. The camera's FOV is vertical, so a fixed world
-      // size looks far wider on a tall phone than on a wide desktop. The
-      // model is also deep (mouse and cable reach toward the camera), so
-      // perspective magnifies it non-linearly as it grows; a bounding-box
-      // estimate overshoots. Instead, project sampled vertices through the
-      // camera and binary-search the scale that fits. --project-model-scale /
-      // --project-model-y in globals.css still work as optional overrides.
-      const MODEL_FIT_WIDTH = 0.6;   // max share of the stage's width
-      const MODEL_FIT_HEIGHT = 0.5;  // max share of the stage's height
-      // Stacked, the stage holds nothing but the model, so it may fill more.
-      const MODEL_FIT_HEIGHT_STACKED = 0.85;
-      const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
-      const MAX_MODEL_SAMPLES = 4000;
-      let modelSamplePoints: THREE.Vector3[] | null = null;
-
-      // Group-local vertex samples of the untilted, unscaled model.
-      const sampleModelPoints = () => {
-        const savedRotation = monitorGroup.rotation.clone();
-        monitorGroup.rotation.set(0, 0, 0);
-        monitorGroup.scale.setScalar(1);
-        monitorGroup.position.set(0, 0, 0);
-        monitorGroup.updateMatrixWorld(true);
-
-        let vertexCount = 0;
-        monitorGroup.traverseVisible((child) => {
-          const mesh = child as THREE.Mesh;
-          if (mesh.isMesh) vertexCount += mesh.geometry.getAttribute('position')?.count ?? 0;
-        });
-        const stride = Math.max(1, Math.ceil(vertexCount / MAX_MODEL_SAMPLES));
-
-        const points: THREE.Vector3[] = [];
-        monitorGroup.traverseVisible((child) => {
-          const mesh = child as THREE.Mesh;
-          const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
-          if (!position) return;
-          for (let i = 0; i < position.count; i += stride) {
-            points.push(
-              new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
-            );
-          }
-        });
-
-        monitorGroup.rotation.copy(savedRotation);
-        return points;
-      };
-
-      // Does the model, at this scale, fit inside the target screen share?
-      const projectedPoint = new THREE.Vector3();
-      const modelFitsAt = (scale: number, points: THREE.Vector3[]) => {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        const yOffset = MODEL_Y_OFFSET * scale;
-        for (const point of points) {
-          projectedPoint.copy(point).multiplyScalar(scale);
-          projectedPoint.y += yOffset;
-          // Anything reaching the camera's near side is far too big.
-          if (projectedPoint.z > camera.position.z - camera.near * 2) return false;
-          projectedPoint.project(camera);
-          minX = Math.min(minX, projectedPoint.x); maxX = Math.max(maxX, projectedPoint.x);
-          minY = Math.min(minY, projectedPoint.y); maxY = Math.max(maxY, projectedPoint.y);
-        }
-        // NDC spans -1..1, so half the range is the share of the viewport.
-        const fitHeight = stackedStageQuery.matches ? MODEL_FIT_HEIGHT_STACKED : MODEL_FIT_HEIGHT;
-        return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= fitHeight;
-      };
-
-      const updateModelScale = () => {
-        // Build the replacement screen while the group is still at its
-        // identity scale. Its geometry and transform are measured in world
-        // space, so scaling the parent beforehand would apply that scale a
-        // second time when the screen is added to monitorGroup.
-        if (!modelIsLoaded) return;
-
-        if (!modelSamplePoints) modelSamplePoints = sampleModelPoints();
-
-        camera.updateMatrixWorld();
-        let low = 0.05;
-        let high = 3;
-        for (let i = 0; i < 16; i++) {
-          const mid = (low + high) / 2;
-          if (modelFitsAt(mid, modelSamplePoints)) low = mid;
-          else high = mid;
-        }
-        const fitScale = low;
-
-        const rootStyle = getComputedStyle(document.documentElement);
-        const cssScale = Number.parseFloat(rootStyle.getPropertyValue('--project-model-scale'));
-        const cssY = Number.parseFloat(rootStyle.getPropertyValue('--project-model-y'));
-
-        monitorGroup.scale.setScalar(fitScale * (Number.isFinite(cssScale) ? cssScale : 1));
-        restingModelY = Number.isFinite(cssY) ? cssY : MODEL_Y_OFFSET * fitScale;
-        monitorGroup.position.y = restingModelY;
-        monitorGroup.updateMatrixWorld(true);
-
-        const scaledModelBox = new THREE.Box3().setFromObject(monitorGroup);
-        shadowFloor.position.y = scaledModelBox.min.y - 0.01;
-        // The floor's depth depends on how far below the camera it sits.
-        updateFloorSize();
-      };
-
-
-      const textureLoader = new THREE.TextureLoader();
-      const textureCache: { [key: string]: THREE.Texture } = {};
-
-      function loadTexture(src: string): THREE.Texture {
-        if (textureCache[src]) return textureCache[src];
-
-        const texture = textureLoader.load(src, () => {
-          if (displayMaterial) {
-            displayMaterial.uniforms.imageAspect.value =
-              (texture.image as HTMLImageElement).width / (texture.image as HTMLImageElement).height;
-          }
-        });
-
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        textureCache[src] = texture;
-
-        return texture;
-      }
-
-      const defaultDisplayImage = "/images/brandon.jpg";
-      // Below lg the carousel opens on the first project and there is no hover
-      // to bring a cover up, so the screen starts on that project's cover.
-      const firstProjectCover = projects[0]?.cover_image;
-      const restingDisplayImage = () =>
-        stackedStageQuery.matches && firstProjectCover ? firstProjectCover : defaultDisplayImage;
-      const defaultTexture = loadTexture(restingDisplayImage());
-      stackedStageQuery.addEventListener('change', () => setDisplayImage(restingDisplayImage()));
-
-      let displayMaterial: THREE.ShaderMaterial | null = null;
-
-      displayMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-          map: { value: defaultTexture },
-          imageAspect: { value: 1 },
-          planeAspect: { value: 1.07999 },
-          iResolution: { value: new THREE.Vector2(512, 512) },
-          glitchIntensity: { value: 0.0 },
-          time: { value: 0.0 },
-        },
-        vertexShader,      
-        fragmentShader,    
-        transparent: true,
-      });
-
-      // Load model FIRST
-      new GLTFLoader().load("/models/macintosh_128k_computer_1984/scene.gltf", (gltf) => {
-        const model = gltf.scene;
-
-        // The keyboard body, cable, and individual keys are exported as
-        // separate meshes. Remove all of them before sizing and centering the
-        // remaining computer setup.
-        const keyboardMeshes: THREE.Object3D[] = [];
-        model.traverse((child) => {
-          const mesh = child as THREE.Mesh;
-          if (!mesh.isMesh) return;
-
-          const materials = Array.isArray(mesh.material)
-            ? mesh.material
-            : [mesh.material];
-          const usesKeyMaterial = materials.some(
-            (material) => material.name.toLowerCase() === 'keys'
+        // Radial alpha map gives the circular tabletop a soft edge so it fades
+        // away before the horizontal scroll reaches the next section.
+        const floorAlphaCanvas = document.createElement('canvas');
+        floorAlphaCanvas.width = 256;
+        floorAlphaCanvas.height = 256;
+        const floorAlphaContext = floorAlphaCanvas.getContext('2d');
+        if (floorAlphaContext) {
+          const floorFade = floorAlphaContext.createRadialGradient(
+            128, 128, 128 * 0.62,
+            128, 128, 128
           );
-          const isKeyboardPart =
-            mesh.name.toLowerCase().startsWith('keyboard') || usesKeyMaterial;
+          floorFade.addColorStop(0, '#ffffff');
+          floorFade.addColorStop(1, '#000000');
+          floorAlphaContext.fillStyle = floorFade;
+          floorAlphaContext.fillRect(0, 0, 256, 256);
+        }
+        const floorAlphaMap = new THREE.CanvasTexture(floorAlphaCanvas);
 
-          if (isKeyboardPart) keyboardMeshes.push(mesh);
-        });
-        keyboardMeshes.forEach((mesh) => mesh.parent?.remove(mesh));
+        // Visible circular tabletop surface and shadow receiver. It stays in
+        // the scene root so it remains level while the monitor tilts on hover.
+        const shadowFloor = new THREE.Mesh(
+          new THREE.CircleGeometry(1.9, 128),
+          new THREE.MeshStandardMaterial({
+            color: 0xd9dcde,
+            roughness: 1,
+            metalness: 0,
+            alphaMap: floorAlphaMap,
+            opacity: 0.85,
+            transparent: true,
+            depthWrite: false,
+          })
+        );
+        // Fill the viewport horizontally and extend toward the camera. The
+        // radial alpha map is transparent where the surface meets the section
+        // edges, avoiding a hard cutoff during horizontal scrolling.
+        const floorRadius = 1.9;
+        const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
+        const updateFloorSize = () => {
+          const halfFovTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+          const cameraDistance = Math.abs(
+            camera.position.z - shadowFloor.position.z
+          );
+          const visibleHeight = 2 * halfFovTan * cameraDistance;
+          const visibleWidth = visibleHeight * camera.aspect;
 
-        // Pull the mouse assembly inward and slightly back toward the
-        // computer. Moving the top-level groups keeps the mouse, cable, and
-        // plug aligned with one another.
-        const mousePartNames = new Set(['Mouse', 'Mousechord', 'Mouseplug']);
-        const mouseParts: THREE.Object3D[] = [];
-        model.traverse((child) => {
-          if (!mousePartNames.has(child.name)) return;
-          child.position.x -= 10;
-          child.position.z -= 15;
-          mouseParts.push(child);
-        });
+          // Stacked, the canvas is a short band that ends above the carousel,
+          // so a floor reaching toward the camera is sliced off in a straight
+          // line there. Pull its depth in until the faded rim lands on the
+          // band's bottom edge instead.
+          let depthScale = 1.15;
+          if (stackedStageQuery.matches) {
+            const drop = camera.position.y - shadowFloor.position.y;
+            const reach = camera.position.z - drop / halfFovTan - shadowFloor.position.z;
+            depthScale = Math.min(depthScale, Math.max(reach / floorRadius, 0.2));
+          }
 
-        // Up to 768px the mouse is dropped so the computer alone fills the fit
-        // area; the samples are rebuilt because they skip hidden parts.
-        const mouseHiddenQuery = window.matchMedia('(max-width: 768px)');
-        const syncMouseVisibility = () => {
-          mouseParts.forEach((part) => { part.visible = !mouseHiddenQuery.matches; });
-          modelSamplePoints = null;
-          updateModelScale();
+          shadowFloor.scale.set(visibleWidth / (floorRadius * 2), depthScale, 1);
         };
-        mouseHiddenQuery.addEventListener('change', syncMouseVisibility);
-        syncMouseVisibility();
+        updateFloorSize();
+        shadowFloor.rotation.x = -Math.PI / 2;
+        shadowFloor.position.y = -0.9;
+        shadowFloor.receiveShadow = true;
+        scene.add(shadowFloor);
 
-        // Keep the computer—not the movable mouse/cables—as the fixed sizing
-        // and camera anchor. Mouse coordinate edits no longer shift or zoom
-        // the computer indirectly through the combined bounding box.
-        const computer = model.getObjectByName('Computer') ?? model;
-        normalizeModel(model, 1.5, computer);
+        let modelIsLoaded = false;
+        let restingModelY = 0;
 
-        monitorGroup.add(model);
-        model.updateMatrixWorld(true);
+        // Fit the model to a share of the section's on-screen area instead of
+        // per-breakpoint scales. The camera's FOV is vertical, so a fixed world
+        // size looks far wider on a tall phone than on a wide desktop. The
+        // model is also deep (mouse and cable reach toward the camera), so
+        // perspective magnifies it non-linearly as it grows; a bounding-box
+        // estimate overshoots. Instead, project sampled vertices through the
+        // camera and binary-search the scale that fits. --project-model-scale /
+        // --project-model-y in globals.css still work as optional overrides.
+        const MODEL_FIT_WIDTH = 0.6;   // max share of the stage's width
+        const MODEL_FIT_HEIGHT = 0.5;  // max share of the stage's height
+        // Stacked, the stage holds nothing but the model, so it may fill more.
+        const MODEL_FIT_HEIGHT_STACKED = 0.85;
+        const MODEL_Y_OFFSET = -0.1;   // resting drop, in fitted model units
+        const MAX_MODEL_SAMPLES = 4000;
+        let modelSamplePoints: THREE.Vector3[] | null = null;
 
-        // Locate this model's dedicated screen mesh without using a generic
-        // texture-map fallback (all of this asset's materials are textured).
-        let foundScreenMesh: THREE.Mesh | null = null;
-        model.traverse((child) => {
-          const mesh = child as THREE.Mesh;
-          if (!mesh.isMesh) return;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          const materials = Array.isArray(mesh.material)
-            ? mesh.material
-            : [mesh.material];
-          const isScreen = materials.some((material) => {
-            const materialName = material.name.toLowerCase();
-            return materialName === 'screen' ||
-              materialName.includes('screen') ||
-              mesh.name.toLowerCase().includes('screen');
+        // Group-local vertex samples of the untilted, unscaled model.
+        const sampleModelPoints = () => {
+          const savedRotation = monitorGroup.rotation.clone();
+          monitorGroup.rotation.set(0, 0, 0);
+          monitorGroup.scale.setScalar(1);
+          monitorGroup.position.set(0, 0, 0);
+          monitorGroup.updateMatrixWorld(true);
+
+          let vertexCount = 0;
+          monitorGroup.traverseVisible((child) => {
+            const mesh = child as THREE.Mesh;
+            if (mesh.isMesh) vertexCount += mesh.geometry.getAttribute('position')?.count ?? 0;
           });
-          if (!foundScreenMesh && isScreen) {
-            foundScreenMesh = mesh;
+          const stride = Math.max(1, Math.ceil(vertexCount / MAX_MODEL_SAMPLES));
+
+          const points: THREE.Vector3[] = [];
+          monitorGroup.traverseVisible((child) => {
+            const mesh = child as THREE.Mesh;
+            const position = mesh.isMesh ? mesh.geometry.getAttribute('position') : null;
+            if (!position) return;
+            for (let i = 0; i < position.count; i += stride) {
+              points.push(
+                new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
+              );
+            }
+          });
+
+          monitorGroup.rotation.copy(savedRotation);
+          return points;
+        };
+
+        // Does the model, at this scale, fit inside the target screen share?
+        const projectedPoint = new THREE.Vector3();
+        const modelFitsAt = (scale: number, points: THREE.Vector3[]) => {
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          const yOffset = MODEL_Y_OFFSET * scale;
+          for (const point of points) {
+            projectedPoint.copy(point).multiplyScalar(scale);
+            projectedPoint.y += yOffset;
+            // Anything reaching the camera's near side is far too big.
+            if (projectedPoint.z > camera.position.z - camera.near * 2) return false;
+            projectedPoint.project(camera);
+            minX = Math.min(minX, projectedPoint.x); maxX = Math.max(maxX, projectedPoint.x);
+            minY = Math.min(minY, projectedPoint.y); maxY = Math.max(maxY, projectedPoint.y);
           }
+          // NDC spans -1..1, so half the range is the share of the viewport.
+          const fitHeight = stackedStageQuery.matches ? MODEL_FIT_HEIGHT_STACKED : MODEL_FIT_HEIGHT;
+          return (maxX - minX) / 2 <= MODEL_FIT_WIDTH && (maxY - minY) / 2 <= fitHeight;
+        };
+
+        const updateModelScale = () => {
+          // Build the replacement screen while the group is still at its
+          // identity scale. Its geometry and transform are measured in world
+          // space, so scaling the parent beforehand would apply that scale a
+          // second time when the screen is added to monitorGroup.
+          if (!modelIsLoaded) return;
+
+          if (!modelSamplePoints) modelSamplePoints = sampleModelPoints();
+
+          camera.updateMatrixWorld();
+          let low = 0.05;
+          let high = 3;
+          for (let i = 0; i < 16; i++) {
+            const mid = (low + high) / 2;
+            if (modelFitsAt(mid, modelSamplePoints)) low = mid;
+            else high = mid;
+          }
+          const fitScale = low;
+
+          const rootStyle = getComputedStyle(document.documentElement);
+          const cssScale = Number.parseFloat(rootStyle.getPropertyValue('--project-model-scale'));
+          const cssY = Number.parseFloat(rootStyle.getPropertyValue('--project-model-y'));
+
+          monitorGroup.scale.setScalar(fitScale * (Number.isFinite(cssScale) ? cssScale : 1));
+          restingModelY = Number.isFinite(cssY) ? cssY : MODEL_Y_OFFSET * fitScale;
+          monitorGroup.position.y = restingModelY;
+          monitorGroup.updateMatrixWorld(true);
+
+          const scaledModelBox = new THREE.Box3().setFromObject(monitorGroup);
+          shadowFloor.position.y = scaledModelBox.min.y - 0.01;
+          // The floor's depth depends on how far below the camera it sits.
+          updateFloorSize();
+        };
+
+
+        const textureLoader = new THREE.TextureLoader();
+        const textureCache: { [key: string]: THREE.Texture } = {};
+
+        function loadTexture(src: string): THREE.Texture {
+          if (textureCache[src]) return textureCache[src];
+
+          // Once loaded, correct the aspect of whichever slot (if any) shows it.
+          const texture = textureLoader.load(src, () => {
+            if (!displayMaterial) return;
+            const { uniforms } = displayMaterial;
+            if (uniforms.map.value === texture) uniforms.imageAspect.value = aspectOf(texture);
+          });
+
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          textureCache[src] = texture;
+
+          return texture;
+        }
+
+        // Width over height once the image has loaded; 1 until then.
+        function aspectOf(texture: THREE.Texture) {
+          const img = texture.image as HTMLImageElement | undefined;
+          return img && img.width > 0 ? img.width / img.height : 1;
+        }
+
+        const defaultDisplayImage = "/images/brandon.jpg";
+        // Below lg the carousel opens on the first project and there is no hover
+        // to bring a cover up, so the screen starts on that project's cover.
+        const firstProjectCover = projects[0]?.cover_image;
+        const restingDisplayImage = () =>
+          stackedStageQuery.matches && firstProjectCover ? firstProjectCover : defaultDisplayImage;
+        const defaultTexture = loadTexture(restingDisplayImage());
+        stackedStageQuery.addEventListener('change', () => setDisplayImage(restingDisplayImage()));
+
+        let displayMaterial: THREE.ShaderMaterial | null = null;
+
+        displayMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            map: { value: defaultTexture },
+            imageAspect: { value: aspectOf(defaultTexture) },
+            planeAspect: { value: 1.07999 },
+            iResolution: { value: new THREE.Vector2(512, 512) },
+            glitchIntensity: { value: 0.0 },
+            time: { value: 0.0 },
+          },
+          vertexShader,      
+          fragmentShader,    
+          transparent: true,
         });
-        // TS narrows a `let` mutated only inside a closure back to its
-        // pre-call type (null) rather than widening to THREE.Mesh | null,
-        // and treats a bare `const x = foundScreenMesh` as a transparent
-        // alias that inherits that same bad narrowing — the `as` cast
-        // (not just the copy) is what breaks the alias tracking.
-        const screenMesh = foundScreenMesh as THREE.Mesh | null;
 
-        // Drop the fade-floor to sit exactly under the model's base now that
-        // its real (post-normalize, post-offset) bounding box is known.
-        const modelBox = new THREE.Box3().setFromObject(model);
-        shadowFloor.position.y = modelBox.min.y - 0.01;
+        // Load model FIRST
+        new GLTFLoader().load("/models/macintosh_128k_computer_1984/scene.gltf", (gltf) => {
+          const model = gltf.scene;
 
-        if (screenMesh && displayMaterial) {
-          // Apply the shader directly so the authored curved CRT geometry,
-          // UVs, position, and bezel fit remain intact.
-          // This asset stores its display UVs rotated: V runs horizontally
-          // and reversed U runs vertically. Normalize the partial atlas range
-          // and rotate it back before sampling project images.
-          screenMesh.geometry = screenMesh.geometry.clone();
-          const screenUv = screenMesh.geometry.getAttribute('uv');
-          if (screenUv) {
-            let minU = Infinity;
-            let maxU = -Infinity;
-            let minV = Infinity;
-            let maxV = -Infinity;
+          // The keyboard body, cable, and individual keys are exported as
+          // separate meshes. Remove all of them before sizing and centering the
+          // remaining computer setup.
+          const keyboardMeshes: THREE.Object3D[] = [];
+          model.traverse((child) => {
+            const mesh = child as THREE.Mesh;
+            if (!mesh.isMesh) return;
 
-            for (let index = 0; index < screenUv.count; index += 1) {
-              minU = Math.min(minU, screenUv.getX(index));
-              maxU = Math.max(maxU, screenUv.getX(index));
-              minV = Math.min(minV, screenUv.getY(index));
-              maxV = Math.max(maxV, screenUv.getY(index));
+            const materials = Array.isArray(mesh.material)
+              ? mesh.material
+              : [mesh.material];
+            const usesKeyMaterial = materials.some(
+              (material) => material.name.toLowerCase() === 'keys'
+            );
+            const isKeyboardPart =
+              mesh.name.toLowerCase().startsWith('keyboard') || usesKeyMaterial;
+
+            if (isKeyboardPart) keyboardMeshes.push(mesh);
+          });
+          keyboardMeshes.forEach((mesh) => mesh.parent?.remove(mesh));
+
+          // Pull the mouse assembly inward and slightly back toward the
+          // computer. Moving the top-level groups keeps the mouse, cable, and
+          // plug aligned with one another.
+          const mousePartNames = new Set(['Mouse', 'Mousechord', 'Mouseplug']);
+          const mouseParts: THREE.Object3D[] = [];
+          model.traverse((child) => {
+            if (!mousePartNames.has(child.name)) return;
+            child.position.x -= 10;
+            child.position.z -= 15;
+            mouseParts.push(child);
+          });
+
+          // Up to 768px the mouse is dropped so the computer alone fills the fit
+          // area; the samples are rebuilt because they skip hidden parts.
+          const mouseHiddenQuery = window.matchMedia('(max-width: 768px)');
+          const syncMouseVisibility = () => {
+            mouseParts.forEach((part) => { part.visible = !mouseHiddenQuery.matches; });
+            modelSamplePoints = null;
+            updateModelScale();
+          };
+          mouseHiddenQuery.addEventListener('change', syncMouseVisibility);
+          syncMouseVisibility();
+
+          // Keep the computer—not the movable mouse/cables—as the fixed sizing
+          // and camera anchor. Mouse coordinate edits no longer shift or zoom
+          // the computer indirectly through the combined bounding box.
+          const computer = model.getObjectByName('Computer') ?? model;
+          normalizeModel(model, 1.5, computer);
+
+          monitorGroup.add(model);
+          model.updateMatrixWorld(true);
+
+          // Locate this model's dedicated screen mesh without using a generic
+          // texture-map fallback (all of this asset's materials are textured).
+          let foundScreenMesh: THREE.Mesh | null = null;
+          model.traverse((child) => {
+            const mesh = child as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            const materials = Array.isArray(mesh.material)
+              ? mesh.material
+              : [mesh.material];
+            const isScreen = materials.some((material) => {
+              const materialName = material.name.toLowerCase();
+              return materialName === 'screen' ||
+                materialName.includes('screen') ||
+                mesh.name.toLowerCase().includes('screen');
+            });
+            if (!foundScreenMesh && isScreen) {
+              foundScreenMesh = mesh;
+            }
+          });
+          // TS narrows a `let` mutated only inside a closure back to its
+          // pre-call type (null) rather than widening to THREE.Mesh | null,
+          // and treats a bare `const x = foundScreenMesh` as a transparent
+          // alias that inherits that same bad narrowing — the `as` cast
+          // (not just the copy) is what breaks the alias tracking.
+          const screenMesh = foundScreenMesh as THREE.Mesh | null;
+
+          // Drop the fade-floor to sit exactly under the model's base now that
+          // its real (post-normalize, post-offset) bounding box is known.
+          const modelBox = new THREE.Box3().setFromObject(model);
+          shadowFloor.position.y = modelBox.min.y - 0.01;
+
+          if (screenMesh && displayMaterial) {
+            // Apply the shader directly so the authored curved CRT geometry,
+            // UVs, position, and bezel fit remain intact.
+            // This asset stores its display UVs rotated: V runs horizontally
+            // and reversed U runs vertically. Normalize the partial atlas range
+            // and rotate it back before sampling project images.
+            screenMesh.geometry = screenMesh.geometry.clone();
+            const screenUv = screenMesh.geometry.getAttribute('uv');
+            if (screenUv) {
+              let minU = Infinity;
+              let maxU = -Infinity;
+              let minV = Infinity;
+              let maxV = -Infinity;
+
+              for (let index = 0; index < screenUv.count; index += 1) {
+                minU = Math.min(minU, screenUv.getX(index));
+                maxU = Math.max(maxU, screenUv.getX(index));
+                minV = Math.min(minV, screenUv.getY(index));
+                maxV = Math.max(maxV, screenUv.getY(index));
+              }
+
+              const rangeU = maxU - minU || 1;
+              const rangeV = maxV - minV || 1;
+              for (let index = 0; index < screenUv.count; index += 1) {
+                const normalizedU = (screenUv.getX(index) - minU) / rangeU;
+                const normalizedV = (screenUv.getY(index) - minV) / rangeV;
+                screenUv.setXY(index, normalizedV, 1 - normalizedU);
+              }
+              screenUv.needsUpdate = true;
             }
 
-            const rangeU = maxU - minU || 1;
-            const rangeV = maxV - minV || 1;
-            for (let index = 0; index < screenUv.count; index += 1) {
-              const normalizedU = (screenUv.getX(index) - minU) / rangeU;
-              const normalizedV = (screenUv.getY(index) - minV) / rangeV;
-              screenUv.setXY(index, normalizedV, 1 - normalizedU);
+            screenMesh.geometry.computeBoundingBox();
+            const screenBounds = screenMesh.geometry.boundingBox;
+            if (!screenBounds) return;
+
+            const localSize = screenBounds.getSize(new THREE.Vector3());
+            displayMaterial.side = THREE.DoubleSide;
+            screenMesh.material = displayMaterial;
+            monitorScreen.current = screenMesh;
+
+            const worldScale = screenMesh.getWorldScale(new THREE.Vector3());
+            // This screen's broad axes are local X/Y; local Z is only its CRT
+            // curvature depth. Account for inherited scale in the image ratio.
+            if (localSize.y !== 0 && worldScale.y !== 0) {
+              displayMaterial.uniforms.planeAspect.value =
+                (localSize.x * Math.abs(worldScale.x)) /
+                (localSize.y * Math.abs(worldScale.y));
             }
-            screenUv.needsUpdate = true;
           }
 
-          screenMesh.geometry.computeBoundingBox();
-          const screenBounds = screenMesh.geometry.boundingBox;
-          if (!screenBounds) return;
-
-          const localSize = screenBounds.getSize(new THREE.Vector3());
-          displayMaterial.side = THREE.DoubleSide;
-          screenMesh.material = displayMaterial;
-          monitorScreen.current = screenMesh;
-
-          const worldScale = screenMesh.getWorldScale(new THREE.Vector3());
-          // This screen's broad axes are local X/Y; local Z is only its CRT
-          // curvature depth. Account for inherited scale in the image ratio.
-          if (localSize.y !== 0 && worldScale.y !== 0) {
-            displayMaterial.uniforms.planeAspect.value =
-              (localSize.x * Math.abs(worldScale.x)) /
-              (localSize.y * Math.abs(worldScale.y));
-          }
-        }
-
-        modelIsLoaded = true;
-        updateModelScale();
-      });
+          modelIsLoaded = true;
+          updateModelScale();
+        });
       
-      const mouse = { x: 0, y: 0 };
-      const lerpedMouse = { x: 0, y: 0 };
-      const timer = new THREE.Timer();
+        let rafId = 0;
+        let onScreen = true;
+        const visibilityObserver = new IntersectionObserver(([entry]) => { onScreen = entry.isIntersecting; });
+        visibilityObserver.observe(container);
 
-      function animateThree() {
-        threeRafId = requestAnimationFrame(animateThree);
+        const mouse = { x: 0, y: 0 };
+        const lerpedMouse = { x: 0, y: 0 };
+        const timer = new THREE.Timer();
 
-        timer.update();
-        if (displayMaterial) {
-          displayMaterial.uniforms.time.value = timer.getElapsed();
+        function animateThree() {
+          rafId = requestAnimationFrame(animateThree);
+
+          timer.update();
+          if (displayMaterial) {
+            displayMaterial.uniforms.time.value = timer.getElapsed();
+          }
+
+          lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
+          lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
+          monitorGroup.rotation.x = lerpedMouse.y * 0.35;
+          monitorGroup.rotation.y = lerpedMouse.x * 0.3;
+          monitorGroup.position.x = 0;
+          monitorGroup.position.y = restingModelY;
+          shadowFloor.position.x = 0;
+          // Follow only vertical pointer movement. The tabletop does not inherit
+          // the monitor's left/right rotation.
+          shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
+
+          // Skip drawing while the section is off screen.
+          if (onScreen) renderer.render(scene, camera);
         }
 
-        lerpedMouse.x = gsap.utils.interpolate(lerpedMouse.x, mouse.x, 0.05);
-        lerpedMouse.y = gsap.utils.interpolate(lerpedMouse.y, mouse.y, 0.05);
-        monitorGroup.rotation.x = lerpedMouse.y * 0.35;
-        monitorGroup.rotation.y = lerpedMouse.x * 0.3;
-        monitorGroup.position.x = 0;
-        monitorGroup.position.y = restingModelY;
-        shadowFloor.position.x = 0;
-        // Follow only vertical pointer movement. The tabletop does not inherit
-        // the monitor's left/right rotation.
-        shadowFloor.rotation.x = -Math.PI / 2 + lerpedMouse.y * 0.35;
+        animateThree();
 
-        renderer.render(scene, camera);
-      }
+        // Scoped to the section itself (not window) so the model rests
+        // centered by default and only tracks the cursor while it's actually
+        // over this section. Touch devices and the stacked layout keep it still:
+        // a tap fires a synthetic mousemove that would leave the model tilted.
+        const staticModelQuery = window.matchMedia('(hover: none), (max-width: 1023.98px)');
+        container.addEventListener("mousemove", (e) => {
+          if (staticModelQuery.matches) {
+            mouse.x = 0;
+            mouse.y = 0;
+            return;
+          }
+          const rect = container.getBoundingClientRect();
+          const x = (e.clientX - rect.left) / rect.width - 0.5;
+          const y = (e.clientY - rect.top) / rect.height - 0.5;
 
-      animateThree();
+          mouse.x = x * 2;
+          mouse.y = y * 1;
+        });
 
-      // Scoped to the section itself (not window) so the model rests
-      // centered by default and only tracks the cursor while it's actually
-      // over this section. Touch devices and the stacked layout keep it still:
-      // a tap fires a synthetic mousemove that would leave the model tilted.
-      const staticModelQuery = window.matchMedia('(hover: none), (max-width: 1023.98px)');
-      container.addEventListener("mousemove", (e) => {
-        if (staticModelQuery.matches) {
+        container.addEventListener("mouseleave", () => {
           mouse.x = 0;
           mouse.y = 0;
-          return;
-        }
-        const rect = container.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width - 0.5;
-        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        });
 
-        mouse.x = x * 2;
-        mouse.y = y * 1;
-      });
+        const resizeStage = () => {
+          const newWidth = stage.clientWidth;
+          const newHeight = stage.clientHeight;
 
-      container.addEventListener("mouseleave", () => {
-        mouse.x = 0;
-        mouse.y = 0;
-      });
+          if (newWidth === 0 || newHeight === 0) return;
 
-      const resizeStage = () => {
-        const newWidth = stage.clientWidth;
-        const newHeight = stage.clientHeight;
-
-        if (newWidth === 0 || newHeight === 0) return;
-
-        camera.aspect = newWidth / newHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(newWidth, newHeight);
-        updateFloorSize();
-        updateModelScale();
-      };
-      window.addEventListener("resize", resizeStage);
-      // Stacked, the stage flexes with the content around it, so it can
-      // change size without the window doing so.
-      stageResizeObserver = new ResizeObserver(resizeStage);
-      stageResizeObserver.observe(stage);
+          camera.aspect = newWidth / newHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(newWidth, newHeight);
+          updateFloorSize();
+          updateModelScale();
+        };
+        window.addEventListener("resize", resizeStage);
+        // Stacked, the stage flexes with the content around it, so it can
+        // change size without the window doing so.
+        const stageResizeObserver = new ResizeObserver(resizeStage);
+        stageResizeObserver.observe(stage);
       
-      const glitchState = { intensity: 0 };
-      let glitchAnimation: gsap.core.Tween | null = null;
+        const glitchState = { intensity: 0 };
+        let glitchAnimation: gsap.core.Tween | null = null;
 
-      function setDisplayImage(src: string) {
-        const texture = loadTexture(src);
+        function setDisplayImage(src: string) {
+          const texture = loadTexture(src);
 
-        if (displayMaterial) {
-          displayMaterial.uniforms.map.value = texture;
+          if (displayMaterial) {
+            displayMaterial.uniforms.map.value = texture;
 
-          if (texture.image && (texture.image as HTMLImageElement).width > 0) {
-            const img = texture.image as HTMLImageElement;
-            displayMaterial.uniforms.imageAspect.value = img.width / img.height;
-          }
-        }
-
-        if (glitchAnimation) glitchAnimation.kill();
-        glitchState.intensity = 1.0;
-
-        glitchAnimation = gsap.to(glitchState, {
-          intensity: 0,
-          duration: 0.75,
-          ease: "power3.out",
-          onUpdate() {
-            if (displayMaterial) {
-              displayMaterial.uniforms.glitchIntensity.value = glitchState.intensity;
+            if (texture.image && (texture.image as HTMLImageElement).width > 0) {
+              const img = texture.image as HTMLImageElement;
+              displayMaterial.uniforms.imageAspect.value = img.width / img.height;
             }
           }
-        });
-      }
 
-      setMonitorImage.current = setDisplayImage;
+          if (glitchAnimation) glitchAnimation.kill();
+          glitchState.intensity = 1.0;
 
-      document.querySelectorAll('.projects li').forEach(li => {
-        li.addEventListener('mouseover', (e) => {
-          const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
-          const item = e.currentTarget as HTMLElement;
-          const projectName = item.getAttribute('data-name');
-          const projectType = item.getAttribute('data-project-type');
-          const disciplines = item.getAttribute('data-disciplines');
-          const year = item.getAttribute('data-year');
-          const position = item.getAttribute('data-position');
-          if (imgSrc) setDisplayImage(imgSrc);
-
-          const titleElement = document.querySelector('.project-description h3') as HTMLElement;
-          const positionElement = document.querySelector<HTMLElement>('.project-description [data-project-position]');
-          const detailElements = document.querySelectorAll<HTMLElement>('.project-description [data-project-detail]');
-          const tagsElement = document.querySelector<HTMLElement>('.project-description [data-project-tags]');
-
-          if (positionElement) positionElement.textContent = position || '';
-
-          if (titleElement && projectName) {
-            titleElement.textContent = projectName;
-
-            // Split title into characters for typing animation
-            const titleSplit = SplitText.create(titleElement, {
-              type: "chars",
-              charsClass: "char"
-            });
-
-            gsap.set(titleSplit.chars, { opacity: 0 });
-            gsap.to(titleSplit.chars, {
-              opacity: 1,
-              duration: 0.05,
-              stagger: 0.05,
-              onComplete: () => titleSplit.revert()
-            });
-          }
-
-          [projectType, year].forEach((value, index) => {
-            if (detailElements[index]) detailElements[index].textContent = value || '—';
+          glitchAnimation = gsap.to(glitchState, {
+            intensity: 0,
+            duration: 0.75,
+            ease: "power3.out",
+            onUpdate() {
+              if (displayMaterial) {
+                displayMaterial.uniforms.glitchIntensity.value = glitchState.intensity;
+              }
+            }
           });
-          // Role and tags: one pill each.
-          tagsElement?.replaceChildren(
-            ...(disciplines ? disciplines.split('\n') : []).map((label) => {
-              const pill = document.createElement('span');
-              pill.textContent = label;
-              return pill;
-            })
-          );
-          gsap.to('.project-description', { opacity: 1, duration: 0.3, ease: "power2.out" });
-        });
+        }
 
-        li.addEventListener('mouseout', () => {
-          setDisplayImage(defaultDisplayImage);
+        setMonitorImage.current = setDisplayImage;
 
-          // Kill any ongoing character animations
-          gsap.killTweensOf('.project-description h3 .char');
+        // The pills drive the section's own description panel.
+        const description = container.querySelector<HTMLElement>('.project-description');
 
-          gsap.to('.project-description', {
-            opacity: 0,
-            duration: 0.3,
-            ease: "power2.in"
+        container.querySelectorAll('.projects li').forEach(li => {
+          li.addEventListener('mouseover', (e) => {
+            const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
+            const item = e.currentTarget as HTMLElement;
+            const projectName = item.getAttribute('data-name');
+            const projectType = item.getAttribute('data-project-type');
+            const disciplines = item.getAttribute('data-disciplines');
+            const year = item.getAttribute('data-year');
+            const position = item.getAttribute('data-position');
+            if (imgSrc) setDisplayImage(imgSrc);
+
+            const titleElement = description?.querySelector('h3') as HTMLElement | null;
+            const positionElement = description?.querySelector<HTMLElement>('[data-project-position]');
+            const detailElements = description?.querySelectorAll<HTMLElement>('[data-project-detail]') ?? [];
+            const tagsElement = description?.querySelector<HTMLElement>('[data-project-tags]');
+
+            if (positionElement) positionElement.textContent = position || '';
+
+            if (titleElement && projectName) {
+              titleElement.textContent = projectName;
+
+              // Split title into characters for typing animation
+              const titleSplit = SplitText.create(titleElement, {
+                type: "chars",
+                charsClass: "char"
+              });
+
+              gsap.set(titleSplit.chars, { opacity: 0 });
+              gsap.to(titleSplit.chars, {
+                opacity: 1,
+                duration: 0.05,
+                stagger: 0.05,
+                onComplete: () => titleSplit.revert()
+              });
+            }
+
+            [projectType, year].forEach((value, index) => {
+              if (detailElements[index]) detailElements[index].textContent = value || '—';
+            });
+            // Role and tags: one pill each.
+            tagsElement?.replaceChildren(
+              ...(disciplines ? disciplines.split('\n') : []).map((label) => {
+                const pill = document.createElement('span');
+                pill.textContent = label;
+                return pill;
+              })
+            );
+            if (description) gsap.to(description, { opacity: 1, duration: 0.3, ease: "power2.out" });
+          });
+
+          li.addEventListener('mouseout', () => {
+            setDisplayImage(defaultDisplayImage);
+
+            // Kill any ongoing character animations
+            if (description) gsap.killTweensOf(description.querySelectorAll('h3 .char'));
+
+            if (description) gsap.to(description, {
+              opacity: 0,
+              duration: 0.3,
+              ease: "power2.in"
+            });
           });
         });
-      });
+
+        return () => {
+          cancelAnimationFrame(rafId);
+          visibilityObserver.disconnect();
+          stageResizeObserver.disconnect();
+          window.removeEventListener('resize', resizeStage);
+          renderer.dispose();
+          renderer.domElement.remove();
+        };
+      };
+
+      monitorCleanups.push(setupMonitor(projectsRef.current!, modelStageRef.current!));
 
       customEase.create("hop", "0.9, 0, 0.1, 1");
       // Gentler than "hop" for the preloader images: "hop" packs over half
@@ -1619,7 +1678,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       } // end preloader
 
       // Skill pills: drop in again whenever they scroll back into view.
-      const pillWrapperEl = document.querySelector<HTMLElement>(".skill-pill-wrapper");
+      const pillWrapperEl = heroPillWrapper;
       if (pillWrapperEl && pillSlides.length) {
         let firstEntryHandled = false;
         const pillObserver = new IntersectionObserver(([entry]) => {
@@ -1643,7 +1702,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // Non-hero headings: masked line reveal, then character hover once done.
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
-      )).filter((el) => !el.closest('.project-carousel'));
+      )).filter((el) => !el.closest('.project-carousel, .about-statement'));
       entranceHeadings.forEach((heading) => {
         gsap.set(heading, { autoAlpha: 0 });
         const split = SplitText.create(heading, { type: "lines", mask: "lines" });
@@ -1751,6 +1810,115 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       });
 
+      // About skill groups: each group's pills drop in like the hero's whenever
+      // the group comes into view.
+      document.querySelectorAll<HTMLElement>('#about .skill-pill-wrapper').forEach((wrapper) => {
+        const obs = new IntersectionObserver(([entry]) => {
+          if (entry.isIntersecting) dropPills(wrapper, 0.08);
+        }, { threshold: 0.3 });
+        obs.observe(wrapper);
+        shaderRippleCleanups.push(() => obs.disconnect());
+      });
+
+      // About, scroll-linked: the statement's words rise into place as About
+      // scrolls. Progress comes from the block's position on screen, so it
+      // works whether About scrolls itself (desktop, scrubbed scrollTop) or
+      // with the page (stacked).
+      const statementText = document.querySelector<HTMLElement>('.about-statement__text');
+      if (statementText) {
+        const statementSplit = statementText
+          ? SplitText.create(statementText, { type: 'words', mask: 'words', wordsClass: 'about-statement__word' })
+          : null;
+        const statementWords = (statementSplit?.words ?? []) as HTMLElement[];
+        const statementBox = statementText?.closest<HTMLElement>('.about-statement') ?? null;
+        const highlight = statementText?.querySelector<HTMLElement>('.about-statement__highlight') ?? null;
+        const highlightWordIndex = highlight
+          ? statementWords.findIndex((word) => word.contains(highlight) || highlight.contains(word))
+          : -1;
+        const squiggle = statementBox?.querySelector<SVGSVGElement>('.about-statement__squiggle') ?? null;
+        const squigglePath = squiggle?.querySelector('path') ?? null;
+        if (squigglePath) gsap.set(squigglePath, { drawSVG: '0%' });
+        const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+        // 0 when the block's top reaches 90% down the screen, 1 after it has
+        // travelled its own height (or `minSpan` of the screen, if taller).
+        const progressOf = (el: HTMLElement, minSpan: number) => {
+          const rect = el.getBoundingClientRect();
+          const vh = window.innerHeight;
+          return clamp01((vh * 0.9 - rect.top) / Math.max(rect.height, vh * minSpan));
+        };
+
+        const updateAboutScroll = () => {
+          if (statementText) {
+            const p = reduceMotion ? 1 : progressOf(statementText, 0.4);
+            const count = statementWords.length;
+            statementWords.forEach((word, index) => {
+              // Each word rises over a three-word window, so they overlap. It
+              // starts 125% down: its mask is padded (see .about-statement__word-mask),
+              // so 100% would leave the top of the word showing.
+              const f = clamp01((p * (count + 2) - index) / 3);
+              word.style.transform = `translateY(${(1 - f) * (1 - f) * 125}%)`;
+            });
+
+            // Squiggle: sit it under the highlighted word's resting position
+            // (its rect minus the rise still applied), then draw it in over the
+            // last fifth of the statement's progress.
+            if (squiggle && squigglePath && highlight && statementBox) {
+              const word = statementWords[highlightWordIndex];
+              const f = word ? clamp01((p * (count + 2) - highlightWordIndex) / 3) : 1;
+              const rise = word ? (1 - f) * (1 - f) * 1.25 * word.offsetHeight : 0;
+              const box = statementBox.getBoundingClientRect();
+              const rect = highlight.getBoundingClientRect();
+              const height = rect.height * 0.22;
+              Object.assign(squiggle.style, {
+                left: `${rect.left - box.left}px`,
+                top: `${rect.bottom - rise - box.top - height * 0.2}px`,
+                width: `${rect.width}px`,
+                height: `${height}px`,
+              });
+              gsap.set(squigglePath, { drawSVG: `0% ${clamp01((p - 0.8) / 0.2) * 100}%` });
+            }
+          }
+        };
+
+        aboutSection?.addEventListener('scroll', updateAboutScroll, { passive: true });
+        window.addEventListener('scroll', updateAboutScroll, { passive: true });
+        window.addEventListener('resize', updateAboutScroll);
+        updateAboutScroll();
+
+        shaderRippleCleanups.push(() => {
+          aboutSection?.removeEventListener('scroll', updateAboutScroll);
+          window.removeEventListener('scroll', updateAboutScroll);
+          window.removeEventListener('resize', updateAboutScroll);
+          statementSplit?.revert();
+        });
+      }
+
+      // About process, xl: one path through the icon centres of 01–03, round
+      // a turn at the right edge, back through 04 to end at 05. It follows
+      // the icons, so re-measure whenever the list changes size (resizes,
+      // font swaps, the entrance's line splits).
+      const processList = document.querySelector<HTMLElement>('.about-process');
+      const processPath = processList?.parentElement?.querySelector<SVGSVGElement>('.about-process__path') ?? null;
+      const pathLine = processPath?.querySelector<SVGPathElement>('.about-process__path-line') ?? null;
+      if (processList && processPath && pathLine) {
+        const processIcons = Array.from(processList.querySelectorAll<HTMLElement>('.about-step__icon'));
+        const layoutProcessPath = () => {
+          if (processIcons.length !== 5 || getComputedStyle(processPath).display === 'none') return;
+          const box = processPath.getBoundingClientRect();
+          const [a, , , d, e] = processIcons.map((icon) => {
+            const rect = icon.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2 - box.left, y: rect.top + rect.height / 2 - box.top };
+          });
+          const radius = (d.y - a.y) / 2;
+          const turnX = box.width - radius;
+          pathLine.setAttribute('d', `M${a.x} ${a.y} H${turnX} A${radius} ${radius} 0 0 1 ${turnX} ${d.y} H${e.x}`);
+        };
+        const processResize = new ResizeObserver(layoutProcessPath);
+        processResize.observe(processList);
+        layoutProcessPath();
+        shaderRippleCleanups.push(() => processResize.disconnect());
+      }
+
       // About portrait: match the preloader's upward polygon wipe and inner
       // image descale, triggered when the portrait enters the viewport.
       const aboutImageReveal = document.querySelector<HTMLElement>(
@@ -1814,7 +1982,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     }, root);
 
     return () => {
-      cancelAnimationFrame(threeRafId);
+      monitorCleanups.forEach((cleanup) => cleanup());
       shaderRippleCleanups.forEach(fn => fn());
       ctx.revert();
       clearTimeout(rebuildTimer);
@@ -1840,7 +2008,6 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       document.documentElement.style.removeProperty('--footer-background');
       document.documentElement.style.removeProperty('--footer-bar-background');
       document.documentElement.style.removeProperty('--footer-border-color');
-      stageResizeObserver?.disconnect();
       projectsContainer?.querySelectorAll('canvas').forEach(canvas => {
         canvas.remove();
       });
@@ -1915,24 +2082,24 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       >
         {/* Hero Section */}
         <section id="home" className="hero w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
-          <div className="flex-1 lg:flex-none lg:h-full lg:min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-10 lg:px-15 gap-6 md:gap-8 lg:gap-5">
+          <div className="flex-1 lg:flex-none lg:h-full lg:min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-7.5 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
                 <h1 className="uppercase whitespace-nowrap">Creative <br/> Designer</h1>
-                <p className="w-full sm:w-4/5 lg:w-7/10 uppercase">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
+                <p className="w-full sm:w-4/5 lg:w-7/10">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
               <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full uppercase" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
-            <div className = "w-full lg:w-1/2 flex-1 lg:min-h-0 lg:flex-none lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
+            <div className = "w-full flex-1 lg:min-w-0 lg:min-h-0 lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.8), 0 0 40px rgba(34, 197, 94, 0.4)' }}></div>
-                <p className="text-xs uppercase">Available for Work</p>
+                <p className="text-xs">Available for Work</p>
               </div>
               <div className="relative w-full flex-1 min-h-60 lg:min-h-0 lg:flex-none lg:h-[40vh]">
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
@@ -1951,124 +2118,170 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
 
-        {/*About Section — intro around a centered portrait, then numbered
+        {/*About Section — intro around a centered portrait, then titled
             blocks for process, skills, timeline and life off screen. Scrolls
             vertically when its content is taller than the viewport (see the
             horizontal scroll timeline, which pauses the track here and scrubs this
             panel's scrollTop before resuming horizontal). Each data-reveal-group
             runs its own line entrance, so lower blocks animate as they arrive. */}
         <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex flex-col gap-20 lg:gap-30 px-5 md:px-10 lg:px-15 pt-24 md:pt-28 lg:pt-20 pb-12.5 lg:pb-20 text-white">
-            {/* Intro — headline, tagline, portrait and 01 */}
-            <div data-reveal-group className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1.5fr_1fr] gap-x-8 lg:gap-x-12 gap-y-10 lg:gap-y-15">
-              <h2 className="text-white md:col-span-2 lg:col-span-3 self-start uppercase whitespace-nowrap">
+          {/* Spacing: the intro keeps its gap below; every titled block after
+              it has the same padding above and below its top rule. */}
+          <div className="flex flex-col px-5 md:px-7.5 pt-24 md:pt-28 lg:pt-20 text-white">
+            {/* Intro — headline, then the portrait and intro copy side by side */}
+            <div data-reveal-group className="flex flex-col gap-10 lg:gap-15 mb-20 lg:mb-30">
+              <h2 className="text-white uppercase whitespace-nowrap">
                 About Me
               </h2>
 
-              {/* Tagline motif */}
-              <div className="md:col-span-2 lg:col-span-1 lg:col-start-1 lg:row-start-2 self-start">
-                <p className="font-bold uppercase text-primary-color">Think. Design. Build.</p>
-              </div>
+              <div className="flex flex-col lg:flex-row-reverse lg:items-end gap-10 lg:gap-12">
+                {/* Desktop height: see .about-portrait in globals.css. */}
+                <div className="about-image-reveal about-portrait relative w-full lg:w-2/5 lg:shrink-0 aspect-[4/5] md:aspect-[16/11] lg:aspect-auto overflow-hidden will-change-[clip-path]">
+                  <Image
+                    className="object-cover grayscale will-change-transform"
+                    src="/images/brandon4.jpg"
+                    alt="Brandon Mupemhi"
+                    priority
+                    fill
+                    sizes="(max-width: 1023px) 100vw, 40vw"
+                  />
+                  {/* Second, colour photo shown instantly on hover (.about-portrait-alt
+                      in globals.css). It comes after the main image so the
+                      entrance reveal, which animates the first <img>, still targets that one. */}
+                  <Image
+                    className="about-portrait-alt object-cover"
+                    src="/images/brandon5.jpg"
+                    alt=""
+                    aria-hidden="true"
+                    fill
+                    sizes="(max-width: 1023px) 100vw, 40vw"
+                  />
+                </div>
 
-              <div className="about-image-reveal md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-2 relative w-full aspect-[4/5] md:aspect-[16/11] lg:aspect-[4/5] overflow-hidden will-change-[clip-path]">
-                <Image
-                  className="object-cover grayscale will-change-transform"
-                  src="/images/brandon4.jpg"
-                  alt="Brandon Mupemhi"
-                  priority
-                  fill
-                  sizes="(max-width: 1023px) 100vw, 34vw"
+                {/* Intro copy */}
+                <div className="max-w-[26rem] lg:max-w-none lg:flex-1 lg:min-w-0">
+                  <p className="text-white text-lead font-light leading-relaxed">
+                    I&apos;m a creative and detail-oriented UI/UX Designer and Developer with 4+ years of experience designing and developing user-centered web and mobile products. I enjoy turning ideas into intuitive, visually engaging digital experiences, combining design, technology and storytelling to create work that makes a difference.
+                  </p>
+                  <a href="/cv.pdf" target="_blank" rel="noopener noreferrer" className="keycap btn-outline mt-8">
+                    View my resume <ArrowUpRight />
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Statement — the section's big type moment, in the same editorial
+                face as "Say Hello.". Its words rise into place as About scrolls
+                (see "About, scroll-linked" in the effect). Hidden for now:
+                drop the `hidden` class to bring it back. */}
+            <div className="about-statement relative hidden mb-20 lg:mb-30">
+              <h3 className="about-statement__text font-editorial uppercase text-white text-[clamp(2.5rem,6.5vw,8.5rem)] leading-[0.95] max-w-[18ch]">
+                I design and build things people <span className="about-statement__highlight text-primary-color">enjoy</span> using.
+              </h3>
+              {/* Hand-drawn squiggle under the highlighted word. It lives outside
+                  the heading because the words rise inside clipping masks; the
+                  effect positions it under the word and draws it in. */}
+              <svg
+                aria-hidden="true"
+                className="about-statement__squiggle absolute top-0 left-0 w-0 h-0 pointer-events-none overflow-visible text-primary-color"
+                viewBox="0 0 200 24"
+                preserveAspectRatio="none"
+                fill="none"
+              >
+                <path
+                  d="M3 14 C 18 4, 30 22, 48 12 S 78 3, 96 13 S 128 23, 146 11 S 182 4, 197 12"
+                  stroke="currentColor"
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                 />
-              </div>
+              </svg>
+            </div>
 
-              {/* 01 — Who I Am */}
-              <div className="md:col-span-2 lg:col-span-1 lg:col-start-3 lg:row-start-2 lg:self-end max-w-[26rem]">
-                <p className="font-mono text-primary-color mb-3">01</p>
-                <p className="text-white text-[18px] font-bold uppercase mb-2">Who I Am</p>
-                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
-                  I&apos;m a creative and detail-oriented UI/UX Designer and Developer with 4+ years of experience designing and developing user-centered web and mobile products. I enjoy turning ideas into intuitive, visually engaging digital experiences, combining design, technology and storytelling to create work that makes a difference.
-                </p>
+            {/* My Process: at xl, five steps on one winding path (three left
+                to right, a turn, two right to left); below xl, a vertical
+                list on a rail. The path's shape is measured from the step
+                icons (see "About process, xl" in the effect). */}
+            <div data-reveal-group className="grid grid-cols-1 gap-y-16 lg:gap-y-24 border-t border-white/20 py-20 lg:py-30">
+              <h3 className="text-white uppercase">My Process</h3>
+              <div className="about-process-wrap">
+                <svg aria-hidden="true" className="about-process__path" fill="none">
+                  <path className="about-process__path-line" />
+                </svg>
+                {/* div roles, not ol/li, and a div label: the entrance splits
+                    every p and li in About into lines. */}
+                <div role="list" aria-label="My approach" className="about-process">
+                  {ABOUT_PROCESS.map((step, index) => (
+                    <div key={step.title} role="listitem" className="about-step">
+                      <span aria-hidden="true" className="about-step__icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{step.icon}</svg>
+                      </span>
+                      <div className="about-step__label">
+                        <span className="text-[12px]">{String(index + 1).padStart(2, '0')}</span>
+                        <span className="text-[16px] font-bold uppercase">{step.title}</span>
+                      </div>
+                      <p className="about-step__body text-body font-light leading-relaxed text-white">{step.body}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* 02 — My Process: five steps, a row at xl, a 2-up grid below */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-10 border-t border-white/20 pt-10">
-              <div className="max-w-[24rem]">
-                <p className="font-mono text-primary-color mb-3">02</p>
-                <p className="text-white text-[18px] font-bold uppercase mb-2">My Process</p>
-                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
-                  Every project starts with an idea and a problem to solve. I take time to understand the people I&apos;m designing for, explore different approaches and turn those ideas into practical solutions. From the first wireframe to the final build, I focus on creating experiences that balance usability, visual appeal and functionality.
-                </p>
-              </div>
-              <div role="list" aria-label="My approach" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-x-6 gap-y-10">
-                {ABOUT_PROCESS.map((step, index) => (
-                  <div key={step.title} role="listitem" className="relative border-t border-white/30 pt-6 md:last:col-span-2 xl:last:col-span-1">
-                    <span aria-hidden="true" className="absolute -top-1 left-0 size-2 rounded-full bg-primary-color" />
-                    <p className="text-[12px] text-white/60 mb-3">{String(index + 1).padStart(2, '0')}</p>
-                    <p className="text-white text-[16px] font-bold uppercase mb-2">{step.title}</p>
-                    <p className="text-[14px] font-light uppercase leading-relaxed text-white/80">{step.body}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* 03 — Skills & Expertise: three groups */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-10 border-t border-white/20 pt-10">
-              <div className="max-w-[24rem]">
-                <p className="font-mono text-primary-color mb-3">03</p>
-                <p className="text-white text-[18px] font-bold uppercase mb-2">Skills &amp; Expertise</p>
-                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
-                  My work spans design and development, allowing me to approach projects from different perspectives. I enjoy shaping the user experience, crafting thoughtful interfaces and bringing them to life through code, with each skill contributing to a more cohesive final product.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-10">
-                {ABOUT_SKILLS.map((group) => (
-                  <div key={group.title}>
-                    <p className="text-[16px] font-bold uppercase text-primary-color pb-3 border-b border-white/30">{group.title}</p>
-                    <ul>
+            {/* Skills & Expertise: the title on the left at lg, the groups
+                stacked on the right. Each group: a rule, its name and count,
+                its tools offset to the right half, then its skills as a ruled
+                list. At lg the title sticks and each group pins below the
+                previous group's name row (see .about-pin in globals.css). */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 border-t border-white/20 py-20 lg:py-30">
+              <h3 className="text-white uppercase lg:sticky lg:top-24 lg:self-start">Skills &amp; Expertise</h3>
+              <div className="flex flex-col gap-16 lg:gap-24">
+                {ABOUT_SKILLS.map((group, index) => (
+                  <div key={group.title} className="about-pin border-t border-white/20 pt-3" style={{ '--i': index } as CSSProperties}>
+                    <div className="flex items-start justify-between gap-4">
+                      <h5 className="text-white uppercase">{group.title}</h5>
+                      <span className="text-[12px] text-white pt-1">{index + 1}/{ABOUT_SKILLS.length}</span>
+                    </div>
+                    {group.tools && (
+                      <p className="mt-4 md:ml-[25%] min-[1440px]:ml-[50%] text-body font-light text-white">Tools: {group.tools}</p>
+                    )}
+                    <ul aria-label={group.title} className="mt-10 lg:mt-16">
                       {group.items.map((item) => (
-                        <li key={item} className="text-[14px] font-light uppercase py-2.5 border-b border-white/15">{item}</li>
+                        <li key={item} className="py-2 border-b border-white/20 last:border-b-0 text-body text-white">{item}</li>
                       ))}
                     </ul>
-                    {group.tools && (
-                      <p className="text-[12px] uppercase mt-4 text-white/60">Tools: <span className="text-white">{group.tools}</span></p>
-                    )}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 04 — Education & Experience: timeline */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-10 border-t border-white/20 pt-10">
-              <div className="max-w-[24rem]">
-                <p className="font-mono text-primary-color mb-3">04</p>
-                <p className="text-white text-[18px] font-bold uppercase mb-2">Education &amp; Experience</p>
-                <p className="text-white text-[14px] font-light uppercase leading-relaxed">
-                  My background combines formal education in Computer Science with hands-on experience working on real-world digital projects. Each project has helped me grow as a designer and developer, strengthen my problem-solving skills and better understand what it takes to turn ideas into effective digital products.
-                </p>
-              </div>
-              <div role="list" aria-label="Education and experience" className="relative flex flex-col gap-12 border-l border-white/30 pl-8 md:pl-10">
-                {ABOUT_TIMELINE.map((entry) => (
-                  <div key={entry.place} role="listitem" className="relative grid grid-cols-1 md:grid-cols-[10rem_1fr] xl:grid-cols-[14rem_1fr] gap-x-8 gap-y-2">
-                    <span aria-hidden="true" className="absolute top-1 -left-8 md:-left-10 -translate-x-1/2 size-3 rounded-full border-2 border-primary-color bg-deep-teal" />
-                    <p className="text-[12px] uppercase text-white/60">{entry.kind}</p>
-                    <div>
-                      <p className="text-white text-[16px] font-bold uppercase">{entry.place}</p>
-                      <p className="text-[14px] uppercase text-primary-color mt-1 mb-3">{entry.role}</p>
-                      <p className="text-[14px] font-light uppercase leading-relaxed text-white/80 max-w-[36rem]">{entry.body}</p>
+            {/* Education & Experience: laid out like Skills & Expertise, the
+                current role first. Each entry: a rule, its place and count,
+                then its kind, role and copy offset to the right half. At lg
+                the title sticks and the entries pin (.about-pin). */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 border-t border-white/20 py-20 lg:py-30">
+              <h3 className="text-white uppercase lg:sticky lg:top-24 lg:self-start">Education &amp; Experience</h3>
+              <div role="list" aria-label="Education and experience" className="flex flex-col gap-16 lg:gap-24">
+                {ABOUT_TIMELINE.map((entry, index) => (
+                  <div key={entry.place} role="listitem" className="about-pin border-t border-white/20 pt-3" style={{ '--i': index } as CSSProperties}>
+                    <div className="flex items-start justify-between gap-4">
+                      <h5 className="text-white uppercase">{entry.place}</h5>
+                      <span className="text-[12px] text-white pt-1">{index + 1}/{ABOUT_TIMELINE.length}</span>
+                    </div>
+                    <div className="mt-4 md:ml-[25%] min-[1440px]:ml-[50%]">
+                      <p className="text-body text-white">{entry.kind}</p>
+                      <p className="text-body text-primary-color mt-1">{entry.role}</p>
+                      <p className="text-body font-light leading-relaxed text-white mt-4">{entry.body}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 05 — Beyond the Screen */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-[1fr_2.5fr] gap-x-12 gap-y-6 border-t border-white/20 pt-10">
-              <div>
-                <p className="font-mono text-primary-color mb-3">05</p>
-                <p className="text-white text-[18px] font-bold uppercase">Beyond the Screen</p>
-              </div>
-              <p className="text-white text-[18px] md:text-[22px] font-light uppercase leading-relaxed max-w-[48rem]">
+            {/* Beyond the Screen: the same columns as Skills and Experience,
+                the title on the left at lg and the copy on the right. */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 border-t border-white/20 py-20 lg:py-30">
+              <h3 className="text-white uppercase lg:self-start">Beyond the Screen</h3>
+              <p className="text-white text-body font-light leading-relaxed">
                 Outside of design and development, I&apos;m always curious about new ideas, visual storytelling and creative ways to use technology. I enjoy exploring motion, experimenting with interactive experiences and finding inspiration in things that challenge the ordinary. These interests often influence how I think about and approach my work.
               </p>
             </div>
@@ -2077,7 +2290,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         {/* Projects Section */}
         <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
-          <div className="relative lg:absolute pl-5 pt-24 md:pt-28 md:pl-10 lg:pl-0 lg:pt-0 lg:left-15 lg:top-20 z-10 flex flex-col gap-5">
+          <div className="relative lg:absolute pl-5 pt-24 md:pt-28 md:pl-7.5 lg:pl-0 lg:pt-0 lg:left-7.5 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
             </div>
@@ -2087,14 +2300,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             </p>
             */}
           </div>
-          <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-5 text-black uppercase">
+          <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-3 text-black">
             {projects.map((project, index) => (
               <li key={project.name} data-img={project.cover_image} data-name={project.name} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
-                <Link href={`/work/${project.slug}`}>
-                  <span className="project-pill__flair" aria-hidden="true" />
-                  <span className="button-flair__label inline-flex items-center">
-                    {project.name}
-                  </span>
+                <Link href={`/work/${project.slug}`} className="keycap">
+                  {project.name}
                 </Link>
               </li>
             ))}
@@ -2116,62 +2326,65 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               band between the heading and the carousel so neither covers it. */}
           <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
-        
-        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-10 lg:px-15">
+
+        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-7.5">
           <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 md:pt-28 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
-                <h2 className="text-[clamp(3rem,10vw,15.625rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
+                <h2 className="text-[clamp(3rem,8.5vw,13.25rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
               </div>
             </div>
             <div className="w-full flex flex-col items-start gap-5 xl:gap-15">
               <div className="@container w-full flex flex-col gap-2.5">
-                <p className="text-white uppercase">Email me</p>
-                {/* Monospace: 26 characters at 0.6em, a 0.4em gap and a 1em
-                    arrow make the row 17em wide, so 100cqw / 17 fills the column. */}
+                <p className="text-white">Email me</p>
+                {/* Monospace: 26 characters plus two parentheses at 0.6em each
+                    make 16.8em. The parentheses sit mid-cell, so each is pulled
+                    0.12em outward to put its curve on the column edge, leaving
+                    a 16.56em row: 100cqw / 16.56 fills the column. */}
                 <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-full justify-between bg-transparent! items-center text-[calc(100cqw/17)] whitespace-nowrap flex gap-[0.4em] border-b-2 border-white text-white ">
-                    <span className="contact-button__label">
-                      <span>brandoneemupemhi@gmail.com</span>
-                      <span aria-hidden="true" className="text-primary-color">brandoneemupemhi@gmail.com</span>
-                    </span>
-                    <ArrowUpRight className="shrink-0 size-[1em]" />
+                  className="w-full bg-transparent! items-baseline text-[calc(100cqw/16.56)] whitespace-nowrap flex text-white ">
+                    <span aria-hidden="true" className="-ml-[0.12em]">(</span>
+                    <span className="email-underline">brandoneemupemhi@gmail.com</span>
+                    <span aria-hidden="true" className="-mr-[0.12em]">)</span>
                 </a>
               </div>
               <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
                 <a
                   href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  className="contact-swap-button w-auto bg-transparent! items-center text-sm xl:text-base flex text-white">
+                  <span aria-hidden="true">(</span>
                   <span className="contact-button__label">
-                    <span>Linkedin</span>
-                    <span aria-hidden="true" className="text-primary-color">Linkedin</span>
+                    <span>LinkedIn</span>
+                    <span aria-hidden="true" className="text-primary-color">LinkedIn</span>
                   </span>
-                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <span aria-hidden="true">)</span>
                 </a>
                 <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
-                className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                className="contact-swap-button w-auto bg-transparent! items-center text-sm xl:text-base flex text-white">
+                  <span aria-hidden="true">(</span>
                   <span className="contact-button__label">
-                    <span>Github</span>
-                    <span aria-hidden="true" className="text-primary-color">Github</span>
+                    <span>GitHub</span>
+                    <span aria-hidden="true" className="text-primary-color">GitHub</span>
                   </span>
-                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <span aria-hidden="true">)</span>
                 </a>
-                
+
                 <a
                   href="/cv.pdf" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-auto bg-transparent! uppercase items-center text-base xl:text-xl flex gap-2.5 text-white">
+                  className="contact-swap-button w-auto bg-transparent! items-center text-sm xl:text-base flex text-white">
+                  <span aria-hidden="true">(</span>
                   <span className="contact-button__label">
                     <span>My Resume</span>
-                    <span aria-hidden="true" className="text-primary-color">Resume</span>
+                    <span aria-hidden="true" className="text-primary-color">My Resume</span>
                   </span>
-                  <ArrowUpRight className="shrink-0 h-5 w-5 md:h-7 md:w-7" />
+                  <span aria-hidden="true">)</span>
                 </a>
               </div>
             </div>
           </div>
           <div className="flex-1 lg:min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 flex flex-col pt-4 pb-12.5 lg:pb-0 lg:pt-20">
-            <div className="relative flex-1 min-h-60 lg:min-h-0 lg:-mr-15">
+            <div className="relative flex-1 min-h-60 lg:min-h-0 lg:-mr-7.5">
               <Image
                 className="object-contain object-bottom lg:object-right p-2 lg:p-6 lg:pr-0 will-change-transform"
                 src="/images/seated-person-portfolio-1.svg"

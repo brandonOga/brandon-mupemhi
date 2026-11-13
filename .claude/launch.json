@@ -14,6 +14,12 @@
       "runtimeArgs": ["run", "start"],
       "port": 4000,
       "autoPort": true
+    },
+    {
+      "name": "schoolseeker-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "C:/Projects/schoolseeker", "dev"],
+      "port": 3000
     }
   ]
 }
