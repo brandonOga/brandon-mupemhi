@@ -65,7 +65,7 @@ const ABOUT_SKILLS: { title: string; description: string; items: string[] }[] = 
   {
     title: 'Frontend Development',
     description: 'Turning designs into fast, responsive and accessible interfaces with clean, maintainable code.',
-    items: ['HTML', 'CSS', 'JavaScript', 'React', 'Next.js', 'Tailwind CSS'],
+    items: ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'React', 'Next.js', 'Tailwind CSS', 'GSAP', 'Three.js', 'Supabase'],
   },
   {
     title: 'WordPress Development',
@@ -344,7 +344,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     // Below the lg breakpoint the sections stack vertically and scroll
     // natively — a pinned 400vw track doesn't fit phones or portrait tablets.
-    const stackedQuery = window.matchMedia('(max-width: 1023.98px)');
+    const stackedQuery = window.matchMedia('(max-width: 1039.98px)');
     let isStacked = stackedQuery.matches;
 
     // Stacked layout: header/footer take the colours of whichever section is
@@ -439,6 +439,21 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const previous = horizontalTrigger;
       const previousProgress = previous ? previous.progress : 0;
+      // Where the scroll is, as "this far past this section's label", so a
+      // rebuild can put it back on the same section. (Restoring the overall
+      // progress instead drifts: when About grows, the same fraction of the
+      // page lands earlier, e.g. back in About after jumping to Work.)
+      // Timeline time is in pixels of scroll, so it maps 1:1 to the scroll.
+      const previousTl = previous?.animation as gsap.core.Timeline | undefined;
+      let anchor: { label: string; offset: number } | null = null;
+      if (previous && previousTl) {
+        const time = previousProgress * previousTl.duration();
+        Object.entries(previousTl.labels)
+          .sort((a, b) => a[1] - b[1])
+          .forEach(([label, at]) => {
+            if (at <= time + 0.5) anchor = { label, offset: Math.max(0, time - at) };
+          });
+      }
       // Reverting removes the pin spacer, which would collapse the page and
       // clamp the scroll to the top (the hero) for a frame. Hold the page's
       // height until the new trigger is in place.
@@ -494,8 +509,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // Lenis, still at the old position, skips a scrollTo there. So set
         // the window's scroll directly, then finish the scrub at once;
         // otherwise the page flashes the hero and scrubs back over.
+        // Restores to the same offset past the same label (see anchor),
+        // capped at the next label so it stays on that section.
         const { start, end } = horizontalTrigger;
-        const target = start + previousProgress * (end - start);
+        const tl = horizontalTrigger.animation as gsap.core.Timeline;
+        const duration = tl.duration() || 1;
+        let time = previousProgress * duration;
+        const kept = anchor as { label: string; offset: number } | null;
+        if (kept && kept.label in tl.labels) {
+          const at = tl.labels[kept.label];
+          const nextAt = Math.min(duration, ...Object.values(tl.labels).filter((t) => t > at));
+          time = Math.min(at + kept.offset, nextAt);
+        }
+        const target = start + (time / duration) * (end - start);
         window.scrollTo(0, target);
         lenis.scrollTo(target, { immediate: true, force: true });
         ScrollTrigger.update();
@@ -948,7 +974,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // radial alpha map is transparent where the surface meets the section
         // edges, avoiding a hard cutoff during horizontal scrolling.
         const floorRadius = 1.9;
-        const stackedStageQuery = window.matchMedia('(max-width: 1023.98px)');
+        const stackedStageQuery = window.matchMedia('(max-width: 1039.98px)');
         const updateFloorSize = () => {
           const halfFovTan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
           const cameraDistance = Math.abs(
@@ -1314,7 +1340,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // centered by default and only tracks the cursor while it's actually
         // over this section. Touch devices and the stacked layout keep it still:
         // a tap fires a synthetic mousemove that would leave the model tilted.
-        const staticModelQuery = window.matchMedia('(hover: none), (max-width: 1023.98px)');
+        const staticModelQuery = window.matchMedia('(hover: none), (max-width: 1039.98px)');
         container.addEventListener("mousemove", (e) => {
           if (staticModelQuery.matches) {
             mouse.x = 0;
@@ -1523,6 +1549,48 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // up front for the return-visit path and the scroll-into-view observer.
       const pillSlides = Array.from(document.querySelectorAll<HTMLElement>(".hero .skill-pill"));
 
+      // ── Hero image rotation ─────────────────────────────────────────────────
+      // The hero's slides take turns every HERO_SLIDE_EVERY seconds. The next
+      // one wipes up from the bottom over the current one while its image
+      // zooms from 2x down to 1x: the preloader's image reveal. A switch is
+      // skipped (and retried next time) while the hero is off screen or the
+      // tab is hidden. Reduced motion keeps the first image.
+      const HERO_SLIDE_EVERY = 5;
+      let heroRotation: gsap.core.Tween | null = null;
+      const startHeroRotation = () => {
+        if (reduceMotion || heroRotation) return;
+        const slides = Array.from(document.querySelectorAll<HTMLElement>('.hero-image-reveal .hero-slide'));
+        if (slides.length < 2) return;
+        let current = 0;
+        let z = 1;
+        slides.forEach((slide, i) => { slide.style.zIndex = i === 0 ? String(z) : '0'; });
+        const heroOnScreen = () => {
+          const r = slides[0].getBoundingClientRect();
+          return r.right > 0 && r.left < window.innerWidth && r.bottom > 0 && r.top < window.innerHeight;
+        };
+        const advance = () => {
+          if (!document.hidden && heroOnScreen()) {
+            current = (current + 1) % slides.length;
+            const slide = slides[current];
+            const img = slide.querySelector<HTMLElement>('img');
+            slide.style.zIndex = String(++z);
+            gsap.fromTo(slide,
+              { clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)' },
+              { clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)', duration: 1, ease: 'hopSoft', overwrite: 'auto' });
+            if (img) gsap.fromTo(img, { scale: 2 }, { scale: 1, duration: 1.5, ease: 'hopSoft', overwrite: 'auto' });
+          }
+          heroRotation = gsap.delayedCall(HERO_SLIDE_EVERY, advance);
+        };
+        heroRotation = gsap.delayedCall(HERO_SLIDE_EVERY, advance);
+      };
+      shaderRippleCleanups.push(() => {
+        heroRotation?.kill();
+        heroRotation = null;
+        const slides = document.querySelectorAll<HTMLElement>('.hero-image-reveal .hero-slide');
+        gsap.killTweensOf(slides);
+        slides.forEach((slide) => gsap.killTweensOf(slide.querySelector('img')));
+      });
+
       // ── Hero entrance (called from preloader timeline on first visit) ─────────
       const animateHeroEntrance = () => {
         const heroHeadings = Array.from(document.querySelectorAll<HTMLElement>(".hero h1"));
@@ -1589,6 +1657,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             duration: 1.5,
             ease: 'hop',
           }, heroSupportStart);
+          // Start taking turns once the first image has settled.
+          tl.call(startHeroRotation, [], heroSupportStart + 1.5);
         }
 
         // skill pills: fall in under gravity (see dropPills), staggered.
@@ -1604,6 +1674,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // first-load case) and just wire up hover.
         gsap.set(pillSlides, { clipPath: "inset(0% 0% 0% 0%)" });
         Array.from(document.querySelectorAll<HTMLElement>(".hero h1")).forEach(setupCharHover);
+        startHeroRotation();
       } else {
         preloaderHasPlayed = true;
         lenis.stop(); // no scrolling until the preloader has finished
@@ -2115,11 +2186,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="w-full sm:w-4/5 lg:w-7/10">I blend design and code to create digital experiences that look sharp, feel intuitive, and work beautifully.</p>
               </div>
               <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-site-black text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-site-black text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color shape-ticket" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-site-black text-white p-3 sm:p-3.5 shape-burst" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color shape-wavy" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-site-black text-white p-3 sm:p-3.5 shape-flower" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-5 sm:py-3 sm:px-6 bg-site-black text-white shape-ribbon" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
             <div className = "w-full flex-1 lg:min-w-0 lg:min-h-0 lg:h-full flex flex-col items-end justify-end gap-4 md:gap-6 lg:gap-10">
@@ -2128,15 +2199,34 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 <p className="text-xs">Available for Work</p>
               </div>
               <div className="relative w-full flex-1 min-h-60 lg:min-h-0 lg:flex-none lg:h-[40vh]">
+                {/* Two slides that take turns (see startHeroRotation): each
+                    new one wipes up over the last, as the preloader's images
+                    do. The first is the one the hero entrance reveals; the
+                    second starts collapsed at the bottom. */}
                 <div className="hero-image-reveal absolute inset-0 overflow-hidden will-change-[clip-path]">
-                  <Image
-                    className="img object-cover will-change-transform"
-                    src="/images/contact.jpg"
-                    alt="Brandon"
-                    priority
-                    fill
-                    sizes="(max-width: 1023px) 100vw, 50vw"
-                  />
+                  <div className="hero-slide absolute inset-0 overflow-hidden">
+                    <Image
+                      className="img object-cover will-change-transform"
+                      src="/images/hero-image.png"
+                      alt="Brandon"
+                      priority
+                      fill
+                      sizes="(max-width: 1039px) 100vw, 50vw"
+                    />
+                  </div>
+                  <div
+                    className="hero-slide absolute inset-0 overflow-hidden"
+                    style={{ clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)' }}
+                    aria-hidden="true"
+                  >
+                    <Image
+                      className="img object-cover will-change-transform"
+                      src="/images/hero-image-2.png"
+                      alt=""
+                      fill
+                      sizes="(max-width: 1039px) 100vw, 50vw"
+                    />
+                  </div>
                 </div>
               </div>
               <h1 className="uppercase text-right whitespace-nowrap">Mupemhi<br/>Brandon</h1>
@@ -2156,14 +2246,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <div className="relative isolate flex flex-col px-5 md:px-7.5 pt-24 md:pt-28 lg:pt-20 text-white">
             {/* Intro — headline, then the portrait and intro copy side by side */}
             {/* .about-intro (globals.css): fills the first screen on desktop. */}
-            <div data-reveal-group className="about-intro flex flex-col gap-10 lg:gap-15 mb-20 lg:mb-30">
+            {/* lg:mb-22.5 (90px), not 30 (120px): the portrait and intro sit
+                30px above the bottom of the first screen (.about-portrait),
+                so the gap to the next block shrinks by the same 30px. */}
+            <div data-reveal-group className="about-intro flex flex-col gap-10 lg:gap-15 mb-20 lg:mb-22.5">
               <h2 className="text-white uppercase whitespace-nowrap">
                 About Me
               </h2>
 
               <div className="flex flex-col lg:flex-row-reverse lg:items-end gap-10 lg:gap-12">
                 {/* Desktop height: see .about-portrait in globals.css. */}
-                <div className="about-image-reveal about-portrait relative w-full md:w-3/4 lg:w-[30%] lg:shrink-0 aspect-[4/5] md:aspect-[16/11] lg:aspect-auto overflow-hidden will-change-[clip-path]">
+                <div className="about-image-reveal about-portrait relative w-full lg:w-[30%] lg:shrink-0 aspect-[4/5] md:aspect-[16/11] lg:aspect-auto overflow-hidden will-change-[clip-path]">
                   {/* Hover zoom lives on this wrapper: GSAP owns the img's
                       transform (and inlines `scale: none` on it). */}
                   <div className="about-portrait-zoom absolute inset-0">
@@ -2173,14 +2266,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                       alt="Brandon Mupemhi"
                       priority
                       fill
-                      sizes="(max-width: 767px) 100vw, (max-width: 1023px) 75vw, 30vw"
+                      sizes="(max-width: 1039px) 100vw, 30vw"
                     />
                   </div>
                   {/* On hover the cursor becomes a round "View resume" button.
-                      Not on mobile, where the link sits under the intro copy
-                      instead. The wrapper isn't positioned, so the link still
-                      covers the portrait. */}
-                  <div className="max-md:hidden">
+                      Desktop only: on phones and tablets the link sits under
+                      the intro copy instead. The wrapper isn't positioned, so
+                      the link still covers the portrait. */}
+                  <div className="max-lg:hidden">
                     <CursorLink href="/cv.pdf" label="View my resume">
                       <span className="flex flex-col items-center gap-1">
                         <span>View</span>
@@ -2191,17 +2284,17 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 </div>
 
                 {/* Intro copy */}
-                <div className="max-w-[26rem] lg:max-w-none lg:flex-1 lg:min-w-0">
+                <div className="w-full lg:flex-1 lg:min-w-0">
                   <p className="text-white text-lead font-light leading-relaxed">
                     I&apos;m a creative and detail-oriented UI/UX Designer and Developer with 4+ years of experience designing and developing user-centered web and mobile products. I enjoy turning ideas into intuitive, visually engaging digital experiences, combining design, technology and storytelling to create work that makes a difference.
                   </p>
-                  {/* Mobile only: the resume link, in place of the portrait's
-                      cursor button. */}
+                  {/* Phones and tablets: the resume link, in place of the
+                      portrait's cursor button. */}
                   <a
                     href="/cv.pdf"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-tertiary mt-12 md:hidden"
+                    className="btn-tertiary mt-12 lg:hidden"
                   >
                     View resume
                   </a>
@@ -2291,13 +2384,28 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               <JourneyTimeline entries={ABOUT_TIMELINE} />
             </div>
 
-            {/* Beyond the Screen: the same columns as Experience,
-                the title on the left at lg and the copy on the right. */}
+            {/* My Philosophy: the same columns as Journey, the title on the
+                left at lg. On the right, a pull quote: the principle as a
+                small orange label, then the quote itself in the editorial
+                serif's italic (the only italic on the site, so it reads as
+                a voice of its own), with its opening mark hung in the margin
+                and both marks in orange. */}
             <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 py-20 lg:py-30">
-              <h3 className="text-white uppercase lg:self-start">Beyond the Screen</h3>
-              <p className="text-white text-body font-light leading-relaxed">
-                Outside of design and development, I&apos;m always curious about new ideas, visual storytelling and creative ways to use technology. I enjoy exploring motion, experimenting with interactive experiences and finding inspiration in things that challenge the ordinary. These interests often influence how I think about and approach my work.
-              </p>
+              <h3 className="text-white uppercase lg:self-start">My Philosophy</h3>
+              <figure className="flex flex-col gap-6 md:gap-8">
+                <p className="text-[13px] uppercase tracking-wider text-primary-color">Purpose before appearance</p>
+                <blockquote className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-0 right-full pr-[0.08em] font-editorial italic text-primary-color text-[clamp(1.75rem,3vw,3rem)] leading-[1.1]"
+                  >
+                    &ldquo;
+                  </span>
+                  <p className="font-editorial italic font-normal text-white text-[clamp(1.75rem,3vw,3rem)] leading-[1.1] max-w-[24ch]">
+                    Beauty is meaningful when it serves a purpose. I strive to create digital experiences where visual expression, functionality and human needs work together.<span aria-hidden="true" className="text-primary-color">&rdquo;</span>
+                  </p>
+                </blockquote>
+              </figure>
             </div>
           </div>
           {/* Last, not first: the scroll setup measures this section's
@@ -2375,7 +2483,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 alt="Brandon"
                 priority
                 fill
-                sizes="(max-width: 1023px) 100vw, 50vw"
+                sizes="(max-width: 1039px) 100vw, 50vw"
               />
             </div>
           </div>

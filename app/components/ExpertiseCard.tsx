@@ -22,22 +22,28 @@ type Props = {
   index: number;
 };
 
-// Pill looks, cycled per skill. Mirrors the hero's pills; the black one gets
-// a white outline so it reads on the black card, and the last is outline
-// only (no fill).
+// Pill looks, cycled per skill: a colour and a shape each (shapes in
+// globals.css, as on the hero's pills), so no two neighbours match. The
+// outlined pills stay plain pills, since a border can't follow a masked
+// shape. They all look the same: filled with the card's own colour (so pills
+// behind don't show through) with a white outline.
+const OUTLINE_PILL = 'bg-[#111111] text-white rounded-full border border-white';
 const PILL_STYLES = [
   'bg-primary-color text-site-black rounded-full',
-  'bg-secondary-color text-white rounded-2xl',
-  'bg-off-white text-site-black rounded-full',
-  'bg-site-black text-white rounded-full border border-white/40',
-  'bg-primary-color text-site-black rounded-full',
-  'bg-transparent text-white rounded-full border border-white',
+  'bg-secondary-color text-white shape-wavy',
+  'bg-off-white text-site-black shape-ribbon',
+  OUTLINE_PILL,
+  'bg-primary-color text-site-black shape-ticket',
+  'bg-secondary-color text-white shape-box',
+  'bg-off-white text-site-black shape-bow',
+  OUTLINE_PILL,
 ];
 
-// Icon-only pills sprinkled into the heap, as in the hero.
+// Icon-only pills sprinkled into the heap, as in the hero: a burst and a
+// flower.
 const ICON_PILLS = [
-  { icon: <LiaAsteriskSolid className="text-lg sm:text-2xl" />, style: 'bg-off-white text-site-black' },
-  { icon: <FaArrowRight className="text-lg sm:text-2xl" />, style: 'bg-primary-color text-site-black' },
+  { icon: <LiaAsteriskSolid className="text-lg sm:text-2xl" />, style: 'bg-off-white text-site-black shape-burst' },
+  { icon: <FaArrowRight className="text-lg sm:text-2xl" />, style: 'bg-primary-color text-site-black shape-flower' },
 ];
 
 export default function ExpertiseCard({ title, description, items, index }: Props) {
@@ -289,7 +295,7 @@ export default function ExpertiseCard({ title, description, items, index }: Prop
           <span
             key={`icon-${i}`}
             aria-hidden="true"
-            className={`${PILL_BASE} flex p-2.5 sm:p-3 rounded-full ${pill.style}`}
+            className={`${PILL_BASE} flex p-3 sm:p-3.5 ${pill.style}`}
           >
             {pill.icon}
           </span>
