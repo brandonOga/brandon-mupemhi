@@ -1769,9 +1769,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             )
           : [];
         const wipeStart = counterEnd + 1;
-        const wipeStep = 0.04; // seconds between neighbouring columns
+        // Paced to be watched: each column takes 1.4s on an even ease (not
+        // expo, which snaps through the middle), and they start 0.09s
+        // apart, so the sweep crosses the screen in about 2.4s.
+        const wipeStep = 0.09; // seconds between neighbouring columns
         const wipeSpread = Math.max(0, wipeColumns.length - 1) * wipeStep;
-        const liftDuration = 0.85;
+        const liftDuration = 1.4;
         const liftEnd = wipeStart + liftDuration + wipeSpread;
 
         if (preloaderEl && wipeColumns.length) {
@@ -1800,7 +1803,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             preloaderTL.to(lifted[i], {
               v: 1,
               duration: liftDuration,
-              ease: "expo.inOut",
+              ease: "power3.inOut",
               onUpdate: drawLift,
             }, wipeStart + i * wipeStep);
           });
