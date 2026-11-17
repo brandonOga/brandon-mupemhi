@@ -5,16 +5,17 @@ import { usePathname, useRouter } from 'next/navigation';
 import { TransitionRouter } from 'next-transition-router';
 import gsap from 'gsap';
 
-// Page transition: a wipe of primary-colour columns that line up with the
+// Page transition: a wipe of site-black columns that line up with the
 // site grid (see GridLines). Each column's edge falls midway between a pair
 // of grid rules, so the wipe splits the screen exactly where the grid does
 // (.page-transition in globals.css sets the column widths).
 //
-// Leave: every column opens from a hairline at the height of the click out
-// to the full screen, starting at the clicked column and rippling outward.
-// Enter: on the new page, the columns wipe up and away in the same ripple.
+// Leave: every column rises from the bottom edge to cover the screen,
+// starting at the clicked column and rippling outward. Enter: on the new
+// page, the columns keep rising and leave through the top in the same
+// ripple: one continuous upward sweep, like the site's other reveals.
 // Navigations without a recent click (back/forward, the keyboard) ripple
-// from the middle of the screen.
+// from the middle column.
 //
 // The screen stays covered until the new page is ready, so leave starts
 // loading the destination straight away (prefetch) rather than after the
@@ -118,8 +119,6 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
     const pointer = lastPointer.current;
     const fromClick = pointer && performance.now() - pointer.t < CLICK_WINDOW;
     const x = fromClick ? pointer.x : window.innerWidth / 2;
-    const y = fromClick ? pointer.y : window.innerHeight / 2;
-    const h = window.innerHeight;
 
     const hit = columns.findIndex((col) => {
       const r = col.getBoundingClientRect();
@@ -130,11 +129,12 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
 
     gsap.killTweensOf(columns);
     gsap.set(overlay, { autoAlpha: 1 });
-    gsap.set(columns, { clipPath: `inset(${y}px 0px ${h - y}px 0px)` });
+    // Collapsed onto the bottom edge, then rising to fill the screen.
+    gsap.set(columns, { clipPath: 'inset(100% 0% 0% 0%)' });
     const tl = gsap.timeline({ onComplete: next });
     columns.forEach((col, i) => {
       tl.to(col, {
-        clipPath: 'inset(0px 0px 0px 0px)',
+        clipPath: 'inset(0% 0% 0% 0%)',
         ...COVER,
         // Fully open, drop the clip: its anti-aliased edges would leave
         // hairlines of the page between columns while the screen is covered.

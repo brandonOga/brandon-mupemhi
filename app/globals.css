@@ -198,8 +198,8 @@ html.hide-scrollbar::-webkit-scrollbar {
   .btn-tertiary:hover { color: var(--color-text-white); opacity: .7; }
 }
 
-/* Page transition overlay (PageTransition.tsx, and the preloader exit in
-   HomeClient): primary-colour columns, which
+/* Page transition overlay (PageTransition.tsx; the preloader exit only
+   measures these columns): site-black columns, which
    tile the screen along the site grid (GridLines: --n columns, --p side
    padding, 16px gaps). Each column's edge sits midway between a pair of grid
    rules: the outer two also take the side padding, the inner ones take a
@@ -223,7 +223,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 }
 .page-transition > span {
   margin-right: -1px;
-  background: var(--color-primary-color);
+  background: var(--color-site-black);
 }
 @media (min-width: 48rem) {
   .page-transition {
@@ -271,7 +271,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 .case-shell { width: min(100%, 1600px); margin-inline: auto; padding-inline: clamp(1.25rem, 3vw, 3.5rem); }
 /* Same block padding as the homepage sections: 80px on desktop, 50px below lg. */
-.case-section { padding-block: 80px; border-top: 1px solid var(--case-line); }
+/* No dividing rules between sections; the spacing separates them. */
+.case-section { padding-block: 80px; }
 @media (max-width: 1039.98px) { .case-section { padding-block: 50px; } }
 /* Section titles use the site's stepped h2 size (--text-h2), as on the homepage. */
 .case-section h2 { max-width: 12ch; margin-top: clamp(2rem, 5vw, 5rem); letter-spacing: -0.06em; }
@@ -407,7 +408,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 /* Let's talk: a site-black band before the next project, echoing the home
    page's "Say Hello" section. */
-.case-cta { border-top: 0; background: var(--color-site-black); color: var(--color-text-white); }
+.case-cta { background: var(--color-site-black); color: var(--color-text-white); }
 /* The base styles colour every p and h2 dark; on teal they take the band's white. */
 .case-cta p, .case-cta h2 { color: inherit; }
 /* Set like the home page's "Say Hello." heading, a size smaller; it keeps
@@ -433,9 +434,6 @@ html.hide-scrollbar::-webkit-scrollbar {
 .social-link svg { display: block; width: 1em; height: 1em; }
 .social-link:focus-visible { outline: 2px solid var(--color-primary-color); outline-offset: 4px; }
 @media (min-width: 80rem) { .social-links { gap: 1.5rem; font-size: 1.75rem; } }
-.case-cta + .case-next { border-top: 0; }
-
-.case-next { border-top: 1px solid var(--case-line); }
 .case-next-link { display: block; color: var(--color-foreground); }
 .case-next-link:hover { color: var(--color-foreground); }
 .case-next-link > .case-shell { padding-block: clamp(5rem, 9vw, 9rem); }

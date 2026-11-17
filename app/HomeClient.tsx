@@ -567,8 +567,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     window.addEventListener('navigate-section', handleSectionNav);
 
     const pendingSection = sessionStorage.getItem('scroll-to-section');
+    let pendingFrame = 0;
     if (pendingSection) {
       scrollToSection(pendingSection, true);
+      // Again once the page has painted twice: anything that resets the
+      // scroll after mount (a router scroll-to-top, a layout rebuild) would
+      // otherwise leave the page on the hero.
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = requestAnimationFrame(() => scrollToSection(pendingSection, true));
+      });
       // Cleared a tick later: in development React mounts this effect twice,
       // and the second pass needs to find the key too.
       setTimeout(() => sessionStorage.removeItem('scroll-to-section'), 0);
@@ -1746,11 +1753,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // curtain-close (image stack collapsing away) plays out fully first.
         preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1, ease: "hop" }, counterEnd);
 
-        // Column-wipe exit, the same as the page transition (PageTransition):
-        // once the image stack has closed, primary-colour columns open from a
-        // line across the middle of the screen, rippling out from the centre
-        // column, to cover the preloader. The preloader hides underneath, and
-        // the columns wipe up and away to reveal the hero.
+        // Exit: once the image stack has closed, the black preloader itself
+        // splits into columns along the site grid (the page transition's
+        // columns) and they rise off the top one after another from left to
+        // right (the reading direction, and the way the page scrolls),
+        // revealing the hero underneath. Drawn as one stepped
+        // clip-path polygon on the preloader, each column's bottom edge
+        // rising on its own, so the counter and grid lines lift with it and
+        // there are no seams between columns.
+        const preloaderEl = document.querySelector<HTMLElement>(".preloader");
         const wipe = preloaderWipeRef.current;
         const wipeColumns = wipe
           ? Array.from(wipe.children).filter(
@@ -1759,34 +1770,44 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           : [];
         const wipeStart = counterEnd + 1;
         const wipeStep = 0.04; // seconds between neighbouring columns
-        const wipeOrigin = Math.floor((wipeColumns.length - 1) / 2);
-        const wipeSpread = Math.max(wipeOrigin, wipeColumns.length - 1 - wipeOrigin) * wipeStep;
-        const coverDuration = 0.75;
-        const revealDuration = 0.85;
-        const coverEnd = wipeStart + coverDuration + wipeSpread;
-        const revealStart = coverEnd + 0.15;
+        const wipeSpread = Math.max(0, wipeColumns.length - 1) * wipeStep;
+        const liftDuration = 0.85;
+        const liftEnd = wipeStart + liftDuration + wipeSpread;
 
-        preloaderTL.set(wipe, { autoAlpha: 1 }, wipeStart);
-        wipeColumns.forEach((col, i) => {
-          const delay = Math.abs(i - wipeOrigin) * wipeStep;
-          preloaderTL.fromTo(col,
-            { clipPath: "inset(50% 0% 50% 0%)" },
-            { clipPath: "inset(0% 0% 0% 0%)", duration: coverDuration, ease: "expo.inOut", immediateRender: false },
-            wipeStart + delay);
-          // Fully open, drop the clip so its anti-aliased edges don't leave
-          // hairlines between columns while the screen is covered.
-          preloaderTL.set(col, { clipPath: "none" }, coverEnd);
-          preloaderTL.fromTo(col,
-            { clipPath: "inset(0% 0% 0% 0%)" },
-            { clipPath: "inset(0% 0% 100% 0%)", duration: revealDuration, ease: "expo.inOut", immediateRender: false },
-            revealStart + delay);
-        });
-        preloaderTL.set(".preloader", { autoAlpha: 0 }, coverEnd);
-        const revealEnd = revealStart + revealDuration + wipeSpread;
-        preloaderTL.set(wipe, { autoAlpha: 0 }, revealEnd);
-        preloaderTL.set(wipeColumns, { clearProps: "clipPath" }, revealEnd);
-        // Fire the hero entrance 0.5 timeline-seconds before the wipe clears.
-        preloaderTL.call(animateHeroEntrance, [], revealEnd - 0.5);
+        if (preloaderEl && wipeColumns.length) {
+          // Column edges, measured when the lift starts (the overlay is
+          // never shown; it only lays the columns out). Each column runs to
+          // the next one's left edge, so they tile the width exactly.
+          let lefts: number[] = [];
+          let rights: number[] = [];
+          const lifted = wipeColumns.map(() => ({ v: 0 })); // 0 = down, 1 = gone
+          const drawLift = () => {
+            const h = window.innerHeight;
+            const points = ["0px 0px", `${window.innerWidth}px 0px`];
+            for (let i = wipeColumns.length - 1; i >= 0; i--) {
+              const bottom = ((1 - lifted[i].v) * h).toFixed(2);
+              points.push(`${rights[i]}px ${bottom}px`, `${lefts[i]}px ${bottom}px`);
+            }
+            preloaderEl.style.clipPath = `polygon(${points.join(", ")})`;
+          };
+          preloaderTL.call(() => {
+            lefts = wipeColumns.map((col) => col.getBoundingClientRect().left);
+            lefts[0] = 0;
+            rights = lefts.map((_, i) => (i < lefts.length - 1 ? lefts[i + 1] : window.innerWidth));
+            drawLift();
+          }, [], wipeStart);
+          wipeColumns.forEach((_, i) => {
+            preloaderTL.to(lifted[i], {
+              v: 1,
+              duration: liftDuration,
+              ease: "expo.inOut",
+              onUpdate: drawLift,
+            }, wipeStart + i * wipeStep);
+          });
+        }
+        preloaderTL.set(".preloader", { autoAlpha: 0, clearProps: "clipPath" }, liftEnd);
+        // Fire the hero entrance 0.5 timeline-seconds before the lift clears.
+        preloaderTL.call(animateHeroEntrance, [], liftEnd - 0.5);
       } // end preloader
 
       // Skill pills: drop in again whenever they scroll back into view.
@@ -2106,6 +2127,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       lenis.destroy();
       document.documentElement.classList.remove('hide-scrollbar');
       window.removeEventListener('navigate-section', handleSectionNav);
+      cancelAnimationFrame(pendingFrame);
       window.removeEventListener('scroll', updateStackedUI);
       window.removeEventListener('pointermove', handleSkillPointerMove);
       window.removeEventListener('pointerup', handleSkillPointerUp);
@@ -2163,8 +2185,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
 
-        {/* Preloader exit: the page transition's column wipe (same
-            .page-transition columns, 12 from md up, 6 below). */}
+        {/* Never shown: lays out the page transition's columns (12 from md
+            up, 6 below) so the preloader exit can measure where to split
+            the preloader into columns. */}
         <div ref={preloaderWipeRef} aria-hidden className="page-transition">
           {Array.from({ length: 12 }, (_, i) => (
             <span key={i} className={i >= 6 ? 'hidden md:block' : undefined} />
