@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { TransitionRouter } from 'next-transition-router';
 import gsap from 'gsap';
 
@@ -15,6 +15,11 @@ import gsap from 'gsap';
 // Enter: on the new page, the columns wipe up and away in the same ripple.
 // Navigations without a recent click (back/forward, the keyboard) ripple
 // from the middle of the screen.
+//
+// The screen stays covered until the new page is ready, so leave starts
+// loading the destination straight away (prefetch) rather than after the
+// cover, and enter waits for the new page to finish mounting before the
+// reveal, so the reveal doesn't stutter through that work.
 
 const RIPPLE_STEP = 0.04; // seconds between neighbouring columns
 const COVER = { duration: 0.75, ease: 'expo.inOut' };
@@ -43,8 +48,37 @@ function playCapped(tl: gsap.core.Timeline) {
   };
 }
 
+// Runs `fn` once the page has painted twice and the main thread is idle (or
+// after 150ms at most), i.e. once a freshly mounted page has done its setup.
+// Returns a cancel function.
+function afterSettle(fn: () => void) {
+  let cancelled = false;
+  let raf = 0;
+  let idle = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const run = () => {
+    if (!cancelled) fn();
+  };
+  raf = requestAnimationFrame(() => {
+    raf = requestAnimationFrame(() => {
+      if (typeof window.requestIdleCallback === 'function') {
+        idle = window.requestIdleCallback(run, { timeout: 150 });
+      } else {
+        timer = setTimeout(run, 50);
+      }
+    });
+  });
+  return () => {
+    cancelled = true;
+    cancelAnimationFrame(raf);
+    if (idle) window.cancelIdleCallback(idle);
+    if (timer) clearTimeout(timer);
+  };
+}
+
 export function TransitionProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isAdmin = pathname.startsWith('/admin');
   const overlayRef = useRef<HTMLDivElement>(null);
   const lastPointer = useRef<{ x: number; y: number; t: number } | null>(null);
@@ -65,11 +99,20 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
       (el): el is HTMLElement => el instanceof HTMLElement && el.offsetParent !== null
     );
 
-  const handleLeave = useCallback((next: () => void) => {
+  const handleLeave = useCallback((next: () => void, _from?: string, to?: string) => {
     const overlay = overlayRef.current;
     if (!overlay || isAdmin || prefersReducedMotion()) {
       next();
       return;
+    }
+    // Load the destination while the columns cover the screen, so it's
+    // (nearly) ready when they finish instead of only starting then.
+    if (to) {
+      try {
+        router.prefetch(to);
+      } catch {
+        // Prefetch is only a speed-up; navigation still works without it.
+      }
     }
     const columns = getColumns();
     const pointer = lastPointer.current;
@@ -101,7 +144,7 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
       }, Math.abs(i - origin) * RIPPLE_STEP);
     });
     return playCapped(tl);
-  }, [isAdmin]);
+  }, [isAdmin, router]);
 
   const handleEnter = useCallback((next: () => void) => {
     const overlay = overlayRef.current;
@@ -115,17 +158,26 @@ export function TransitionProvider({ children }: { children: React.ReactNode }) 
     // Back from 'none' (see leave) to a clip GSAP can tween from.
     gsap.set(columns, { clipPath: 'inset(0% 0% 0% 0%)' });
 
-    const tl = gsap.timeline({
-      onComplete: () => {
-        gsap.set(overlay, { autoAlpha: 0 });
-        gsap.set(columns, { clearProps: 'clipPath' });
-        next();
-      },
+    let stop: (() => void) | undefined;
+    // Wait for the new page to finish mounting (the homepage's setup blocks
+    // the main thread for a moment), then reveal at full speed.
+    const cancelSettle = afterSettle(() => {
+      const tl = gsap.timeline({
+        onComplete: () => {
+          gsap.set(overlay, { autoAlpha: 0 });
+          gsap.set(columns, { clearProps: 'clipPath' });
+          next();
+        },
+      });
+      columns.forEach((col, i) => {
+        tl.to(col, { clipPath: 'inset(0% 0% 100% 0%)', ...REVEAL }, Math.abs(i - origin) * RIPPLE_STEP);
+      });
+      stop = playCapped(tl);
     });
-    columns.forEach((col, i) => {
-      tl.to(col, { clipPath: 'inset(0% 0% 100% 0%)', ...REVEAL }, Math.abs(i - origin) * RIPPLE_STEP);
-    });
-    return playCapped(tl);
+    return () => {
+      cancelSettle();
+      stop?.();
+    };
   }, [isAdmin]);
 
   return (

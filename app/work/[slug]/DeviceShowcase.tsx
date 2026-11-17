@@ -18,9 +18,9 @@ function geometry({ kind, preset }: ShowcaseDevice) {
 // How wide each screen is drawn, so the browser fetches a screenshot sharp
 // enough for it. Keep in step with the .mock-band widths in globals.css.
 const imageSizes: Record<DeviceKind, string> = {
-  phone: "(max-width: 767px) 46vw, (max-width: 1023px) 32vw, 22vw",
-  tablet: "(max-width: 767px) 76vw, (max-width: 1023px) 56vw, 38vw",
-  desktop: "(max-width: 1023px) 100vw, 62vw",
+  phone: "(max-width: 767px) 46vw, (max-width: 1039px) 32vw, 22vw",
+  tablet: "(max-width: 767px) 76vw, (max-width: 1039px) 56vw, 38vw",
+  desktop: "(max-width: 1039px) 100vw, 62vw",
 };
 
 function DeviceFrame({ device, name }: { device: ShowcaseDevice; name: string }) {
