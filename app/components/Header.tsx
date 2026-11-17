@@ -41,7 +41,9 @@ export default function Header() {
       // ourselves — these links carry data-transition-ignore so the
       // TransitionRouter's auto-detection doesn't also handle the click.
       sessionStorage.setItem('scroll-to-section', id);
-      router.push('/');
+      // scroll: false: the home page scrolls to the section itself; Next's
+      // own scroll-to-top would otherwise land after it and win.
+      router.push('/', { scroll: false });
     }
   };
 
