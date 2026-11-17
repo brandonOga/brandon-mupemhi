@@ -5,6 +5,8 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import { TransitionProvider } from "./components/PageTransition";
 import ButtonFlair from "./components/ButtonFlair";
+import SiteCursor from "./components/SiteCursor";
+import GridLines from "./components/GridLines";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,13 +37,18 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://db.onlinewebfonts.com" crossOrigin="" />
       </head>
-      <body className="antialiased" suppressHydrationWarning>
+      {/* isolate: <html> has its own background, so <body>'s is painted as
+          an ordinary box. As a stacking context, body paints that first, and
+          the grid at the back (-z-10) then lands above it, not under it. */}
+      <body className="antialiased isolate" suppressHydrationWarning>
         <TransitionProvider>
           <ButtonFlair />
           <Header />
           {children}
           <Footer />
         </TransitionProvider>
+        <GridLines />
+        <SiteCursor />
       </body>
     </html>
   );

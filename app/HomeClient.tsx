@@ -2,8 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {useRef, useLayoutEffect} from "react";
-import type { CSSProperties } from "react";
-import ArrowUpRight from "./components/ArrowUpRight";
+import SocialLinks from "./components/SocialLinks";
 import gsap from "gsap";
 import { SplitText } from "gsap/SplitText";
 import customEase from "gsap/CustomEase";
@@ -14,12 +13,15 @@ import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { vertexShader, fragmentShader } from "./components/shaders";
-import { SQUIGGLE_PATH_D, SQUIGGLE_VIEWBOX, SQUIGGLE_COLOR, SQUIGGLE_STROKE_THIN, SQUIGGLE_STROKE_THICK, SQUIGGLE_SVG_CLASS } from "./components/squiggle";
 import { LiaAsteriskSolid } from "react-icons/lia";
 import { FaArrowRight } from "react-icons/fa";
 import type { ProjectCard } from "@/lib/projects";
 import Noise from "./components/Noise";
+import CursorLink from "./components/CursorLink";
+import GridLines from "./components/GridLines";
 import ProjectCarousel from "./components/ProjectCarousel";
+import ExpertiseCard from "./components/ExpertiseCard";
+import JourneyTimeline, { type JourneyEntry } from "./components/JourneyTimeline";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 
 let preloaderHasPlayed = false;
@@ -54,38 +56,44 @@ const ABOUT_PROCESS = [
   },
 ];
 
-const ABOUT_SKILLS: { title: string; items: string[]; tools?: string }[] = [
+const ABOUT_SKILLS: { title: string; description: string; items: string[] }[] = [
   {
     title: 'UI/UX Design',
-    items: ['User Research', 'Wireframing', 'Prototyping', 'Interface Design', 'Responsive Design', 'User Flows'],
-    tools: 'Figma, Adobe XD, Photoshop',
+    description: 'Researching, mapping and designing interfaces that feel obvious to use, from first sketch to polished prototype.',
+    items: ['User Research', 'Wireframing', 'Prototyping', 'Interface Design', 'Responsive Design', 'User Flows', 'Figma', 'Adobe XD', 'Photoshop'],
   },
   {
     title: 'Frontend Development',
+    description: 'Turning designs into fast, responsive and accessible interfaces with clean, maintainable code.',
     items: ['HTML', 'CSS', 'JavaScript', 'React', 'Next.js', 'Tailwind CSS'],
   },
   {
     title: 'WordPress Development',
+    description: 'Building flexible, easy-to-manage WordPress sites, from dynamic listings to multilingual and learning platforms.',
     items: ['WordPress', 'Elementor Pro', 'JetEngine', 'JetSmartFilters', 'JetFormBuilder', 'WPML', 'LearnDash'],
   },
 ];
 
-// TODO: add the internship employer and dates, and confirm the exact degree title.
-const ABOUT_TIMELINE = [
+// Dates as on the CV (public/Brandon Mupemhi Resume.pdf).
+const ABOUT_TIMELINE: JourneyEntry[] = [
   {
-    kind: 'Experience — Current',
+    kind: 'Experience',
+    current: true,
+    dates: 'Sept 2023 — Present',
     place: 'Beedesigned Studio',
     role: 'UI/UX Designer & Developer',
     body: 'Working across UI/UX design, WordPress development and website maintenance, helping transform project requirements into functional and engaging digital experiences.',
   },
   {
     kind: 'Internship',
-    place: 'Previous Experience',
+    dates: 'Aug 2022 — Aug 2023',
+    place: 'Beedesigned Studio',
     role: 'Junior Web Developer Intern',
     body: 'An opportunity to build my development skills, gain practical experience and develop a stronger understanding of creating and maintaining websites.',
   },
   {
     kind: 'Education',
+    dates: '2020 — 2024',
     place: 'National University of Science and Technology (NUST)',
     role: "Bachelor's Degree in Computer Science",
     body: 'My academic background gave me a foundation in computing and problem-solving that continues to inform how I approach design and development.',
@@ -100,8 +108,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   const modelStageRef = useRef<HTMLDivElement>(null);
   const scrollBarRef = useRef<HTMLDivElement>(null);
   const sectionCountRef = useRef<HTMLSpanElement>(null);
-  const preloaderSquiggleRef = useRef<HTMLDivElement>(null);
-  const preloaderSquigglePathRef = useRef<SVGPathElement>(null);
+  const preloaderWipeRef = useRef<HTMLDivElement>(null);
 
   const threeCamera      = useRef<THREE.PerspectiveCamera | null>(null);
   const threeRenderer    = useRef<THREE.WebGLRenderer | null>(null);
@@ -432,6 +439,11 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const previous = horizontalTrigger;
       const previousProgress = previous ? previous.progress : 0;
+      // Reverting removes the pin spacer, which would collapse the page and
+      // clamp the scroll to the top (the hero) for a frame. Hold the page's
+      // height until the new trigger is in place.
+      const root = document.documentElement;
+      if (previous) root.style.minHeight = `${root.scrollHeight}px`;
       scrollCtx?.revert();
       measureSectionStarts();
 
@@ -473,10 +485,22 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       });
 
+      root.style.removeProperty('min-height');
       lenis.resize(); // pick up the height the pin spacer added
       if (previous && horizontalTrigger) {
+        // Rebuilds happen mid-page (About's content settling as its reveals
+        // finish, images loading). Creating the trigger scrolls the window
+        // to the top to measure and only restores it a frame later, and
+        // Lenis, still at the old position, skips a scrollTo there. So set
+        // the window's scroll directly, then finish the scrub at once;
+        // otherwise the page flashes the hero and scrubs back over.
         const { start, end } = horizontalTrigger;
-        lenis.scrollTo(start + previousProgress * (end - start), { immediate: true, force: true });
+        const target = start + previousProgress * (end - start);
+        window.scrollTo(0, target);
+        lenis.scrollTo(target, { immediate: true, force: true });
+        ScrollTrigger.update();
+        horizontalTrigger.getTween()?.progress(1);
+        horizontalTrigger.animation?.progress(horizontalTrigger.progress);
       }
       updateScrollUI(-(gsap.getProperty(scrollContainer, 'x') as number));
     };
@@ -1584,7 +1608,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         preloaderHasPlayed = true;
         lenis.stop(); // no scrolling until the preloader has finished
         // A long frame (model parse, shader compile) would otherwise make the
-        // timeline jump ahead by the time lost and skip the squiggle exit.
+        // timeline jump ahead by the time lost and skip the column-wipe exit.
         // Scroll sync needs smoothing off again once the preloader is done.
         // The threshold is low because the model load hitches the main thread
         // in 100–400ms chunks, each of which would otherwise skip the images
@@ -1651,30 +1675,47 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // curtain-close (image stack collapsing away) plays out fully first.
         preloaderTL.to(".preloader-images", { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", duration: 1, ease: "hop" }, counterEnd);
 
-        // Squiggle exit — only starts once the preloader has fully closed,
-        // not layered on top of it. Starts already fully formed (swapped in
-        // for the preloader instantly), then only animates the erase that
-        // reveals the hero.
-        const squiggleStart = counterEnd + 1;
-        preloaderTL.set(preloaderSquigglePathRef.current, {
-          drawSVG: "100%",
-          strokeWidth: SQUIGGLE_STROKE_THICK,
-        }, squiggleStart);
-        preloaderTL.set(preloaderSquiggleRef.current, { opacity: 1 }, squiggleStart);
-        preloaderTL.set(".preloader", { autoAlpha: 0 }, squiggleStart);
-        preloaderTL.to(preloaderSquigglePathRef.current, {
-          drawSVG: "100% 100%",
-          strokeWidth: SQUIGGLE_STROKE_THIN,
-          duration: 2.6,
-          ease: "power2.inOut",
-        }, squiggleStart);
-        preloaderTL.to(preloaderSquiggleRef.current, {
-          opacity: 0,
-          duration: 1.5,
-          ease: "power2.inOut",
-        }, squiggleStart + 1.2);
-        // Fire hero entrance 0.5 timeline-seconds before the squiggle finishes erasing
-        preloaderTL.call(animateHeroEntrance, [], ">-0.5");
+        // Column-wipe exit, the same as the page transition (PageTransition):
+        // once the image stack has closed, primary-colour columns open from a
+        // line across the middle of the screen, rippling out from the centre
+        // column, to cover the preloader. The preloader hides underneath, and
+        // the columns wipe up and away to reveal the hero.
+        const wipe = preloaderWipeRef.current;
+        const wipeColumns = wipe
+          ? Array.from(wipe.children).filter(
+              (el): el is HTMLElement => el instanceof HTMLElement && el.offsetParent !== null
+            )
+          : [];
+        const wipeStart = counterEnd + 1;
+        const wipeStep = 0.04; // seconds between neighbouring columns
+        const wipeOrigin = Math.floor((wipeColumns.length - 1) / 2);
+        const wipeSpread = Math.max(wipeOrigin, wipeColumns.length - 1 - wipeOrigin) * wipeStep;
+        const coverDuration = 0.75;
+        const revealDuration = 0.85;
+        const coverEnd = wipeStart + coverDuration + wipeSpread;
+        const revealStart = coverEnd + 0.15;
+
+        preloaderTL.set(wipe, { autoAlpha: 1 }, wipeStart);
+        wipeColumns.forEach((col, i) => {
+          const delay = Math.abs(i - wipeOrigin) * wipeStep;
+          preloaderTL.fromTo(col,
+            { clipPath: "inset(50% 0% 50% 0%)" },
+            { clipPath: "inset(0% 0% 0% 0%)", duration: coverDuration, ease: "expo.inOut", immediateRender: false },
+            wipeStart + delay);
+          // Fully open, drop the clip so its anti-aliased edges don't leave
+          // hairlines between columns while the screen is covered.
+          preloaderTL.set(col, { clipPath: "none" }, coverEnd);
+          preloaderTL.fromTo(col,
+            { clipPath: "inset(0% 0% 0% 0%)" },
+            { clipPath: "inset(0% 0% 100% 0%)", duration: revealDuration, ease: "expo.inOut", immediateRender: false },
+            revealStart + delay);
+        });
+        preloaderTL.set(".preloader", { autoAlpha: 0 }, coverEnd);
+        const revealEnd = revealStart + revealDuration + wipeSpread;
+        preloaderTL.set(wipe, { autoAlpha: 0 }, revealEnd);
+        preloaderTL.set(wipeColumns, { clearProps: "clipPath" }, revealEnd);
+        // Fire the hero entrance 0.5 timeline-seconds before the wipe clears.
+        preloaderTL.call(animateHeroEntrance, [], revealEnd - 0.5);
       } // end preloader
 
       // Skill pills: drop in again whenever they scroll back into view.
@@ -1951,18 +1992,18 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         // The homepage moves sections with a transformed horizontal track,
         // which can make IntersectionObserver miss this tall portrait. Check
-        // the About panel's actual viewport position until it comes into view.
+        // the portrait's own on-screen position each frame. (Not the About
+        // panel's: the portrait sits on the panel's right, so the panel's
+        // edge arriving fired the wipe while the portrait was still off
+        // screen.) Reveals once a third of the portrait is showing.
         const watchAboutImage = () => {
-          const trigger = aboutSection ?? aboutImageReveal;
-          const bounds = trigger.getBoundingClientRect();
-          const isHorizontallyVisible =
-            bounds.left < window.innerWidth * 0.85 &&
-            bounds.right > window.innerWidth * 0.15;
-          const isVerticallyVisible =
-            bounds.top < window.innerHeight * 0.85 &&
-            bounds.bottom > window.innerHeight * 0.15;
+          const bounds = aboutImageReveal.getBoundingClientRect();
+          const visibleX = Math.min(bounds.right, window.innerWidth) - Math.max(bounds.left, 0);
+          const visibleY = Math.min(bounds.bottom, window.innerHeight) - Math.max(bounds.top, 0);
+          const isHorizontallyVisible = visibleX >= Math.min(bounds.width, window.innerWidth) * 0.33;
+          const isVerticallyVisible = visibleY >= Math.min(bounds.height, window.innerHeight) * 0.33;
 
-          if (isHorizontallyVisible && isVerticallyVisible) {
+          if (bounds.width && bounds.height && isHorizontallyVisible && isVerticallyVisible) {
             revealAboutImage();
             return;
           }
@@ -2015,7 +2056,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
   }, []);
 
   return (
-    <div ref={root} className="w-full bg-background">
+    // No background here: <body> already paints the same colour, and one
+    // here would cover the grid behind the hero (see GridLines).
+    <div ref={root} className="w-full">
         <Noise
           patternSize={250}
           patternScaleX={1}
@@ -2024,7 +2067,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           patternAlpha={15}
         />
         {/* Preloader */}
-        <section className={`preloader w-full h-svh lg:h-screen bg-deep-teal fixed top-0 left-0 flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
+        <section className={`preloader w-full h-svh lg:h-screen bg-site-black fixed top-0 left-0 isolate [clip-path:inset(0)] flex flex-col justify-center items-center gap-10 overflow-hidden z-50 ${preloaderHasPlayed ? 'opacity-0 pointer-events-none' : ''}`}>
+          <GridLines />
           <div>
             <div className="preloader-images relative w-[min(18.75rem,70vw)] aspect-[6/7] opacity-0 will-change-[clip-path] overflow-hidden">
               <div className="img-wrap w-full h-full absolute inset-0 overflow-hidden">
@@ -2048,30 +2092,12 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
         </section>
 
-        {/* Preloader exit squiggle — draws/erases the same shape as the page transition */}
-        <div
-          ref={preloaderSquiggleRef}
-          aria-hidden
-          className="fixed inset-0 z-[51] flex items-center justify-center overflow-hidden opacity-0 pointer-events-none"
-        >
-          <svg
-            width="100%"
-            height="100%"
-            viewBox={SQUIGGLE_VIEWBOX}
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className={SQUIGGLE_SVG_CLASS}
-            preserveAspectRatio="xMidYMid slice"
-          >
-            <path
-              ref={preloaderSquigglePathRef}
-              d={SQUIGGLE_PATH_D}
-              stroke={SQUIGGLE_COLOR}
-              strokeWidth={SQUIGGLE_STROKE_THIN}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+        {/* Preloader exit: the page transition's column wipe (same
+            .page-transition columns, 12 from md up, 6 below). */}
+        <div ref={preloaderWipeRef} aria-hidden className="page-transition">
+          {Array.from({ length: 12 }, (_, i) => (
+            <span key={i} className={i >= 6 ? 'hidden md:block' : undefined} />
+          ))}
         </div>
 
       {/* Pinned viewport: page scrolls vertically, the track inside moves sideways */}
@@ -2081,7 +2107,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         className="relative flex flex-col lg:flex-row lg:will-change-transform"
       >
         {/* Hero Section */}
-        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative">
+        <section id="home" className="hero w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen mb-7.5 lg:mb-0 shrink-0 flex flex-col overflow-hidden relative isolate">
           <div className="flex-1 lg:flex-none lg:h-full lg:min-h-0 w-full flex flex-col lg:flex-row lg:items-end pb-0 lg:pb-15 pt-24 lg:pt-20 px-5 md:px-7.5 gap-6 md:gap-8 lg:gap-5">
             <div className = "w-full lg:w-1/2 shrink-0 flex flex-col justify-between lg:h-full gap-5 md:gap-8 lg:gap-10">
               <div className="flex flex-col gap-5">
@@ -2090,9 +2116,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
               <div className="w-full relative flex flex-wrap justify-start items-center gap-2 sm:gap-3 skill-pill-wrapper">
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-primary-color rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>UI/UX Designer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-site-black text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><LiaAsteriskSolid className="text-base sm:text-xl"/></p>
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 text-white bg-secondary-color rounded-2xl" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Frontend Developer</p>
-                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-deep-teal text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
+                <p className="skill-pill touch-none cursor-grab active:cursor-grabbing flex bg-site-black text-white p-2.5 sm:p-3 rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}><FaArrowRight className="text-base sm:text-xl"/></p>
                 <p className="skill-pill touch-none cursor-grab active:cursor-grabbing text-xs sm:text-sm py-2.5 px-4 sm:py-3 sm:px-5 bg-site-black text-white rounded-full" style={{ clipPath: "inset(100% 0% 0% 0%)" }}>Wordpress Developer</p>
               </div>
             </div>
@@ -2124,38 +2150,44 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
             horizontal scroll timeline, which pauses the track here and scrubs this
             panel's scrollTop before resuming horizontal). Each data-reveal-group
             runs its own line entrance, so lower blocks animate as they arrive. */}
-        <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-deep-teal relative overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <section id="about" className="w-full lg:w-screen lg:h-screen shrink-0 bg-site-black relative isolate [clip-path:inset(0)] overflow-x-hidden overflow-y-hidden  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Spacing: the intro keeps its gap below; every titled block after
-              it has the same padding above and below its top rule. */}
-          <div className="flex flex-col px-5 md:px-7.5 pt-24 md:pt-28 lg:pt-20 text-white">
+              it has the same padding above and below (no dividing rules). */}
+          <div className="relative isolate flex flex-col px-5 md:px-7.5 pt-24 md:pt-28 lg:pt-20 text-white">
             {/* Intro — headline, then the portrait and intro copy side by side */}
-            <div data-reveal-group className="flex flex-col gap-10 lg:gap-15 mb-20 lg:mb-30">
+            {/* .about-intro (globals.css): fills the first screen on desktop. */}
+            <div data-reveal-group className="about-intro flex flex-col gap-10 lg:gap-15 mb-20 lg:mb-30">
               <h2 className="text-white uppercase whitespace-nowrap">
                 About Me
               </h2>
 
               <div className="flex flex-col lg:flex-row-reverse lg:items-end gap-10 lg:gap-12">
                 {/* Desktop height: see .about-portrait in globals.css. */}
-                <div className="about-image-reveal about-portrait relative w-full lg:w-2/5 lg:shrink-0 aspect-[4/5] md:aspect-[16/11] lg:aspect-auto overflow-hidden will-change-[clip-path]">
-                  <Image
-                    className="object-cover grayscale will-change-transform"
-                    src="/images/brandon4.jpg"
-                    alt="Brandon Mupemhi"
-                    priority
-                    fill
-                    sizes="(max-width: 1023px) 100vw, 40vw"
-                  />
-                  {/* Second, colour photo shown instantly on hover (.about-portrait-alt
-                      in globals.css). It comes after the main image so the
-                      entrance reveal, which animates the first <img>, still targets that one. */}
-                  <Image
-                    className="about-portrait-alt object-cover"
-                    src="/images/brandon5.jpg"
-                    alt=""
-                    aria-hidden="true"
-                    fill
-                    sizes="(max-width: 1023px) 100vw, 40vw"
-                  />
+                <div className="about-image-reveal about-portrait relative w-full md:w-3/4 lg:w-[30%] lg:shrink-0 aspect-[4/5] md:aspect-[16/11] lg:aspect-auto overflow-hidden will-change-[clip-path]">
+                  {/* Hover zoom lives on this wrapper: GSAP owns the img's
+                      transform (and inlines `scale: none` on it). */}
+                  <div className="about-portrait-zoom absolute inset-0">
+                    <Image
+                      className="object-cover grayscale will-change-transform"
+                      src="/images/brandon4.jpg"
+                      alt="Brandon Mupemhi"
+                      priority
+                      fill
+                      sizes="(max-width: 767px) 100vw, (max-width: 1023px) 75vw, 30vw"
+                    />
+                  </div>
+                  {/* On hover the cursor becomes a round "View resume" button.
+                      Not on mobile, where the link sits under the intro copy
+                      instead. The wrapper isn't positioned, so the link still
+                      covers the portrait. */}
+                  <div className="max-md:hidden">
+                    <CursorLink href="/cv.pdf" label="View my resume">
+                      <span className="flex flex-col items-center gap-1">
+                        <span>View</span>
+                        <span>resume</span>
+                      </span>
+                    </CursorLink>
+                  </div>
                 </div>
 
                 {/* Intro copy */}
@@ -2163,8 +2195,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                   <p className="text-white text-lead font-light leading-relaxed">
                     I&apos;m a creative and detail-oriented UI/UX Designer and Developer with 4+ years of experience designing and developing user-centered web and mobile products. I enjoy turning ideas into intuitive, visually engaging digital experiences, combining design, technology and storytelling to create work that makes a difference.
                   </p>
-                  <a href="/cv.pdf" target="_blank" rel="noopener noreferrer" className="keycap btn-outline mt-8">
-                    View my resume <ArrowUpRight />
+                  {/* Mobile only: the resume link, in place of the portrait's
+                      cursor button. */}
+                  <a
+                    href="/cv.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-tertiary mt-12 md:hidden"
+                  >
+                    View resume
                   </a>
                 </div>
               </div>
@@ -2202,8 +2241,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
                 to right, a turn, two right to left); below xl, a vertical
                 list on a rail. The path's shape is measured from the step
                 icons (see "About process, xl" in the effect). */}
-            <div data-reveal-group className="grid grid-cols-1 gap-y-16 lg:gap-y-24 border-t border-white/20 py-20 lg:py-30">
-              <h3 className="text-white uppercase">My Process</h3>
+            <div data-reveal-group className="grid grid-cols-1 gap-y-16 lg:gap-y-24 py-20 lg:py-30">
+              <h3 className="text-white uppercase">Approach</h3>
               <div className="about-process-wrap">
                 <svg aria-hidden="true" className="about-process__path" fill="none">
                   <path className="about-process__path-line" />
@@ -2227,69 +2266,48 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
               </div>
             </div>
 
-            {/* Skills & Expertise: the title on the left at lg, the groups
-                stacked on the right. Each group: a rule, its name and count,
-                its tools offset to the right half, then its skills as a ruled
-                list. At lg the title sticks and each group pins below the
-                previous group's name row (see .about-pin in globals.css). */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 border-t border-white/20 py-20 lg:py-30">
-              <h3 className="text-white uppercase lg:sticky lg:top-24 lg:self-start">Skills &amp; Expertise</h3>
-              <div className="flex flex-col gap-16 lg:gap-24">
+            {/* Expertise: the title, then one card per skill group. Each card
+                shows its name and description; hovering it piles its skills
+                in as hero-style pills (see components/ExpertiseCard). */}
+            <div data-reveal-group className="flex flex-col gap-y-10 lg:gap-y-16 py-20 lg:py-30">
+              <h3 className="text-white uppercase">Expertise</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
                 {ABOUT_SKILLS.map((group, index) => (
-                  <div key={group.title} className="about-pin border-t border-white/20 pt-3" style={{ '--i': index } as CSSProperties}>
-                    <div className="flex items-start justify-between gap-4">
-                      <h5 className="text-white uppercase">{group.title}</h5>
-                      <span className="text-[12px] text-white pt-1">{index + 1}/{ABOUT_SKILLS.length}</span>
-                    </div>
-                    {group.tools && (
-                      <p className="mt-4 md:ml-[25%] min-[1440px]:ml-[50%] text-body font-light text-white">Tools: {group.tools}</p>
-                    )}
-                    <ul aria-label={group.title} className="mt-10 lg:mt-16">
-                      {group.items.map((item) => (
-                        <li key={item} className="py-2 border-b border-white/20 last:border-b-0 text-body text-white">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
+                  <ExpertiseCard
+                    key={group.title}
+                    title={group.title}
+                    description={group.description}
+                    items={group.items}
+                    index={index}
+                  />
                 ))}
               </div>
             </div>
 
-            {/* Education & Experience: laid out like Skills & Expertise, the
-                current role first. Each entry: a rule, its place and count,
-                then its kind, role and copy offset to the right half. At lg
-                the title sticks and the entries pin (.about-pin). */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 border-t border-white/20 py-20 lg:py-30">
-              <h3 className="text-white uppercase lg:sticky lg:top-24 lg:self-start">Education &amp; Experience</h3>
-              <div role="list" aria-label="Education and experience" className="flex flex-col gap-16 lg:gap-24">
-                {ABOUT_TIMELINE.map((entry, index) => (
-                  <div key={entry.place} role="listitem" className="about-pin border-t border-white/20 pt-3" style={{ '--i': index } as CSSProperties}>
-                    <div className="flex items-start justify-between gap-4">
-                      <h5 className="text-white uppercase">{entry.place}</h5>
-                      <span className="text-[12px] text-white pt-1">{index + 1}/{ABOUT_TIMELINE.length}</span>
-                    </div>
-                    <div className="mt-4 md:ml-[25%] min-[1440px]:ml-[50%]">
-                      <p className="text-body text-white">{entry.kind}</p>
-                      <p className="text-body text-primary-color mt-1">{entry.role}</p>
-                      <p className="text-body font-light leading-relaxed text-white mt-4">{entry.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {/* Journey: the title on the left at lg (sticky), the timeline on
+                the right, current role first (see components/JourneyTimeline). */}
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-12 py-20 lg:py-30">
+              <h3 className="text-white uppercase lg:sticky lg:top-24 lg:self-start">Journey</h3>
+              <JourneyTimeline entries={ABOUT_TIMELINE} />
             </div>
 
-            {/* Beyond the Screen: the same columns as Skills and Experience,
+            {/* Beyond the Screen: the same columns as Experience,
                 the title on the left at lg and the copy on the right. */}
-            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 border-t border-white/20 py-20 lg:py-30">
+            <div data-reveal-group className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-10 py-20 lg:py-30">
               <h3 className="text-white uppercase lg:self-start">Beyond the Screen</h3>
               <p className="text-white text-body font-light leading-relaxed">
                 Outside of design and development, I&apos;m always curious about new ideas, visual storytelling and creative ways to use technology. I enjoy exploring motion, experimenting with interactive experiences and finding inspiration in things that challenge the ordinary. These interests often influence how I think about and approach my work.
               </p>
             </div>
           </div>
+          {/* Last, not first: the scroll setup measures this section's
+              first child. */}
+          <GridLines />
         </section>
 
         {/* Projects Section */}
-        <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative overflow-hidden flex flex-col lg:block">
+        <section id="work" ref={projectsRef} className="w-full lg:w-screen min-h-svh lg:h-screen shrink-0 bg-background relative isolate [clip-path:inset(0)] overflow-hidden flex flex-col lg:block">
+          <GridLines />
           <div className="relative lg:absolute pl-5 pt-24 md:pt-28 md:pl-7.5 lg:pl-0 lg:pt-0 lg:left-7.5 lg:top-20 z-10 flex flex-col gap-5">
             <div className="flex flex-col gap-0">
               <h2 className="uppercase ">Selected <br/> Work</h2>
@@ -2327,60 +2345,26 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <div ref={modelStageRef} className="relative order-1 flex-1 min-h-[min(75vw,28rem)] lg:absolute lg:inset-0 lg:min-h-0" />
         </section>
 
-        <section id="say-hello" className="w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-deep-teal shrink-0 flex flex-col lg:flex-row px-5 md:px-7.5">
+        <section id="say-hello" className="relative isolate [clip-path:inset(0)] w-full lg:w-screen min-h-svh lg:min-h-0 lg:h-screen bg-site-black shrink-0 flex flex-col lg:flex-row px-5 md:px-7.5">
+          <GridLines />
           <div className="w-full lg:w-1/2 shrink-0 lg:shrink lg:h-full flex flex-col gap-10 justify-between pt-24 md:pt-28 lg:pt-30 lg:pb-20">
             <div className="w-full flex flex-col gap-8 items-start">
               <div className="w-full flex items-center justify-start gap-2">
-                <h2 className="text-[clamp(3rem,8.5vw,13.25rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello.</h2>
+                <h2 className="text-[clamp(3rem,8.5vw,13.25rem)] font-editorial text-white whitespace-nowrap uppercase">Say<br/>Hello<span className="text-primary-color">.</span></h2>
               </div>
             </div>
             <div className="w-full flex flex-col items-start gap-5 xl:gap-15">
               <div className="@container w-full flex flex-col gap-2.5">
-                <p className="text-white">Email me</p>
-                {/* Monospace: 26 characters plus two parentheses at 0.6em each
-                    make 16.8em. The parentheses sit mid-cell, so each is pulled
-                    0.12em outward to put its curve on the column edge, leaving
-                    a 16.56em row: 100cqw / 16.56 fills the column. */}
+                <p className="text-primary-color">Email me</p>
+                {/* Monospace: 26 characters at 0.6em each make a 15.6em row,
+                    so 100cqw / 15.6 fills the column. */}
                 <a
                   href="mailto:brandoneemupemhi@gmail.com" target="_blank" rel="noopener noreferrer"
-                  className="w-full bg-transparent! items-baseline text-[calc(100cqw/16.56)] whitespace-nowrap flex text-white ">
-                    <span aria-hidden="true" className="-ml-[0.12em]">(</span>
+                  className="w-full bg-transparent! items-baseline text-[calc(100cqw/15.6)] whitespace-nowrap flex text-white ">
                     <span className="email-underline">brandoneemupemhi@gmail.com</span>
-                    <span aria-hidden="true" className="-mr-[0.12em]">)</span>
                 </a>
               </div>
-              <div className ="flex flex-wrap gap-x-6 gap-y-3 md:gap-8">
-                <a
-                  href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-auto bg-transparent! items-center text-sm xl:text-base flex text-white">
-                  <span aria-hidden="true">(</span>
-                  <span className="contact-button__label">
-                    <span>LinkedIn</span>
-                    <span aria-hidden="true" className="text-primary-color">LinkedIn</span>
-                  </span>
-                  <span aria-hidden="true">)</span>
-                </a>
-                <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"
-                className="contact-swap-button w-auto bg-transparent! items-center text-sm xl:text-base flex text-white">
-                  <span aria-hidden="true">(</span>
-                  <span className="contact-button__label">
-                    <span>GitHub</span>
-                    <span aria-hidden="true" className="text-primary-color">GitHub</span>
-                  </span>
-                  <span aria-hidden="true">)</span>
-                </a>
-
-                <a
-                  href="/cv.pdf" target="_blank" rel="noopener noreferrer"
-                  className="contact-swap-button w-auto bg-transparent! items-center text-sm xl:text-base flex text-white">
-                  <span aria-hidden="true">(</span>
-                  <span className="contact-button__label">
-                    <span>My Resume</span>
-                    <span aria-hidden="true" className="text-primary-color">My Resume</span>
-                  </span>
-                  <span aria-hidden="true">)</span>
-                </a>
-              </div>
+              <SocialLinks className="text-white" />
             </div>
           </div>
           <div className="flex-1 lg:min-h-0 lg:flex-none lg:h-full min-w-0 w-full lg:w-1/2 flex flex-col pt-4 pb-12.5 lg:pb-0 lg:pt-20">
