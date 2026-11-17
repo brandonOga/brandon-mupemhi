@@ -7,6 +7,8 @@ import { getProjectBySlug, getPublishedProjects, getPublishedSlugs } from "@/lib
 import { problemProcessHtml, solutionHtml } from "@/lib/caseStudyHtml";
 import { deviceFrameKey, devicePreset, deviceSlots } from "@/lib/devices";
 import Noise from "@/app/components/Noise";
+import GridLines from "@/app/components/GridLines";
+import SocialLinks from "@/app/components/SocialLinks";
 import BackLink from "./BackLink";
 import BackToTop from "./BackToTop";
 import DeviceShowcase from "./DeviceShowcase";
@@ -61,8 +63,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
     preset: devicePreset(slot.kind, cs.media[deviceFrameKey(slot.key)]),
   }));
 
-  return <main className="case-study" id="top">
+  return <main className="case-study relative isolate [clip-path:inset(0)]" id="top">
     <Noise patternSize={250} patternScaleX={1} patternScaleY={1} patternRefreshInterval={2} patternAlpha={15} />
+    <GridLines />
     <section className="case-hero case-shell">
       <BackLink />
       <div className="case-hero-meta"><Eyebrow number={`${pad(currentIndex + 1)} /`}>Selected work</Eyebrow><p>{project.year || "—"}</p></div>
@@ -107,7 +110,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       </div>
     </div></section>
 
-    <section className="case-section case-cta" aria-labelledby="case-cta-heading"><div className="case-shell">
+    <section className="case-section case-cta relative isolate [clip-path:inset(0)]" aria-labelledby="case-cta-heading"><GridLines /><div className="case-shell">
       <Eyebrow number="04 /">Work together</Eyebrow>
       {/* The heading in the left half, the copy in the right half, centred
           against each other. */}
@@ -118,16 +121,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           <div className="case-cta-email">
             <span>Email me</span>
             <a href="mailto:brandoneemupemhi@gmail.com">
-              <span aria-hidden="true">(</span>
               <span className="case-cta-email-text email-underline">brandoneemupemhi@gmail.com</span>
-              <span aria-hidden="true">)</span>
             </a>
           </div>
-          <div className="case-cta-links">
-            <a href="https://www.linkedin.com/in/brandon-mupemhi-697007230/" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">(</span>LinkedIn<span aria-hidden="true">)</span></a>
-            <a href="https://github.com/brandonOga" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">(</span>GitHub<span aria-hidden="true">)</span></a>
-            <a href="/cv.pdf" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">(</span>Resume<span aria-hidden="true">)</span></a>
-          </div>
+          <SocialLinks />
         </div>
       </div>
     </div></section>

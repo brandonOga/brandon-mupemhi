@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation';
+import GridLines from './GridLines';
 
 export default function Footer() {
   const pathname = usePathname();
@@ -12,13 +13,14 @@ export default function Footer() {
   return (
     <footer
       // Below lg every page scrolls natively, so it's only pinned from lg up.
-      className={`relative w-full lg:w-screen lg:fixed lg:bottom-0 lg:left-0 lg:right-0 lg:z-40 flex items-center justify-between gap-4 px-5 md:px-7.5 py-2.5 md:py-3 border-t lg:border-t-0 pointer-events-none`}
+      className={`relative w-full lg:w-screen lg:fixed lg:bottom-0 lg:left-0 lg:right-0 lg:z-40 isolate [clip-path:inset(0)] flex items-center justify-between gap-4 px-5 md:px-7.5 py-2.5 md:py-3 border-t lg:border-t-0 pointer-events-none`}
       style={{
         color: 'var(--footer-color, #65615d)',
         background: 'var(--footer-bar-background, var(--footer-background, #fefff8))',
         borderColor: 'var(--footer-border-color, #e5e7eb)',
       }}
     >
+      <GridLines />
       <p className="text-[10px] sm:text-xs text-inherit whitespace-nowrap">
         {/* Roboto Mono draws © small and low, so draw it larger than the caps, centred on them
             (cap height is 0.71em, so a 0.9em icon drops 0.1em below the baseline). */}

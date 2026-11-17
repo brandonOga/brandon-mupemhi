@@ -32,6 +32,26 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 [data-admin] section[id] { scroll-margin-top: 5.5rem; }
 
+/* Site cursor: on mouse/trackpad devices the system pointer is hidden
+   everywhere (including over grab/pointer/text cursors) and SiteCursor's
+   dot stands in. Touch screens keep the default and never show the dot. */
+@media (hover: hover) and (pointer: fine) {
+  *, *::before, *::after {
+    cursor: none !important;
+  }
+}
+@media not ((hover: hover) and (pointer: fine)) {
+  .site-cursor { display: none; }
+}
+/* The link hand gets a dark outline, like the system pointer's, so it
+   still reads over primary-coloured buttons. */
+.site-cursor-hand path {
+  stroke: var(--color-site-black);
+  stroke-width: 28px;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+}
+
 /* Site buttons are keycaps from the 3D model's beige keyboard. The element
    is the key's darker skirt; its ::before is the lighter top face, inset
    more at the bottom so the skirt shows as the key's front, and sits behind
@@ -104,6 +124,62 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* Text button sizing; the keycap look comes from .keycap. Spacing around
    it is set where it is used. */
 .btn-outline { font-size: var(--text-body); }
+
+/* Tertiary button: a plain text link, white, with a bottom outline instead
+   of a keycap. Used on dark sections. In the components layer: that beats
+   the base layer's blue `a` colour, while utilities such as `md:hidden`
+   still win over its `display`. */
+@layer components {
+  .btn-tertiary {
+    display: inline-flex;
+    align-items: center;
+    gap: .5em;
+    padding-bottom: .35em;
+    border-bottom: 1px solid currentColor;
+    color: var(--color-text-white);
+    font-size: var(--text-body);
+    white-space: nowrap;
+    transition: opacity .2s ease;
+  }
+  .btn-tertiary:hover { color: var(--color-text-white); opacity: .7; }
+}
+
+/* Page transition overlay (PageTransition.tsx): primary-colour columns that
+   tile the screen along the site grid (GridLines: --n columns, --p side
+   padding, 16px gaps). Each column's edge sits midway between a pair of grid
+   rules: the outer two also take the side padding, the inner ones take a
+   whole gap. --c is one grid column's width. The -1px margins overlap
+   neighbours so no hairline of page shows between them. */
+.page-transition {
+  --n: 6;
+  --p: 1.25rem;
+  --c: calc((100% - 2 * var(--p) - (var(--n) - 1) * 16px) / var(--n));
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  grid-template-columns:
+    calc(var(--p) + var(--c) + 8px)
+    repeat(4, calc(var(--c) + 16px))
+    calc(var(--p) + var(--c) + 8px);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+.page-transition > span {
+  margin-right: -1px;
+  background: var(--color-primary-color);
+}
+@media (min-width: 48rem) {
+  .page-transition {
+    --n: 12;
+    --p: 1.875rem;
+    grid-template-columns:
+      calc(var(--p) + var(--c) + 8px)
+      repeat(10, calc(var(--c) + 16px))
+      calc(var(--p) + var(--c) + 8px);
+  }
+}
 
 .button-flair {
   position: relative;
@@ -274,9 +350,9 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-device-tablet { width: 29%; min-height: 26rem; border: .6rem solid var(--color-foreground); border-radius: 1rem; }
 .case-device-desktop { width: 46%; min-height: 29rem; border: .6rem solid var(--color-foreground); }
 
-/* Let's talk: a deep-teal band before the next project, echoing the home
+/* Let's talk: a site-black band before the next project, echoing the home
    page's "Say Hello" section. */
-.case-cta { border-top: 0; background: var(--color-deep-teal); color: var(--color-text-white); }
+.case-cta { border-top: 0; background: var(--color-site-black); color: var(--color-text-white); }
 /* The base styles colour every p and h2 dark; on teal they take the band's white. */
 .case-cta p, .case-cta h2 { color: inherit; }
 /* Set like the home page's "Say Hello." heading, a size smaller; it keeps
@@ -290,17 +366,18 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-cta-body > p { max-width: 34rem; font-size: var(--case-body); line-height: 1.5; }
 .case-cta-email { container-type: inline-size; }
 .case-cta-email > span, .case-cta-links a { font-size: .8rem; letter-spacing: .04em; }
-.case-cta-email > span { display: block; margin-bottom: .75rem; }
-/* Monospace: 26 characters plus two parentheses at 0.6em each make 16.8em.
-   The parentheses sit mid-cell, so each is pulled 0.12em outward to put its
-   curve on the column edge, leaving a 16.56em row: 100cqw / 16.56 fills it. */
-.case-cta-email a { display: inline-flex; max-width: 100%; align-items: baseline; color: inherit; font-size: min(calc(100cqw / 16.56), 2.25rem); white-space: nowrap; }
-.case-cta-email a > span:first-child { margin-left: -.12em; }
-.case-cta-email a > span:last-child { margin-right: -.12em; }
+.case-cta-email > span { display: block; margin-bottom: .75rem; color: var(--color-primary-color); }
+/* Monospace: 26 characters at 0.6em each make a 15.6em row, so
+   100cqw / 15.6 fills it. */
+.case-cta-email a { display: inline-flex; max-width: 100%; align-items: baseline; color: inherit; font-size: min(calc(100cqw / 15.6), 2.25rem); white-space: nowrap; }
 .case-cta-email-text { display: inline-block; padding-bottom: .35em; }
-.case-cta-links { display: flex; flex-wrap: wrap; gap: 1rem 2rem; }
-.case-cta-links a { display: inline-flex; align-items: center; color: inherit; transition: color .3s ease; }
-.case-cta-links a:hover { color: var(--color-primary-color); }
+/* LinkedIn, GitHub and resume icon links (app/components/SocialLinks). */
+.social-links { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: 1.5rem; }
+.social-link { display: inline-flex; color: inherit; background: transparent !important; }
+.social-link .contact-button__label { line-height: 1; }
+.social-link svg { display: block; width: 1em; height: 1em; }
+.social-link:focus-visible { outline: 2px solid var(--color-primary-color); outline-offset: 4px; }
+@media (min-width: 80rem) { .social-links { gap: 1.5rem; font-size: 1.75rem; } }
 .case-cta + .case-next { border-top: 0; }
 
 .case-next { border-top: 1px solid var(--case-line); }
@@ -784,21 +861,6 @@ html.hide-scrollbar::-webkit-scrollbar {
   /* About's subsection titles are plain h3s and the skills and experience
      entry names h5s, sized by the base heading styles above. */
 
-  /* At lg (where About scrolls inside itself) each skills group and each
-     experience entry pins, one name row (--pin-head: the 0.75rem rule gap,
-     the h5's 1.4em line and 0.75rem below) under the one before it, so the
-     later one covers all but that row. --i is its index, set inline in
-     HomeClient. */
-  @media (min-width: 64rem) {
-    .about-pin {
-      --pin-head: calc(0.75rem + var(--text-h5) * 1.4 + 0.75rem);
-      position: sticky;
-      top: calc(6rem + var(--i) * var(--pin-head));
-      background: var(--color-deep-teal);
-      padding-bottom: 2rem;
-    }
-  }
-
   /* About process: each step is an icon ring, a numbered label and its copy.
      Below xl the steps stack along a dashed rail. At xl they wind, 01–03
      left to right and 04–05 right to left, on one dashed SVG path whose
@@ -845,7 +907,7 @@ html.hide-scrollbar::-webkit-scrollbar {
     border: 1px solid rgb(255 255 255 / 0.3);
     border-radius: 999px;
     /* The section colour, so the circle hides the dashed path behind it. */
-    background: var(--color-deep-teal);
+    background: var(--color-site-black);
     color: var(--color-primary-color);
   }
 
@@ -921,18 +983,6 @@ html.hide-scrollbar::-webkit-scrollbar {
     }
   }
 
-  /* About portrait hover: the second photo replaces the first instantly.
-     Pointer devices only. */
-  .about-portrait-alt {
-    visibility: hidden;
-  }
-
-  @media (hover: hover) {
-    .about-portrait:hover .about-portrait-alt {
-      visibility: visible;
-    }
-  }
-
   /* About portrait on desktop: runs from the bottom of the header down to a
      fixed bottom edge, where a fully on-screen image would end (--portrait-base:
      the screen less 19.5rem for the top padding, heading, gap and fixed footer).
@@ -943,8 +993,30 @@ html.hide-scrollbar::-webkit-scrollbar {
     .about-portrait {
       --portrait-base: min(70vh, 100vh - 19.5rem);
       --portrait-height: calc(var(--portrait-base) + var(--text-h2) * 1.1 + 3.75rem);
-      height: var(--portrait-height);
-      margin-top: calc(var(--portrait-base) - var(--portrait-height));
+      /* Scaled down to three quarters of that, and lifted 30px above that
+         fixed bottom edge. The intro copy, aligned to its bottom, rises
+         along with it. */
+      height: calc(var(--portrait-height) * 0.75);
+      margin-top: calc(var(--portrait-base) - var(--portrait-height) * 0.75 - 30px);
+    }
+
+    /* Hover zoom, on a wrapper around the img: GSAP drives the img's
+       reveal transform and inlines `scale: none` on it, which would
+       override a `scale` set here. */
+    .about-portrait-zoom {
+      transition: scale 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @media (hover: hover) {
+      .about-portrait:hover .about-portrait-zoom {
+        scale: 1.08;
+      }
+    }
+
+    /* The intro fills the first screen (less About's 5rem top padding), so
+       the divider under it stays out of view until you scroll down. */
+    .about-intro {
+      min-height: calc(100vh - 5rem);
     }
   }
 

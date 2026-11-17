@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTransitionRouter } from 'next-transition-router';
+import GridLines from './GridLines';
 
 const menuItems = [
   { label: 'Home',      id: 'home' },
@@ -46,12 +47,13 @@ export default function Header() {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-40"
+      className="fixed top-0 left-0 right-0 z-40 isolate [clip-path:inset(0)]"
       style={{
         color: 'var(--header-color, #111111)',
         background: 'var(--header-background, var(--footer-background, #fefff8))',
       }}
     >
+      <GridLines />
       <nav className="w-full h-16 md:h-20 flex items-center justify-between gap-3 px-5 md:px-7.5">
         {/* Left Menu */}
         <ul className="flex gap-4 sm:gap-6 md:gap-8">
