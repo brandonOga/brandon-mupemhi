@@ -77,10 +77,11 @@ export async function saveProject(
 
   const id = (formData.get('id') as string)?.trim();
   const name = (formData.get('name') as string)?.trim() ?? '';
-  let slug = (formData.get('slug') as string)?.trim() ?? '';
+  const previousSlug = (formData.get('previous_slug') as string)?.trim() ?? '';
   if (!name) return { error: 'Name is required.' };
-  slug = slug ? slugify(slug) : slugify(name);
-  if (!slug) return { error: 'Could not derive a slug — add one manually.' };
+  // The slug always follows the name, so renaming a project renames its URL.
+  const slug = slugify(name);
+  if (!slug) return { error: 'The name needs at least one letter or number to make a URL from.' };
 
   try {
     // Images are uploaded client-side directly to Supabase Storage (so large
@@ -99,6 +100,7 @@ export async function saveProject(
     const lines = (name: string) =>
       formData.getAll(name).flatMap((value) => String(value).split(/\r?\n/)).map((item) => item.trim()).filter(Boolean);
     const case_study = {
+      short_title: text('case_short_title'),
       industry: text('case_industry'), timeline: text('case_timeline'),
       responsibilities: lines('case_responsibilities'), tools: lines('case_tools'),
       overview: text('case_overview'),
@@ -146,7 +148,7 @@ export async function saveProject(
 
     if (result.error) {
       if (result.error.code === '23505') {
-        return { error: `A project with slug "${slug}" already exists.` };
+        return { error: `Another project already uses the URL "/work/${slug}". Choose a different name.` };
       }
       return { error: result.error.message };
     }
@@ -157,6 +159,7 @@ export async function saveProject(
   revalidatePath('/');
   revalidatePath('/admin');
   revalidatePath(`/work/${slug}`);
+  if (previousSlug && previousSlug !== slug) revalidatePath(`/work/${previousSlug}`);
   redirect('/admin');
 }
 
@@ -213,6 +216,7 @@ export async function importProjects(formData: FormData) {
       const list = (column: string, legacyKey = column.replace(/^case_/, '')) =>
         item[column] !== undefined ? csvList(item[column]) : stringList(legacy[legacyKey]);
       const caseStudy = {
+        short_title: value('case_short_title'),
         industry: value('case_industry'),
         timeline: value('case_timeline'),
         overview: value('case_overview'),

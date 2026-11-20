@@ -129,7 +129,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       </div>
     </div></section>
 
-    {nextProject && <section className="case-next"><Link href={`/work/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.name}</h2><span><ArrowUpRight /></span></div></div></Link></section>}
+    {nextProject && <section className="case-next"><Link href={`/work/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.title}</h2><span><ArrowUpRight /></span></div></div></Link></section>}
     <div className="case-bottom case-shell"><Link href="/">Home</Link><Link href="/#about">About</Link><BackToTop /></div>
   </main>;
 }

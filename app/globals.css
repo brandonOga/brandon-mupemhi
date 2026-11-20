@@ -275,7 +275,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-section { padding-block: 80px; }
 @media (max-width: 1039.98px) { .case-section { padding-block: 50px; } }
 /* Section titles use the site's stepped h2 size (--text-h2), as on the homepage. */
-.case-section h2 { max-width: 12ch; margin-top: clamp(2rem, 5vw, 5rem); letter-spacing: -0.06em; }
+.case-section h2 { max-width: 12ch; margin-top: clamp(2rem, 5vw, 5rem); }
 .case-eyebrow { display: flex; gap: 1rem; align-items: baseline; letter-spacing: .04em; }
 .case-eyebrow span { color: var(--color-primary-color); }
 .case-media { position: relative; overflow: hidden; min-height: 24rem; background: #deded7; }
@@ -283,7 +283,9 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-media:hover img { transform: scale(1.025); }
 .case-media-placeholder { position: absolute; inset: 0; display: grid; place-items: center; opacity: .45; }
 
-.case-hero { min-height: 100svh; padding-top: clamp(6rem, 8vw, 8rem); padding-bottom: clamp(3rem, 6vw, 6rem); display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; align-content: start; }
+/* Top padding clears the absolutely positioned Back keycap (30px + its height)
+   with room to spare at every width; the old 6rem floor left ~10px on phones. */
+.case-hero { min-height: 100svh; padding-top: 8.5rem; padding-bottom: clamp(3rem, 6vw, 6rem); display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; align-content: start; }
 /* Pinned to the page corner (it scrolls away with the page), outside the centred shell. */
 .case-back { position: absolute; top: 30px; left: 30px; z-index: 1; }
 /* On phones the shortened "Back" button moves to the top-right corner. */
@@ -291,11 +293,13 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-back svg { flex: none; transition: transform .35s ease; }
 .case-back:hover svg { transform: translateX(-4px); }
 .case-hero-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; }
-.case-title { grid-column: 1 / -1; max-width: none; margin-top: clamp(2rem, 4vw, 4rem); font-size: clamp(4rem, 14vw, 14rem); line-height: .78; letter-spacing: -.075em; overflow-wrap: anywhere; }
+/* Headings on the project page take the style guide's h1–h6 sizes; the rules
+   here only place them; the title is set 1.3x the h1 size. */
+.case-title { grid-column: 1 / -1; max-width: none; margin-top: clamp(2rem, 4vw, 4rem); font-size: calc(var(--text-h1) * 1.3); overflow-wrap: anywhere; }
 .case-hero-copy { grid-column: 6 / -1; max-width: 46rem; margin: clamp(2rem, 5vw, 5rem) 0; }
 .case-hero-copy > p { font-size: inherit; }
 .case-tags { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 2rem; }
-.case-tags span { border: 1px solid currentColor; border-radius: 999px; padding: .55rem .9rem; font-size: .72rem; }
+.case-tags span { border: 1px solid currentColor; border-radius: 999px; padding: .55rem 1rem; font-family: var(--font-sans); font-size: 14px; line-height: 1.3; font-weight: var(--text-body--font-weight); }
 .case-hero-image { grid-column: 1 / -1; min-height: min(72vw, 58rem); }
 
 .case-overview h2 { max-width: 9ch; }
@@ -332,9 +336,16 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-explore-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: clamp(5rem, 8vw, 8rem); }
 .case-explore-grid .case-media:nth-child(2) { transform: translateY(4rem); }
 
-/* Rich text inside a case section: keep its own heading scale rather than the
-   section's display-size h2. */
-.case-section .rich-text h2 { max-width: none; margin: 1.8rem 0 .8rem; font-size: 1.9rem; letter-spacing: normal; }
+/* Rich text inside a case section: headings use the style guide's h1–h6
+   tokens (the admin editor keeps its own compact scale). */
+.case-section .rich-text h2 { max-width: none; margin: 1.8rem 0 .8rem; }
+.case-study .rich-text :is(h1, h2, h3, h4, h5, h6) { text-transform: uppercase; letter-spacing: normal; }
+.case-study .rich-text h1 { font-size: var(--text-h1); line-height: var(--text-h1--line-height); font-weight: var(--text-h1--font-weight); }
+.case-study .rich-text h2 { font-size: var(--text-h2); line-height: var(--text-h2--line-height); font-weight: var(--text-h2--font-weight); }
+.case-study .rich-text h3 { font-size: var(--text-h3); line-height: var(--text-h3--line-height); font-weight: var(--text-h3--font-weight); text-transform: none; }
+.case-study .rich-text h4 { font-size: var(--text-h4); line-height: var(--text-h4--line-height); font-weight: var(--text-h4--font-weight); text-transform: none; }
+.case-study .rich-text h5 { font-size: var(--text-h5); line-height: var(--text-h5--line-height); font-weight: var(--text-h5--font-weight); text-transform: none; }
+.case-study .rich-text h6 { font-size: var(--text-h6); line-height: var(--text-h6--line-height); font-weight: var(--text-h6--font-weight); text-transform: none; }
 /* Solution row: the copy on the left at 16px, the device mockups on the
    right, at most 30px apart. With no copy the mockups take the full width. */
 .case-solution-split { display: grid; grid-template-columns: minmax(0, 35fr) minmax(0, 65fr); gap: min(6vw, 30px); align-items: start; margin-top: clamp(3rem, 6vw, 6rem); }
@@ -438,7 +449,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-next-link:hover { color: var(--color-foreground); }
 .case-next-link > .case-shell { padding-block: clamp(5rem, 9vw, 9rem); }
 .case-next-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 3rem; }
-.case-next-heading h2 { max-width: none; font-size: clamp(3.5rem, 10vw, 10rem); letter-spacing: -.06em; }
+.case-next-heading h2 { max-width: none; }
 .case-next-heading > span { font-size: clamp(3rem, 8vw, 8rem); transition: transform .35s ease; }
 .case-next-link:hover .case-next-heading > span { transform: translate(12px, -12px); }
 /* Underline under the project name while the name itself is hovered (or the
@@ -493,7 +504,6 @@ html.hide-scrollbar::-webkit-scrollbar {
   .case-system-grid > div, .case-build-grid > div { min-height: auto; padding-bottom: 3rem; }
   .case-devices { align-items: center; flex-direction: column; }
   .case-device-mobile, .case-device-tablet, .case-device-desktop { width: min(100%, 30rem); min-height: 34rem; }
-  .case-hero { padding-top: 6rem; }
   .case-hero-meta { gap: 1rem; flex-wrap: wrap; }
   .case-media, .case-hero-image { min-height: 18rem; }
   .case-flow-track { grid-template-columns: repeat(6, minmax(8.5rem, 1fr)); }
@@ -506,7 +516,6 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 @media (max-width: 479px) {
   .case-facts { grid-template-columns: 1fr; gap: 1.5rem; }
-  .case-title { font-size: clamp(2.75rem, 15vw, 4rem); line-height: .85; }
   .case-feature h3 { font-size: 1.75rem; }
   .case-system-grid strong { font-size: 4.5rem; }
 }

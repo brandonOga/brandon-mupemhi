@@ -73,7 +73,7 @@ export default function ProjectCarousel({
                   {String(i + 1).padStart(2, '0')} / {String(projects.length).padStart(2, '0')}
                   {project.year && <span> · {project.year}</span>}
                 </p>
-                <h3 className="pc-title">{project.name}</h3>
+                <h3 className="pc-title">{project.title}</h3>
                 {project.description && <p className="pc-desc">{project.description}</p>}
               </div>
               <Link

@@ -5,7 +5,7 @@ import { deviceMediaKeys } from '@/lib/devices';
 export const dynamic = 'force-dynamic';
 
 const columns = [
-  'slug', 'name', 'description', 'year', 'role', 'tags', 'url', 'body',
+  'slug', 'name', 'case_short_title', 'description', 'year', 'role', 'tags', 'url', 'body',
   'case_industry', 'case_timeline', 'case_overview', 'case_responsibilities',
   'case_tools', 'case_problem_process', 'case_challenge_question', 'case_challenge', 'case_understanding',
   'case_insights', 'case_process_steps', 'case_exploration', 'case_solution_detail', 'case_solution',
@@ -44,6 +44,7 @@ function flattenProject(project: Record<string, unknown>): Record<string, unknow
     ...project,
     tags: Array.isArray(project.tags) ? project.tags.join(', ') : '',
     gallery: lines(project.gallery),
+    case_short_title: caseStudy.short_title,
     case_industry: caseStudy.industry,
     case_timeline: caseStudy.timeline,
     case_overview: caseStudy.overview,
