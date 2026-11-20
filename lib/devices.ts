@@ -45,8 +45,12 @@ export const deviceSlots: { key: string; kind: DeviceKind; label: string }[] = [
 
 export const deviceFrameKey = (slotKey: string) => `${slotKey}_frame`;
 
-/** Every `case_study.media` key the device mockups use. */
-export const deviceMediaKeys = deviceSlots.flatMap((slot) => [slot.key, deviceFrameKey(slot.key)]);
+/** `case_study.media` key for the image on the homepage 3D model's screen
+ *  (falls back to the cover image when empty). */
+export const MODEL_MEDIA_KEY = 'model';
+
+/** Every `case_study.media` key the device mockups and the model use. */
+export const deviceMediaKeys = [...deviceSlots.flatMap((slot) => [slot.key, deviceFrameKey(slot.key)]), MODEL_MEDIA_KEY];
 
 export function devicePreset(kind: DeviceKind, id?: string): DevicePreset {
   return devicePresets[kind].find((preset) => preset.id === id) ?? devicePresets[kind][0];

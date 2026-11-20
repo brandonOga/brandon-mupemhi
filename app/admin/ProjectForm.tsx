@@ -5,11 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { saveProject, type SaveState } from './actions';
 import RichTextEditor from './RichTextEditor';
-import FileInput from './FileInput';
+import MediaPicker from './media/MediaPicker';
 import type { Project } from '@/lib/projects';
 import { problemProcessHtml, solutionHtml } from '@/lib/caseStudyHtml';
-import { deviceFrameKey, devicePresets, deviceSlots } from '@/lib/devices';
-import { MAX_UPLOAD_LABEL, uploadImage } from '@/lib/mediaUpload';
+import { MODEL_MEDIA_KEY, deviceFrameKey, devicePresets, deviceSlots } from '@/lib/devices';
+import { MAX_UPLOAD_LABEL } from '@/lib/mediaUpload';
 
 const input =
   'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px] text-[#1d2327]';
@@ -24,7 +24,7 @@ const editorFont = "[font-family:system-ui,-apple-system,'Segoe_UI',Roboto,'Helv
 const sectionLinks = [
   ['project-intro', 'Intro'], ['snapshot', 'Overview'], ['problem', 'Problem'],
   ['solution', 'Solution'],
-  ['media', 'Media'], ['settings', 'Publish'],
+  ['settings', 'Publish'], ['cover', 'Cover image'],
 ];
 
 
@@ -33,51 +33,16 @@ export default function ProjectForm({ project }: { project?: Project }) {
     saveProject,
     {}
   );
-  const [gallery, setGallery] = useState<string[]>(project?.gallery ?? []);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
   const [, startTransition] = useTransition();
 
-  const busy = pending || uploading;
+  const busy = pending;
   const caseStudy = project?.case_study;
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  // Images are chosen (or uploaded) through the media picker before saving,
+  // so the form only sends their URLs.
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setUploadError('');
-    const form = e.currentTarget;
-    const raw = new FormData(form);
-
-    setUploading(true);
-    try {
-      const coverFile = raw.get('cover_file') as File | null;
-      if (coverFile && coverFile.size > 0) {
-        raw.set('cover_image_current', await uploadImage(coverFile));
-      }
-      raw.delete('cover_file');
-
-      const galleryFiles = (raw.getAll('gallery_files') as File[]).filter(
-        (f) => f && f.size > 0
-      );
-      raw.delete('gallery_files');
-      for (const f of galleryFiles) {
-        raw.append('gallery_keep', await uploadImage(f));
-      }
-
-      // A new device screenshot replaces the one its slot already holds.
-      for (const { key } of deviceSlots) {
-        const deviceFile = raw.get(`device_file_${key}`) as File | null;
-        if (deviceFile && deviceFile.size > 0) {
-          raw.set(`case_media_${key}`, await uploadImage(deviceFile));
-        }
-        raw.delete(`device_file_${key}`);
-      }
-    } catch (err) {
-      setUploading(false);
-      setUploadError(err instanceof Error ? err.message : 'Upload failed.');
-      return;
-    }
-    setUploading(false);
-
+    const raw = new FormData(e.currentTarget);
     startTransition(() => formAction(raw));
   }
 
@@ -92,12 +57,9 @@ export default function ProjectForm({ project }: { project?: Project }) {
           {project ? `Editing: ${project.name}` : 'New project'}
         </p>
         <div className="flex items-center gap-3 min-w-0">
-          {(state.error || uploadError) && (
-            <p
-              className="text-[13px] text-warning truncate"
-              title={uploadError || state.error}
-            >
-              {uploadError || state.error}
+          {state.error && (
+            <p className="text-[13px] text-warning truncate" title={state.error}>
+              {state.error}
             </p>
           )}
           <button
@@ -105,7 +67,7 @@ export default function ProjectForm({ project }: { project?: Project }) {
             disabled={busy}
             className="shrink-0 bg-foreground! text-white! rounded-md text-sm px-3 sm:px-[18px] py-2 disabled:opacity-50"
           >
-            {uploading ? 'Uploading…' : pending ? 'Saving…' : 'Save project'}
+            {pending ? 'Saving…' : 'Save project'}
           </button>
           <Link
             href="/admin"
@@ -134,11 +96,6 @@ export default function ProjectForm({ project }: { project?: Project }) {
       </div>
 
       {project && <input type="hidden" name="id" value={project.id} />}
-      <input
-        type="hidden"
-        name="cover_image_current"
-        value={project?.cover_image ?? ''}
-      />
 
       {/* Main column */}
       <div className="flex flex-col gap-6 min-w-0">
@@ -225,8 +182,8 @@ export default function ProjectForm({ project }: { project?: Project }) {
           <span className={labelText}>Device mockups</span>
           <span className={help}>
             Shown to the right of the solution copy in three columns: the two mobiles, the tablet, then the desktop.
-            Pick a device and upload a screenshot taken at its screen size. Until a device has its own screenshot
-            it shows a gallery image or the cover.{' '}
+            Pick a device and upload an image taken at its screen size. Until a device has its own image it
+            shows the cover.{' '}
             <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
           </span>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -239,6 +196,18 @@ export default function ProjectForm({ project }: { project?: Project }) {
               />
             ))}
           </div>
+        </div>
+
+        <div className="flex flex-col gap-2.5 border-t border-foreground/10 pt-5">
+          <span className={labelText}>Model</span>
+          <span className={help}>
+            Shown on the screen of the 3D model on the homepage when this project is hovered or selected.
+            Use a 4:3 image, e.g. 1600 &times; 1200px (1024 &times; 768 at least); other shapes are cropped to fit.
+            The screen is a curved CRT with dark edges, so keep text and logos about 5% in from each edge.
+            Leave empty to use the cover image.{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
+          </span>
+          <ImageSlot mediaKey={MODEL_MEDIA_KEY} label="Model" image={caseStudy?.media[MODEL_MEDIA_KEY]} />
         </div>
       </section>
 
@@ -260,74 +229,12 @@ export default function ProjectForm({ project }: { project?: Project }) {
       <input type="hidden" name="case_what_worked" value={(caseStudy?.what_worked ?? []).join('\n')} />
       <input type="hidden" name="case_improvements" value={(caseStudy?.improvements ?? []).join('\n')} />
 
-      {/* Media */}
-      <section id="media" className={card}>
-        <SectionHeading title="Media and image placement" required note="The cover image and the gallery. Device screenshots for the solution are uploaded in section 03." />
-
-        {/* Cover image */}
-        <div className="flex flex-col gap-2.5">
-          <span className={labelText}>Cover image</span>
-          {project?.cover_image && (
-            <div className="relative w-44 h-28 bg-neutral-200 rounded-md overflow-hidden border border-foreground/10">
-              <Image
-                src={project.cover_image}
-                alt="current cover"
-                fill
-                className="object-cover"
-                sizes="176px"
-              />
-            </div>
-          )}
-          <FileInput name="cover_file" buttonLabel="Upload cover" />
-          <span className={help}>
-            {project?.cover_image
-              ? 'Leave empty to keep the current image.'
-              : 'Shown on the project card and as the page header.'}{' '}
-            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
-          </span>
-        </div>
-
-        <div className="h-px bg-foreground/10" />
-
-        {/* Gallery */}
-        <div className="flex flex-col gap-2.5">
-          <span className={labelText}>Gallery images</span>
-          {gallery.length > 0 && (
-            <div className="flex flex-wrap gap-3">
-              {gallery.map((url) => (
-                <div key={url} className="flex flex-col items-center">
-                  <div className="relative w-28 h-20 bg-neutral-200 rounded-md overflow-hidden border border-foreground/10">
-                    <Image
-                      src={url}
-                      alt="gallery"
-                      fill
-                      className="object-cover"
-                      sizes="112px"
-                    />
-                  </div>
-                  <input type="hidden" name="gallery_keep" value={url} />
-                  <button
-                    type="button"
-                    onClick={() => setGallery((g) => g.filter((u) => u !== url))}
-                    className="bg-transparent! text-warning! text-xs px-0 pt-1"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <FileInput
-            name="gallery_files"
-            multiple
-            buttonLabel="Add images"
-          />
-          <span className={help}>
-            Selected files are added to the gallery on save.{' '}
-            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
-          </span>
-        </div>
-      </section>
+      {/* The gallery is no longer edited; a project's stored gallery images
+          are passed through so saving keeps them (older projects' device
+          mockups still fall back to them). */}
+      {(project?.gallery ?? []).map((url) => (
+        <input key={url} type="hidden" name="gallery_keep" value={url} />
+      ))}
       </div>
 
       {/* Sidebar — self-stretch so the Sections card can stay sticky */}
@@ -352,6 +259,15 @@ export default function ProjectForm({ project }: { project?: Project }) {
             />
             <span className={labelText}>Published</span>
           </label>
+        </section>
+
+        <section id="cover" className={sidebarCard}>
+          <SectionHeading title="Cover image" required />
+          <ImageField name="cover_image_current" label="Cover" image={project?.cover_image} large />
+          <span className={help}>
+            Shown as the project page header and on the project card. Pick one from the media library or upload a new one.{' '}
+            <span className="opacity-70">({MAX_UPLOAD_LABEL})</span>
+          </span>
         </section>
 
         <nav className={`${sidebarCard} gap-1 sticky top-[76px]`}>
@@ -414,7 +330,6 @@ function SectionHeading({ title, note, required = false }: { title: string; note
 
 // One device mockup: which device to draw and the screenshot on its screen.
 function DeviceSlot({ slot, image, frame }: { slot: (typeof deviceSlots)[number]; image?: string; frame?: string }) {
-  const [current, setCurrent] = useState(image ?? '');
   const presets = devicePresets[slot.kind];
 
   return (
@@ -425,18 +340,52 @@ function DeviceSlot({ slot, image, frame }: { slot: (typeof deviceSlots)[number]
           {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
         </select>
       </label>
-      <input type="hidden" name={`case_media_${slot.key}`} value={current} />
+      <ImageSlot mediaKey={slot.key} label={slot.label} image={image} />
+    </div>
+  );
+}
+
+// One stored image in `case_study.media[mediaKey]`.
+function ImageSlot({ mediaKey, label, image }: { mediaKey: string; label: string; image?: string }) {
+  return <ImageField name={`case_media_${mediaKey}`} label={label} image={image} />;
+}
+
+// An image chosen from the media library (which can also upload a new one).
+// The chosen URL is submitted under `name`.
+function ImageField({ name, label, image, large = false }: { name: string; label: string; image?: string; large?: boolean }) {
+  const [current, setCurrent] = useState(image ?? '');
+  const [picking, setPicking] = useState(false);
+
+  return (
+    <>
+      <input type="hidden" name={name} value={current} />
       {current && (
-        <div className="flex items-end gap-3">
-          <div className="relative w-28 h-20 bg-neutral-200 rounded-md overflow-hidden border border-foreground/10">
-            <Image src={current} alt={`${slot.label} screenshot`} fill className="object-cover object-top" sizes="112px" />
-          </div>
+        <div className={`relative bg-neutral-200 rounded-md overflow-hidden border border-foreground/10 ${large ? 'aspect-[16/10] w-full' : 'w-28 h-20'}`}>
+          <Image src={current} alt={`${label} image`} fill className={`object-cover ${large ? '' : 'object-top'}`} sizes={large ? '260px' : '112px'} />
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="bg-foreground! text-white! text-sm px-4 py-2 rounded-md"
+        >
+          {current ? 'Change image' : 'Choose image'}
+        </button>
+        {current && (
           <button type="button" onClick={() => setCurrent('')} className="bg-transparent! text-warning! text-xs px-0">
             Remove
           </button>
-        </div>
+        )}
+      </div>
+      {picking && (
+        <MediaPicker
+          title={`Choose ${label.toLowerCase()} image`}
+          current={current}
+          onSelect={(url) => { setCurrent(url); setPicking(false); }}
+          onClose={() => setPicking(false)}
+        />
       )}
-      <FileInput name={`device_file_${slot.key}`} buttonLabel={current ? 'Replace screenshot' : 'Upload screenshot'} />
-    </div>
+    </>
   );
 }
