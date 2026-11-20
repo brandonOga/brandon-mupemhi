@@ -15,8 +15,8 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* Editorial project case study */
 .case-study {
   --case-line: rgba(36, 33, 36, 0.2);
-  /* Body text: 18px on desktop, stepping down on tablets and phones. */
-  --case-body: 18px;
+  /* Body text: the site's default body size (--text-body). */
+  --case-body: var(--text-body);
   position: relative;
   overflow: clip;
   background: var(--color-background);
@@ -315,7 +315,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-narrative { max-width: 62rem; }
 .case-narrative > p { line-height: 1.45; }
 .case-narrative .btn-outline { margin-top: 2.5rem; }
-.case-narrative .rich-text { font-size: clamp(1.1rem, 1.6vw, 1.5rem); }
+.case-narrative .rich-text { font-size: var(--case-body); }
 
 .case-challenge h2 { max-width: 11ch; }
 .case-side-copy { width: 75%; margin: clamp(3rem, 6vw, 6rem) 0 clamp(4rem, 8vw, 8rem) auto; }
@@ -349,7 +349,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 /* Solution row: the copy on the left at 16px, the device mockups on the
    right, at most 30px apart. With no copy the mockups take the full width. */
 .case-solution-split { display: grid; grid-template-columns: minmax(0, 35fr) minmax(0, 65fr); gap: min(6vw, 30px); align-items: start; margin-top: clamp(3rem, 6vw, 6rem); }
-.case-solution-split .case-side-copy { --case-body: 16px; width: auto; margin: 0; text-align: justify; }
+.case-solution-split .case-side-copy { width: auto; margin: 0; text-align: justify; }
 .case-solution-media { min-width: 0; }
 .case-solution-media:only-child { grid-column: 1 / -1; }
 /* On desktop the copy stays in view while the taller mockup column scrolls past it. */
@@ -483,11 +483,9 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 /* All body copy on the project page shares one size, set by --case-body. */
 .case-hero-copy, .case-narrative > p, .case-side-copy, .case-side-copy p { font-size: var(--case-body); }
-.case-facts p { font-size: 15px; }
-@media (max-width: 1039.98px) { .case-study { --case-body: 17px; } }
+.case-facts p { font-size: var(--case-body); }
 
 @media (max-width: 767px) {
-  .case-study { --case-body: 16px; }
   .case-hero { display: block; }
   .case-title { margin-top: 3rem; }
   .case-hero-copy { margin-block: 3rem; }
