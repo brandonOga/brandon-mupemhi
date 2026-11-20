@@ -410,6 +410,8 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     let scrollCtx: gsap.Context | undefined;
     let horizontalTrigger: ScrollTrigger | undefined;
     let layoutKey = '';
+    let builtSizeKey = '';
+    let builtAboutMax = 0;
 
     const buildHorizontalScroll = () => {
       isStacked = stackedQuery.matches;
@@ -433,9 +435,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
       const maxScroll = getMaxScroll();
       const aboutMax = aboutSection ? aboutSection.scrollHeight - aboutSection.clientHeight : 0;
-      const key = `${window.innerWidth}x${window.innerHeight}:${maxScroll}:${aboutMax}`;
+      const sizeKey = `${window.innerWidth}x${window.innerHeight}:${maxScroll}`;
+      // About's height wobbles by a few pixels as its text reveals finish
+      // (SplitText reverting its line masks). Rebuilding the pinned trigger
+      // for that, mid-scroll, is what threw the page back to the hero, and
+      // a few pixels of About's bottom padding going unscrolled (or the
+      // scrub clamping a few short) is invisible. So only rebuild for a
+      // real change: the viewport, the track, or About by over 48px.
+      if (horizontalTrigger && sizeKey === builtSizeKey && Math.abs(aboutMax - builtAboutMax) <= 48) return;
+      const key = `${sizeKey}:${aboutMax}`;
       if (key === layoutKey) return;
       layoutKey = key;
+      builtSizeKey = sizeKey;
+      builtAboutMax = aboutMax;
 
       const previous = horizontalTrigger;
       const previousProgress = previous ? previous.progress : 0;
@@ -535,9 +547,14 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
     // Rebuild when the viewport or content size changes (fonts/images loading
     // can change how tall the About panel is).
     let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+    // Never mid-scroll: a rebuild reverts and recreates the pin, which
+    // fights Lenis's smooth scroll. Wait until the page has come to rest.
     const scheduleRebuild = () => {
       clearTimeout(rebuildTimer);
-      rebuildTimer = setTimeout(buildHorizontalScroll, 200);
+      rebuildTimer = setTimeout(() => {
+        if (lenis.isScrolling) scheduleRebuild();
+        else buildHorizontalScroll();
+      }, 200);
     };
     window.addEventListener('resize', scheduleRebuild);
     const layoutObserver = new ResizeObserver(scheduleRebuild);
