@@ -102,6 +102,8 @@ export type ProjectCard = Pick<
 > & {
   /** The title to show: the short title when one is set, else the name. */
   title: string;
+  /** The image on the homepage 3D model's screen: its own image, else the cover. */
+  model_image: string;
 };
 
 function normalize(row: Record<string, unknown>): Project {
@@ -128,13 +130,13 @@ function normalize(row: Record<string, unknown>): Project {
 /** Published projects for the public site. Falls back to the bundled list
  *  when Supabase isn't configured yet, so the site never renders empty. */
 export async function getPublishedProjects(): Promise<ProjectCard[]> {
-  const fallback = fallbackProjects.map((p) => ({ ...p, title: p.name }));
+  const fallback = fallbackProjects.map((p) => ({ ...p, title: p.name, model_image: p.cover_image }));
   if (!isSupabaseConfigured) return fallback;
 
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from('projects')
-    .select('slug, name, description, cover_image, role, tags, year, short_title:case_study->>short_title')
+    .select('slug, name, description, cover_image, role, tags, year, short_title:case_study->>short_title, model_image:case_study->media->>model')
     .eq('published', true)
     .order('display_order', { ascending: true });
 
@@ -143,6 +145,7 @@ export async function getPublishedProjects(): Promise<ProjectCard[]> {
     slug: row.slug,
     name: row.name,
     title: String(row.short_title ?? '').trim() || row.name,
+    model_image: String(row.model_image ?? '').trim() || row.cover_image,
     description: row.description,
     cover_image: row.cover_image,
     role: row.role,

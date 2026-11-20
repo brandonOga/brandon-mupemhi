@@ -1127,8 +1127,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           });
 
           texture.colorSpace = THREE.SRGBColorSpace;
-          texture.minFilter = THREE.LinearFilter;
+          // The image is shrunk several times to fit the small screen; without
+          // mipmaps that skips pixels and text breaks up. Anisotropy keeps it
+          // sharp where the curved screen tilts away from the camera.
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
           textureCache[src] = texture;
 
           return texture;
@@ -1143,7 +1148,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         const defaultDisplayImage = "/images/brandon.jpg";
         // Below lg the carousel opens on the first project and there is no hover
         // to bring a cover up, so the screen starts on that project's cover.
-        const firstProjectCover = projects[0]?.cover_image;
+        const firstProjectCover = projects[0]?.model_image;
         const restingDisplayImage = () =>
           stackedStageQuery.matches && firstProjectCover ? firstProjectCover : defaultDisplayImage;
         const defaultTexture = loadTexture(restingDisplayImage());
@@ -2454,7 +2459,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           </div>
           <ul className="projects absolute bottom-12.5 left-1/2 -translate-x-1/2 z-10 hidden lg:flex gap-3 text-black">
             {projects.map((project, index) => (
-              <li key={project.slug} data-img={project.cover_image} data-name={project.title} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
+              <li key={project.slug} data-img={project.model_image} data-name={project.title} data-project-type={project.description} data-disciplines={[...(project.role ?? '').split(',').map((role) => role.trim()), ...project.tags].filter(Boolean).join('\n')} data-year={project.year} data-position={`${String(index + 1).padStart(2, '0')} / ${String(projects.length).padStart(2, '0')}`}>
                 <Link href={`/work/${project.slug}`} className="keycap">
                   {project.title}
                 </Link>
@@ -2464,7 +2469,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           <div className="relative order-2 z-10 pt-10 pb-12.5 lg:hidden">
             <ProjectCarousel
               projects={projects}
-              onSelect={(project) => project.cover_image && setMonitorImage.current?.(project.cover_image)}
+              onSelect={(project) => project.model_image && setMonitorImage.current?.(project.model_image)}
             />
           </div>
           <div className="project-description hidden lg:block absolute left-[70%] top-1/5 opacity-0 pointer-events-none">
