@@ -9,7 +9,7 @@ import FileInput from './FileInput';
 import type { Project } from '@/lib/projects';
 import { problemProcessHtml, solutionHtml } from '@/lib/caseStudyHtml';
 import { deviceFrameKey, devicePresets, deviceSlots } from '@/lib/devices';
-import { createClient } from '@/lib/supabase/client';
+import { MAX_UPLOAD_LABEL, uploadImage } from '@/lib/mediaUpload';
 
 const input =
   'rounded-md border border-foreground/20 bg-white px-3 py-2 outline-none focus:border-foreground w-full text-[15px] text-[#1d2327]';
@@ -27,27 +27,6 @@ const sectionLinks = [
   ['media', 'Media'], ['settings', 'Publish'],
 ];
 
-const BUCKET = 'project-images';
-const MAX_UPLOAD_BYTES = 1 * 1024 * 1024;
-const MAX_UPLOAD_LABEL = 'Max 1MB per image';
-
-// Uploads directly to Supabase Storage from the browser so large images never
-// pass through the server action — Vercel caps serverless function request
-// bodies at 4.5MB regardless of Next.js's bodySizeLimit config.
-async function uploadImage(file: File): Promise<string> {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw new Error(`"${file.name}" is too large — ${MAX_UPLOAD_LABEL}.`);
-  }
-  const supabase = createClient();
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type || 'image/jpeg',
-    upsert: false,
-  });
-  if (error) throw new Error(`Image upload failed: ${error.message}`);
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-}
 
 export default function ProjectForm({ project }: { project?: Project }) {
   const [state, formAction, pending] = useActionState<SaveState, FormData>(
@@ -172,9 +151,16 @@ export default function ProjectForm({ project }: { project?: Project }) {
           <input name="name" required defaultValue={project?.name} className={`${input} text-[22px] sm:text-[28px] font-[650] px-4 py-3.5`} />
         </label>
 
-        {/* Not editable: a new project's slug is generated from its name, and
-            an existing project keeps the one it has. */}
-        <input type="hidden" name="slug" value={project?.slug ?? ''} />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className={labelText}>Short title</span>
+          <input name="case_short_title" defaultValue={caseStudy?.short_title} placeholder={project?.name || 'Optional'} className={input} />
+          <span className="text-[13px] opacity-50">Used for the homepage project buttons and carousel, and the &ldquo;Next project&rdquo; heading. The project page&rsquo;s big title uses the full name. Leave empty to use the name everywhere. The URL is still made from the name.</span>
+        </label>
+
+        {/* Not editable: the slug is generated from the name on every save, so
+            renaming a project changes its URL. The old slug is sent so its
+            cached page can be cleared. */}
+        <input type="hidden" name="previous_slug" value={project?.slug ?? ''} />
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Project type / one-sentence summary</span>

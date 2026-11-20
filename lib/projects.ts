@@ -26,6 +26,9 @@ export type Project = {
 export type CaseStudyFeature = { title: string; description: string };
 
 export type CaseStudy = {
+  /** Optional shorter name shown as the project's title on the site. Kept in
+   *  case_study so it needs no database column. */
+  short_title: string;
   industry: string;
   timeline: string;
   responsibilities: string[];
@@ -55,7 +58,7 @@ export type CaseStudy = {
 };
 
 const emptyCaseStudy: CaseStudy = {
-  industry: '', timeline: '', responsibilities: [], tools: [], overview: '',
+  short_title: '', industry: '', timeline: '', responsibilities: [], tools: [], overview: '',
   problem_process: '', challenge_question: '', challenge: '', understanding: '', insights: [],
   process_steps: [], exploration: '', solution_detail: '', solution: '', features: [],
   design_system: '', development: '', responsive: '', outcome: '',
@@ -74,6 +77,7 @@ function normalizeCaseStudy(value: unknown): CaseStudy {
     return [{ title: String(feature.title ?? ''), description: String(feature.description ?? '') }];
   }).filter((item) => item.title || item.description) : [];
   return {
+    short_title: text('short_title').trim(),
     industry: text('industry'), timeline: text('timeline'),
     responsibilities: list('responsibilities'), tools: list('tools'),
     overview: text('overview'), problem_process: text('problem_process'),
@@ -95,7 +99,10 @@ function normalizeCaseStudy(value: unknown): CaseStudy {
 export type ProjectCard = Pick<
   Project,
   'slug' | 'name' | 'description' | 'cover_image' | 'role' | 'tags' | 'year'
->;
+> & {
+  /** The title to show: the short title when one is set, else the name. */
+  title: string;
+};
 
 function normalize(row: Record<string, unknown>): Project {
   return {
@@ -121,19 +128,21 @@ function normalize(row: Record<string, unknown>): Project {
 /** Published projects for the public site. Falls back to the bundled list
  *  when Supabase isn't configured yet, so the site never renders empty. */
 export async function getPublishedProjects(): Promise<ProjectCard[]> {
-  if (!isSupabaseConfigured) return fallbackProjects;
+  const fallback = fallbackProjects.map((p) => ({ ...p, title: p.name }));
+  if (!isSupabaseConfigured) return fallback;
 
   const supabase = createPublicClient();
   const { data, error } = await supabase
     .from('projects')
-    .select('slug, name, description, cover_image, role, tags, year')
+    .select('slug, name, description, cover_image, role, tags, year, short_title:case_study->>short_title')
     .eq('published', true)
     .order('display_order', { ascending: true });
 
-  if (error || !data || data.length === 0) return fallbackProjects;
+  if (error || !data || data.length === 0) return fallback;
   return data.map((row) => ({
     slug: row.slug,
     name: row.name,
+    title: String(row.short_title ?? '').trim() || row.name,
     description: row.description,
     cover_image: row.cover_image,
     role: row.role,

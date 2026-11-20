@@ -41,6 +41,12 @@ export default async function AdminDashboard({
           <p className="text-sm opacity-60">{user.email}</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:justify-end">
+          <Link
+            href="/admin/media"
+            className="rounded-full border border-foreground/20 px-4 py-2.5 text-sm no-underline"
+          >
+            Media
+          </Link>
           <a
             href="/admin/projects/export"
             className="rounded-full border border-foreground/20 px-4 py-2.5 text-sm no-underline"
