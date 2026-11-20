@@ -1127,8 +1127,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           });
 
           texture.colorSpace = THREE.SRGBColorSpace;
-          texture.minFilter = THREE.LinearFilter;
+          // The image is shrunk several times to fit the small screen; without
+          // mipmaps that skips pixels and text breaks up. Anisotropy keeps it
+          // sharp where the curved screen tilts away from the camera.
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
           texture.magFilter = THREE.LinearFilter;
+          texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
           textureCache[src] = texture;
 
           return texture;
