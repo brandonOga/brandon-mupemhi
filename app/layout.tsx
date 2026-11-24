@@ -34,9 +34,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${robotoMono.variable}`}
       suppressHydrationWarning
     >
-      <head>
-        <link rel="preconnect" href="https://db.onlinewebfonts.com" crossOrigin="" />
-      </head>
       {/* isolate: <html> has its own background, so <body>'s is painted as
           an ordinary box. As a stacking context, body paints that first, and
           the grid at the back (-z-10) then lands above it, not under it. */}

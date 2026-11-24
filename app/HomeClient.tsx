@@ -24,6 +24,42 @@ import ExpertiseCard from "./components/ExpertiseCard";
 import JourneyTimeline, { type JourneyEntry } from "./components/JourneyTimeline";
 gsap.registerPlugin(customEase, SplitText, DrawSVGPlugin, ScrollTrigger);
 
+// The 3D monitor only runs when the browser has a GPU-backed WebGL context.
+// With WebGL off (hardware acceleration disabled, blocklisted drivers, some
+// remote desktops) the renderer throws; with a software renderer it "works"
+// but renders on the CPU and drags the whole page. Both get a static image.
+function canRenderWebGL() {
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = (canvas.getContext('webgl2') || canvas.getContext('webgl')) as WebGLRenderingContext | null;
+    if (!gl) return false;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(renderer);
+  } catch {
+    return false;
+  }
+}
+
+// SplitText measures lines with whatever font is showing, so splitting before
+// the web fonts arrive gives wrong line breaks that shift once they swap in.
+// Wait for them, but never hold the page for more than FONT_WAIT_MS.
+const FONT_WAIT_MS = 2500;
+function waitForFonts(): Promise<void> {
+  if (!('fonts' in document) || document.fonts.status === 'loaded') return Promise.resolve();
+  return Promise.race([
+    document.fonts.ready.then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, FONT_WAIT_MS)),
+  ]);
+}
+
+// An element that isn't rendered at this breakpoint (display: none) or has no
+// text splits into no lines, and tweening that empty result is what made GSAP
+// log "target not found". Those elements are left as they are.
+const isSplittable = (el: HTMLElement) =>
+  el.getClientRects().length > 0 && !!el.textContent?.trim();
+
 let preloaderHasPlayed = false;
 
 // About section content: the five process steps, skill groups and timeline.
@@ -892,7 +928,124 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
     const monitorCleanups: Array<() => void> = [];
 
-    const ctx = gsap.context(() => {
+    // Everything below splits text, so it starts once the fonts are in.
+    // Animations it creates are still collected by ctx for the cleanup.
+    const ctx = gsap.context(() => {}, root);
+    let effectDisposed = false;
+    const startAnimations = () => {
+      if (effectDisposed) return;
+      ctx.add(() => {
+      // Hovering a project pill puts its cover on the screen and fills the
+      // section's description panel. Shared by the 3D monitor and its
+      // static fallback.
+      const wireProjectPills = (
+        container: HTMLElement,
+        showImage: (src: string) => void,
+        defaultImage: string,
+      ) => {
+      // The pills drive the section's own description panel.
+      const description = container.querySelector<HTMLElement>('.project-description');
+
+      container.querySelectorAll('.projects li').forEach(li => {
+        li.addEventListener('mouseover', (e) => {
+          const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
+          const item = e.currentTarget as HTMLElement;
+          const projectName = item.getAttribute('data-name');
+          const projectType = item.getAttribute('data-project-type');
+          const disciplines = item.getAttribute('data-disciplines');
+          const year = item.getAttribute('data-year');
+          const position = item.getAttribute('data-position');
+          if (imgSrc) showImage(imgSrc);
+
+          const titleElement = description?.querySelector('h3') as HTMLElement | null;
+          const positionElement = description?.querySelector<HTMLElement>('[data-project-position]');
+          const detailElements = description?.querySelectorAll<HTMLElement>('[data-project-detail]') ?? [];
+          const tagsElement = description?.querySelector<HTMLElement>('[data-project-tags]');
+
+          if (positionElement) positionElement.textContent = position || '';
+
+          if (titleElement && projectName) {
+            titleElement.textContent = projectName;
+
+            // Split title into characters for typing animation
+            const titleSplit = SplitText.create(titleElement, {
+              type: "chars",
+              charsClass: "char"
+            });
+
+            gsap.set(titleSplit.chars, { opacity: 0 });
+            gsap.to(titleSplit.chars, {
+              opacity: 1,
+              duration: 0.05,
+              stagger: 0.05,
+              onComplete: () => titleSplit.revert()
+            });
+          }
+
+          [projectType, year].forEach((value, index) => {
+            if (detailElements[index]) detailElements[index].textContent = value || '—';
+          });
+          // Role and tags: one pill each.
+          tagsElement?.replaceChildren(
+            ...(disciplines ? disciplines.split('\n') : []).map((label) => {
+              const pill = document.createElement('span');
+              pill.textContent = label;
+              return pill;
+            })
+          );
+          if (description) gsap.to(description, { opacity: 1, duration: 0.3, ease: "power2.out" });
+        });
+
+        li.addEventListener('mouseout', () => {
+          showImage(defaultImage);
+
+          // Kill any ongoing character animations
+          if (description) gsap.killTweensOf(description.querySelectorAll('h3 .char'));
+
+          if (description) gsap.to(description, {
+            opacity: 0,
+            duration: 0.3,
+            ease: "power2.in"
+          });
+        });
+      });
+      };
+
+      // Static stand-in for the monitor when WebGL is unavailable or only
+      // software-rendered: the same covers, swapped on hover, as a plain image.
+      const setupMonitorFallback = (container: HTMLElement, stage: HTMLElement) => {
+        const defaultImage = "/images/brandon.jpg";
+        const firstProjectCover = projects[0]?.model_image;
+        const stacked = window.matchMedia('(max-width: 1039.98px)').matches;
+        const img = document.createElement('img');
+        img.alt = '';
+        img.decoding = 'async';
+        img.src = stacked && firstProjectCover ? firstProjectCover : defaultImage;
+        Object.assign(img.style, {
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          width: 'min(70%, 34rem)',
+          aspectRatio: '4 / 3',
+          objectFit: 'cover',
+          transform: 'translate(-50%, -50%)',
+          borderRadius: '0.75rem',
+          pointerEvents: 'none',
+        });
+        stage.appendChild(img);
+
+        const showImage = (src: string) => {
+          if (img.getAttribute('src') !== src) img.src = src;
+        };
+        setMonitorImage.current = showImage;
+        wireProjectPills(container, showImage, defaultImage);
+
+        return () => {
+          setMonitorImage.current = null;
+          img.remove();
+        };
+      };
+
       // The Work section's Macintosh monitor: scene, renderer and render loop,
       // cursor tilt over the section, and its pills' covers on the screen.
       // Returns its cleanup.
@@ -913,7 +1066,9 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         threeCamera.current   = camera;
         threeRenderer.current = renderer;
         renderer.setSize(stage.clientWidth, stage.clientHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        // Capped at 1.5: on large high-DPI screens 2x quadruples the pixels
+        // shaded every frame for little visible gain.
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.25;
         renderer.shadowMap.enabled = true;
@@ -1439,72 +1594,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
 
         setMonitorImage.current = setDisplayImage;
 
-        // The pills drive the section's own description panel.
-        const description = container.querySelector<HTMLElement>('.project-description');
-
-        container.querySelectorAll('.projects li').forEach(li => {
-          li.addEventListener('mouseover', (e) => {
-            const imgSrc = (e.currentTarget as HTMLElement).getAttribute('data-img');
-            const item = e.currentTarget as HTMLElement;
-            const projectName = item.getAttribute('data-name');
-            const projectType = item.getAttribute('data-project-type');
-            const disciplines = item.getAttribute('data-disciplines');
-            const year = item.getAttribute('data-year');
-            const position = item.getAttribute('data-position');
-            if (imgSrc) setDisplayImage(imgSrc);
-
-            const titleElement = description?.querySelector('h3') as HTMLElement | null;
-            const positionElement = description?.querySelector<HTMLElement>('[data-project-position]');
-            const detailElements = description?.querySelectorAll<HTMLElement>('[data-project-detail]') ?? [];
-            const tagsElement = description?.querySelector<HTMLElement>('[data-project-tags]');
-
-            if (positionElement) positionElement.textContent = position || '';
-
-            if (titleElement && projectName) {
-              titleElement.textContent = projectName;
-
-              // Split title into characters for typing animation
-              const titleSplit = SplitText.create(titleElement, {
-                type: "chars",
-                charsClass: "char"
-              });
-
-              gsap.set(titleSplit.chars, { opacity: 0 });
-              gsap.to(titleSplit.chars, {
-                opacity: 1,
-                duration: 0.05,
-                stagger: 0.05,
-                onComplete: () => titleSplit.revert()
-              });
-            }
-
-            [projectType, year].forEach((value, index) => {
-              if (detailElements[index]) detailElements[index].textContent = value || '—';
-            });
-            // Role and tags: one pill each.
-            tagsElement?.replaceChildren(
-              ...(disciplines ? disciplines.split('\n') : []).map((label) => {
-                const pill = document.createElement('span');
-                pill.textContent = label;
-                return pill;
-              })
-            );
-            if (description) gsap.to(description, { opacity: 1, duration: 0.3, ease: "power2.out" });
-          });
-
-          li.addEventListener('mouseout', () => {
-            setDisplayImage(defaultDisplayImage);
-
-            // Kill any ongoing character animations
-            if (description) gsap.killTweensOf(description.querySelectorAll('h3 .char'));
-
-            if (description) gsap.to(description, {
-              opacity: 0,
-              duration: 0.3,
-              ease: "power2.in"
-            });
-          });
-        });
+        wireProjectPills(container, setDisplayImage, defaultDisplayImage);
 
         return () => {
           cancelAnimationFrame(rafId);
@@ -1516,7 +1606,19 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         };
       };
 
-      monitorCleanups.push(setupMonitor(projectsRef.current!, modelStageRef.current!));
+      const monitorContainer = projectsRef.current!;
+      const monitorStage = modelStageRef.current!;
+      let monitorCleanup: (() => void) | null = null;
+      if (canRenderWebGL()) {
+        try {
+          monitorCleanup = setupMonitor(monitorContainer, monitorStage);
+        } catch (error) {
+          // A context can still fail to start after the check passed.
+          console.warn('3D monitor unavailable, showing a static image instead.', error);
+          monitorStage.replaceChildren();
+        }
+      }
+      monitorCleanups.push(monitorCleanup ?? setupMonitorFallback(monitorContainer, monitorStage));
 
       customEase.create("hop", "0.9, 0, 0.1, 1");
       // Gentler than "hop" for the preloader images: "hop" packs over half
@@ -1531,6 +1633,10 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
           mask: "chars",
         });
         const splitChars = split.chars as HTMLElement[];
+        if (!splitChars.length) {
+          split.revert();
+          return;
+        }
         gsap.set(splitChars, { display: "inline-block" });
 
         const charHandlers: Array<{ char: HTMLElement; onEnter: () => void }> = [];
@@ -1632,6 +1738,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         // h1s: reveal masked lines, then hand off to character hover.
         heroHeadings.forEach((heading, i) => {
           gsap.set(heading, { autoAlpha: 1 });
+          if (!isSplittable(heading)) return;
           const split = SplitText.create(heading, { type: "lines", mask: "lines" });
           const lines = split.lines as HTMLElement[];
           gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
@@ -1652,15 +1759,15 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         const heroSupportStart = tl.duration() + 0.15;
 
         // Paragraphs: mask each rendered line and reveal it upward.
-        const heroTextSplits = heroTexts.map((el) => {
-          gsap.set(el, { autoAlpha: 1 });
+        heroTexts.forEach((el) => gsap.set(el, { autoAlpha: 1 }));
+        const heroTextSplits = heroTexts.filter(isSplittable).map((el) => {
           const split = SplitText.create(el, { type: 'lines', mask: 'lines' });
           const lines = split.lines as HTMLElement[];
           gsap.set(lines, { yPercent: 110, autoAlpha: 0 });
           return { split, lines };
         });
         const heroTextLines = heroTextSplits.flatMap(({ lines }) => lines);
-        tl.to(heroTextLines, {
+        if (heroTextLines.length) tl.to(heroTextLines, {
           yPercent: 0,
           autoAlpha: 1,
           stagger: 0.2,
@@ -1860,7 +1967,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       // Non-hero headings: masked line reveal, then character hover once done.
       const entranceHeadings = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) h1, main > section:not(.hero) h2, main > section:not(.hero) h3"
-      )).filter((el) => !el.closest('.project-carousel, .about-statement'));
+      )).filter((el) => !el.closest('.project-carousel, .about-statement') && isSplittable(el));
       entranceHeadings.forEach((heading) => {
         gsap.set(heading, { autoAlpha: 0 });
         const split = SplitText.create(heading, { type: "lines", mask: "lines" });
@@ -1896,7 +2003,7 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
       const entranceTexts = Array.from(document.querySelectorAll<HTMLElement>(
         "main > section:not(.hero) p, main > section:not(.hero) li"
       )).filter(
-        (el) => !el.closest('.projects, .project-carousel') && !el.matches('#about p.font-mono')
+        (el) => !el.closest('.projects, .project-carousel') && !el.matches('#about p.font-mono') && isSplittable(el)
       );
       const entranceTextSplits = entranceTexts.map((el) => {
         gsap.set(el, { autoAlpha: 0 });
@@ -2137,9 +2244,13 @@ export default function HomeClient({ projects }: { projects: ProjectCard[] }) {
         });
       }
 
-    }, root);
+      });
+    };
+    if (!('fonts' in document) || document.fonts.status === 'loaded') startAnimations();
+    else waitForFonts().then(startAnimations);
 
     return () => {
+      effectDisposed = true;
       monitorCleanups.forEach((cleanup) => cleanup());
       shaderRippleCleanups.forEach(fn => fn());
       ctx.revert();

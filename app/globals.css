@@ -544,19 +544,12 @@ html.hide-scrollbar::-webkit-scrollbar {
   transform-box: fill-box;
 }
 
+/* PP Neue Montreal. Only the Bold cut is in public/fonts/PP Neue Montreal/,
+   so normal-weight text uses the older Neue Montreal Regular file. Add a PP
+   Neue Montreal Regular file and point the 400 face at it to finish the
+   switch. */
 @font-face {
-    font-family: "Space Mono";
-    font-display: swap;
-    src: url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.eot");
-    src: url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.eot?#iefix")format("embedded-opentype"),
-    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.woff2")format("woff2"),
-    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.woff")format("woff"),
-    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.ttf")format("truetype"),
-    url("https://db.onlinewebfonts.com/t/29d7f13cb8d03e4bddff2eecdc7d2ff2.svg#Space Mono")format("svg");
-}
-
-@font-face {
-    font-family: "Neue Montreal";
+    font-family: "PP Neue Montreal";
     font-display: swap;
     font-weight: 400;
     font-style: normal;
@@ -565,19 +558,14 @@ html.hide-scrollbar::-webkit-scrollbar {
     url("/fonts/Neue%20Montreal%20Regular/Neue%20Montreal%20Regular.ttf") format("truetype");
 }
 
-/* This file is the Bold cut. Declaring its weight lets the Regular above
-   serve normal-weight text without the browser reaching for this one. */
 @font-face {
-    font-family: "Neue Montreal";
+    font-family: "PP Neue Montreal";
     font-display: swap;
     font-weight: 700;
     font-style: normal;
-    src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot");
-    src: url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.eot?#iefix")format("embedded-opentype"),
-    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.woff2")format("woff2"),
-    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.woff")format("woff"),
-    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.ttf")format("truetype"),
-    url("https://db.onlinewebfonts.com/t/4366ceae6f7564999a0f0c3e8698a4ad.svg#Neue Montreal")format("svg");
+    src: url("/fonts/PP%20Neue%20Montreal/PP%20Neue%20Montreal.woff2") format("woff2"),
+    url("/fonts/PP%20Neue%20Montreal/PP%20Neue%20Montreal.woff") format("woff"),
+    url("/fonts/PP%20Neue%20Montreal/PP%20Neue%20Montreal.ttf") format("truetype");
 }
 
 @font-face {
@@ -656,7 +644,7 @@ html.hide-scrollbar::-webkit-scrollbar {
   --color-deep-teal: #2F4F4F;
 
   --font-sans: var(--font-roboto-mono);
-  --font-heading: "Neue Montreal", sans-serif;
+  --font-heading: "PP Neue Montreal", sans-serif;
   --font-editorial: "PP Editorial Old", serif;
 
   /* ---- Type scale: base / mobile-first values (< 640px) ----
