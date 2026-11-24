@@ -121,10 +121,11 @@ export default function ProjectForm({ project }: { project?: Project }) {
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelText}>Project type / one-sentence summary</span>
-          <input
+          <textarea
             name="description"
             defaultValue={project?.description}
-            className={input}
+            rows={3}
+            className={`${input} resize-y leading-relaxed`}
           />
         </label>
 
