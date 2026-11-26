@@ -45,12 +45,17 @@ export default function BackToTop() {
     <a
       href="#top"
       data-transition-ignore
+      className="contact-swap-button"
       onClick={(e) => {
         e.preventDefault();
         scrollToTop();
       }}
     >
-      ↑ Back to top
+      {/* The header menu's hover: the label rolls up and a copy rolls in. */}
+      <span className="contact-button__label">
+        <span>↑ Back to top</span>
+        <span aria-hidden="true">↑ Back to top</span>
+      </span>
     </a>
   );
 }

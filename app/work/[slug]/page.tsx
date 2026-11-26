@@ -3,6 +3,7 @@ import Link from "next/link";
 import ArrowUpRight from "@/app/components/ArrowUpRight";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { Kalam } from "next/font/google";
 import { getProjectBySlug, getPublishedProjects, getPublishedSlugs } from "@/lib/projects";
 import { problemProcessHtml, solutionHtml } from "@/lib/caseStudyHtml";
 import { deviceFrameKey, devicePreset, deviceSlots } from "@/lib/devices";
@@ -25,10 +26,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title: project ? `${project.name} — Design By Brandon` : "Project", description: project?.description || undefined };
 }
 
+// Handwriting for the sticky notes in the overview, loaded on this page only.
+const handwriting = Kalam({ variable: "--font-hand", subsets: ["latin"], weight: ["400", "700"] });
+
 const pad = (value: number) => String(value).padStart(2, "0");
 
 function Media({ src, alt, className = "" }: { src?: string; alt: string; className?: string }) {
   return <div className={`case-media ${className}`}>{src ? <Image src={src} alt={alt} fill className="object-cover" sizes="100vw" /> : <span className="case-media-placeholder">Image coming soon</span>}</div>;
+}
+
+// The header menu's hover: the label rolls up and a copy rolls in from below.
+function SwapLabel({ children }: { children: React.ReactNode }) {
+  return <span className="contact-button__label"><span>{children}</span><span aria-hidden="true">{children}</span></span>;
 }
 
 function Eyebrow({ number, children }: { number: string; children: React.ReactNode }) {
@@ -68,26 +77,26 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
     <GridLines />
     <section className="case-hero case-shell">
       <BackLink />
-      <div className="case-hero-meta"><Eyebrow number={`${pad(currentIndex + 1)} /`}>Selected work</Eyebrow><p>{project.year || "—"}</p></div>
+      <div className="case-hero-meta"><Eyebrow number={`Project ${pad(currentIndex + 1)} of ${pad(projects.length)} /`}>{cs.industry || "Selected work"}</Eyebrow><p>{project.year || "—"}</p></div>
       <h1 className="case-title">{project.name}</h1>
       <div className="case-hero-copy"><p>{project.description}</p><div className="case-tags">{disciplines.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
       <Media src={project.cover_image} alt={`${project.name} project cover`} className="case-hero-image" />
     </section>
 
     <section className="case-section case-shell case-overview">
-      <Eyebrow number="01">Project overview</Eyebrow><h2>At a glance.</h2>
+      <Eyebrow number="01 /">Project overview</Eyebrow><h2>At a glance.</h2>
       {/* Overview copy on the left, the facts in two columns on the right. */}
       <div className="case-glance">
         <div className="case-narrative">
-          <span>01 / The project</span><p>{cs.overview || project.description}</p>
+          <span>The project</span><p>{cs.overview || project.description}</p>
           {project.url && <a className="keycap btn-outline" href={project.url} target="_blank" rel="noreferrer">View live site <ArrowUpRight /></a>}
         </div>
-        <div className="case-facts">
+        <div className={`case-facts ${handwriting.variable}`}>
           <div><span>Role</span>{roleLines.map((line) => <p key={line}>{line}</p>)}</div>
           <div><span>Timeline</span><p>{cs.timeline || project.year || "Not specified"}</p></div>
           <div><span>Industry</span><p>{cs.industry || "Not specified"}</p></div>
-          {cs.tools.length > 0 && <div><span>Tools</span>{cs.tools.map((tool) => <p key={tool}>{tool}</p>)}</div>}
-          <div><span>Responsibilities</span>{responsibilities.map((item) => <p key={item}>{item}</p>)}</div>
+          {cs.tools.length > 0 && <div><span>Tools</span><p>{cs.tools.join(", ")}</p></div>}
+          <div><span>Responsibilities</span><p>{responsibilities.join(", ")}</p></div>
         </div>
       </div>
     </section>
@@ -110,8 +119,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       </div>
     </div></section>
 
+    {nextProject && <section className="case-next"><div className="case-shell"><div className="case-next-row"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2><Link href={`/work/${nextProject.slug}`} className="case-next-link">{nextProject.title}</Link></h2><span><ArrowUpRight /></span></div></div></div></section>}
+
+    {/* Let's talk closes the page, like the homepage's "Say Hello" band. */}
     <section className="case-section case-cta relative isolate [clip-path:inset(0)]" aria-labelledby="case-cta-heading"><GridLines /><div className="case-shell">
-      <Eyebrow number="04 /">Work together</Eyebrow>
       {/* The heading in the left half, the copy in the right half, centred
           against each other. */}
       <div className="case-cta-split">
@@ -128,8 +139,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </div>
       </div>
     </div></section>
-
-    {nextProject && <section className="case-next"><Link href={`/work/${nextProject.slug}`} className="case-next-link"><div className="case-shell"><Eyebrow number="Next">Project</Eyebrow><div className="case-next-heading"><h2>{nextProject.title}</h2><span><ArrowUpRight /></span></div></div></Link></section>}
-    <div className="case-bottom case-shell"><Link href="/">Home</Link><Link href="/#about">About</Link><BackToTop /></div>
+    <div className="case-bottom case-shell"><Link href="/" className="contact-swap-button"><SwapLabel>Home</SwapLabel></Link><Link href="/#about" className="contact-swap-button"><SwapLabel>About</SwapLabel></Link><BackToTop /></div>
   </main>;
 }
