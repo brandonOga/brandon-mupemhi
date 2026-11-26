@@ -339,9 +339,10 @@ html.hide-scrollbar::-webkit-scrollbar {
 }
 /* Each note reads like a printed form filled in by hand: the labels stay in
    the site's own type, and the values are written in Kalam (loaded on the
-   project page only) in blue-black pen ink. */
+   project page only) in blue pen ink, a shade deeper than the site's light
+   blue so it stays readable on the cream paper (about 4.6:1). */
 .case-facts > div span { line-height: var(--line); margin-bottom: var(--line); }
-.case-facts > div p { font-family: var(--font-hand), cursive; font-size: 1.2rem; font-weight: 400; letter-spacing: 0; line-height: var(--line); color: #1f2a4d; opacity: 1; }
+.case-facts > div p { font-family: var(--font-hand), cursive; font-size: 1.2rem; font-weight: 400; letter-spacing: 0; line-height: var(--line); color: #2563eb; opacity: 1; }
 .case-facts > div:nth-child(even) { --tilt: .5deg; }
 .case-facts > div:hover { rotate: 0deg; }
 /* The punched holes: circles of the page colour with a faint rim, spaced

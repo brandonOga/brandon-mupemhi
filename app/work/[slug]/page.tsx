@@ -77,7 +77,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
     <GridLines />
     <section className="case-hero case-shell">
       <BackLink />
-      <div className="case-hero-meta"><Eyebrow number={`${pad(currentIndex + 1)} /`}>{cs.industry || "Selected work"}</Eyebrow><p>{project.year || "—"}</p></div>
+      <div className="case-hero-meta"><Eyebrow number={`Project ${pad(currentIndex + 1)} of ${pad(projects.length)} /`}>{cs.industry || "Selected work"}</Eyebrow><p>{project.year || "—"}</p></div>
       <h1 className="case-title">{project.name}</h1>
       <div className="case-hero-copy"><p>{project.description}</p><div className="case-tags">{disciplines.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
       <Media src={project.cover_image} alt={`${project.name} project cover`} className="case-hero-image" />
