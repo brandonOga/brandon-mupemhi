@@ -270,12 +270,17 @@ html.hide-scrollbar::-webkit-scrollbar {
 }
 
 .case-shell { width: min(100%, 1600px); margin-inline: auto; padding-inline: clamp(1.25rem, 3vw, 3.5rem); }
-/* Same block padding as the homepage sections: 80px on desktop, 50px below lg. */
-/* No dividing rules between sections; the spacing separates them. */
-.case-section { padding-block: 80px; }
-@media (max-width: 1039.98px) { .case-section { padding-block: 50px; } }
-/* Section titles use the site's stepped h2 size (--text-h2), as on the homepage. */
-.case-section h2 { max-width: 12ch; margin-top: clamp(2rem, 5vw, 5rem); }
+/* No dividing rules between sections; the spacing separates them: 56px on
+   desktop, 40px below lg. */
+.case-section { padding-block: 56px; }
+@media (max-width: 1039.98px) { .case-section { padding-block: 40px; } }
+/* One gap between a section's title and its content, used by every section. */
+.case-study { --case-title-gap: clamp(1.75rem, 3vw, 3rem); }
+/* Section titles are h2s set at the style guide's h3 size, so they fit the
+   left half of the section on desktop in at most two lines (the full width on
+   smaller screens). When they wrap they balance their lines. */
+.case-section h2 { max-width: none; margin-top: clamp(1rem, 1.5vw, 1.5rem); font-size: var(--text-h3); line-height: var(--text-h3--line-height); text-wrap: balance; }
+@media (min-width: 1040px) { .case-section h2 { max-width: 50%; } }
 .case-eyebrow { display: flex; gap: 1rem; align-items: baseline; letter-spacing: .04em; }
 .case-eyebrow span { color: var(--color-primary-color); }
 .case-media { position: relative; overflow: hidden; min-height: 24rem; background: #deded7; }
@@ -285,7 +290,7 @@ html.hide-scrollbar::-webkit-scrollbar {
 
 /* Top padding clears the absolutely positioned Back keycap (30px + its height)
    with room to spare at every width; the old 6rem floor left ~10px on phones. */
-.case-hero { min-height: 100svh; padding-top: 8.5rem; padding-bottom: clamp(3rem, 6vw, 6rem); display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; align-content: start; }
+.case-hero { min-height: 100svh; padding-top: 8.5rem; padding-bottom: clamp(2.5rem, 4vw, 3.5rem); display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; align-content: start; }
 /* Pinned to the page corner (it scrolls away with the page), outside the centred shell. */
 .case-back { position: absolute; top: 30px; left: 30px; z-index: 1; }
 /* On phones the shortened "Back" button moves to the top-right corner. */
@@ -302,39 +307,69 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-tags span { border: 1px solid currentColor; border-radius: 999px; padding: .55rem 1rem; font-family: var(--font-sans); font-size: 14px; line-height: 1.3; font-weight: var(--text-body--font-weight); }
 .case-hero-image { grid-column: 1 / -1; min-height: min(72vw, 58rem); }
 
-.case-overview h2 { max-width: 9ch; }
 /* Overview row: the project copy on the left, the facts in two columns on
    the right. */
-.case-glance { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: clamp(3rem, 8vw, 8rem); align-items: start; margin-top: clamp(4rem, 8vw, 8rem); }
+.case-glance { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(3rem, 6vw, 6rem); align-items: start; margin-top: var(--case-title-gap); }
 .case-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
-.case-facts span, .case-narrative > span, .case-system-grid > div > span, .case-build-grid span { display: block; margin-bottom: 1.2rem; opacity: .5; font-size: .75rem; }
+.case-facts span, .case-narrative > span { display: block; margin-bottom: 1.2rem; opacity: .5; font-size: .75rem; }
 /* Overview row: the labels read as titles (bold, body-sized, full colour) and
    the content beneath them is the muted part. */
 .case-facts span, .case-narrative > span { opacity: 1; font-size: var(--case-body); font-weight: 700; color: var(--color-foreground); }
 .case-facts p, .case-narrative > p { opacity: .9; }
+/* Each fact is a page torn from a ruled notebook: warm cream paper (the
+   keycap button's family) with faint horizontal rules, a column of punched
+   holes down the left edge, and a strip of matte tape holding it to the page.
+   Everything inside sits on one --line grid: the padding, the label, the gap
+   under it and each line of text are whole multiples of --line, and a rule
+   is drawn at the bottom of every --line, so all text sits on a rule. */
+.case-facts > div {
+  --note: #f7f2e6;
+  --rule: rgb(120 100 70 / .14);
+  --line: 1.75rem;
+  --tilt: -.5deg;
+  position: relative;
+  padding: var(--line) 1.35rem var(--line) 2.6rem;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 calc(var(--line) - 1px), var(--rule) calc(var(--line) - 1px) var(--line)),
+    var(--note);
+  color: var(--color-foreground);
+  rotate: var(--tilt);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .1), 0 6px 14px -8px rgb(0 0 0 / .18);
+  transition: rotate .25s ease;
+}
+/* Each note reads like a printed form filled in by hand: the labels stay in
+   the site's own type, and the values are written in Kalam (loaded on the
+   project page only) in blue-black pen ink. */
+.case-facts > div span { line-height: var(--line); margin-bottom: var(--line); }
+.case-facts > div p { font-family: var(--font-hand), cursive; font-size: 1.2rem; font-weight: 400; letter-spacing: 0; line-height: var(--line); color: #1f2a4d; opacity: 1; }
+.case-facts > div:nth-child(even) { --tilt: .5deg; }
+.case-facts > div:hover { rotate: 0deg; }
+/* The punched holes: circles of the page colour with a faint rim, spaced
+   evenly down the edge so none is cut off at the bottom. */
+.case-facts > div::after { content: ''; position: absolute; top: .75rem; bottom: .75rem; left: .55rem; width: 1rem; background: radial-gradient(circle, var(--color-background) 0 .3rem, rgb(120 100 70 / .22) .3rem .36rem, transparent .38rem) center top / 1rem 1.6rem; background-repeat: no-repeat space; pointer-events: none; }
+/* Matte tape across the top, a little off centre: paler than the paper so
+   it reads as a separate strip. */
+.case-facts > div::before { content: ''; position: absolute; z-index: 1; top: -.65rem; left: 44%; width: 4.75rem; height: 1.4rem; translate: -50% 0; rotate: -1.5deg; background: rgb(255 253 246 / .7); box-shadow: 0 1px 1px rgb(0 0 0 / .08); }
+.case-facts > div:nth-child(even)::before { left: 56%; rotate: 2deg; }
+/* Responsibilities is the longest note, so it runs across both columns, and
+   lies flat so its long lines don't slope. */
+.case-facts > div:last-child { grid-column: 1 / -1; --tilt: 0deg; }
+@media (prefers-reduced-motion: reduce) { .case-facts > div { transition: none; } }
 .case-narrative { max-width: 62rem; }
 .case-narrative > p { line-height: 1.45; }
 .case-narrative .btn-outline { margin-top: 2.5rem; }
 .case-narrative .rich-text { font-size: var(--case-body); }
 
-.case-challenge h2 { max-width: 11ch; }
-.case-side-copy { width: 75%; margin: clamp(3rem, 6vw, 6rem) 0 clamp(4rem, 8vw, 8rem) auto; }
-/* Problem and process: on desktop the copy starts at the middle of the section. */
-@media (min-width: 1040px) { .case-challenge .case-side-copy { width: 50%; } }
-.case-media-pair { display: grid; grid-template-columns: 1.2fr .8fr; gap: 1.5rem; align-items: end; }
-.case-media-pair .case-media:last-child { min-height: 34rem; }
-.case-insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: clamp(5rem, 10vw, 10rem); border-top: 1px solid var(--case-line); }
-.case-insights article { min-height: 20rem; padding: 1.5rem; border-right: 1px solid var(--case-line); display: flex; flex-direction: column; justify-content: space-between; }
-.case-insights article:last-child { border-right: 0; }
-.case-insights article > span { color: var(--color-primary-color); }
-.case-insights p { max-width: 25rem; font-size: clamp(1rem, 1.4vw, 1.3rem); }
-
-.case-flow-track { display: grid; grid-template-columns: repeat(6, minmax(10rem, 1fr)); margin-top: clamp(5rem, 9vw, 9rem); overflow-x: auto; }
-.case-flow-track div { position: relative; padding: 1.25rem 1rem; border-top: 1px solid currentColor; }
-.case-flow-track div::after { content: ''; position: absolute; top: -4px; right: 0; width: 7px; aspect-ratio: 1; border-radius: 50%; background: var(--color-primary-color); }
-.case-flow-track span { display: block; margin-bottom: 4rem; opacity: .5; }
-.case-explore-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: clamp(5rem, 8vw, 8rem); }
-.case-explore-grid .case-media:nth-child(2) { transform: translateY(4rem); }
+.case-side-copy { width: 75%; margin: var(--case-title-gap) 0 0 auto; }
+/* Problem and process: on desktop the title takes the left half and the copy
+   sits beside it in the right half, its top level with the title's; below lg
+   the copy follows the title. */
+@media (min-width: 1040px) {
+  .case-challenge { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 2rem; align-items: start; }
+  .case-challenge > .case-eyebrow { grid-column: 1 / -1; }
+  .case-challenge > h2 { max-width: none; }
+  .case-challenge > .case-side-copy { width: auto; margin: clamp(1rem, 1.5vw, 1.5rem) 0 0; }
+}
 
 /* Rich text inside a case section: headings use the style guide's h1–h6
    tokens (the admin editor keeps its own compact scale). */
@@ -348,8 +383,9 @@ html.hide-scrollbar::-webkit-scrollbar {
 .case-study .rich-text h6 { font-size: var(--text-h6); line-height: var(--text-h6--line-height); font-weight: var(--text-h6--font-weight); text-transform: none; }
 /* Solution row: the copy on the left at 16px, the device mockups on the
    right, at most 30px apart. With no copy the mockups take the full width. */
-.case-solution-split { display: grid; grid-template-columns: minmax(0, 35fr) minmax(0, 65fr); gap: min(6vw, 30px); align-items: start; margin-top: clamp(3rem, 6vw, 6rem); }
-.case-solution-split .case-side-copy { width: auto; margin: 0; text-align: justify; }
+.case-solution-split { display: grid; grid-template-columns: minmax(0, 35fr) minmax(0, 65fr); gap: min(6vw, 30px); align-items: start; margin-top: var(--case-title-gap); }
+/* Left-aligned: justifying monospace text opens uneven gaps between words. */
+.case-solution-split .case-side-copy { width: auto; margin: 0; }
 .case-solution-media { min-width: 0; }
 .case-solution-media:only-child { grid-column: 1 / -1; }
 /* On desktop the copy stays in view while the taller mockup column scrolls past it. */
@@ -400,23 +436,6 @@ html.hide-scrollbar::-webkit-scrollbar {
   .mock-band[data-kind="phone"] .mock { width: 92%; }
   .mock-band[data-kind="tablet"] .mock { width: 76%; }
 }
-.case-feature { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, .7fr); gap: clamp(2rem, 7vw, 8rem); align-items: center; margin-top: clamp(6rem, 12vw, 12rem); }
-.case-feature:nth-of-type(odd) .case-media { order: 2; }
-.case-feature .case-media { min-height: min(55vw, 46rem); }
-.case-feature h3 { margin: 1.5rem 0; font-size: clamp(2rem, 4vw, 5rem); line-height: .95; text-transform: uppercase; letter-spacing: -.04em; }
-.case-feature div > span { color: var(--color-primary-color); }
-.case-feature div > p { max-width: 30rem; font-size: clamp(1rem, 1.4vw, 1.25rem); }
-
-.case-system-grid, .case-build-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-top: clamp(5rem, 9vw, 9rem); padding-top: 2rem; border-top: 1px solid var(--case-line); }
-.case-system-grid > div, .case-build-grid > div { min-height: 18rem; }
-.case-system-grid strong { display: block; font: 700 clamp(5rem, 10vw, 10rem)/.8 var(--font-heading); }
-.case-system-grid li { border-bottom: 1px solid var(--case-line); padding-block: .7rem; }
-.case-build-grid > p { font-size: clamp(1.1rem, 1.7vw, 1.5rem); }
-.case-devices { display: flex; align-items: end; justify-content: center; gap: clamp(1rem, 3vw, 3rem); margin-top: clamp(5rem, 9vw, 9rem); padding: clamp(2rem, 5vw, 5rem); background: #e7e7df; }
-.case-device-mobile { width: 18%; min-height: 31rem; border: .6rem solid var(--color-foreground); border-radius: 1.5rem; }
-.case-device-tablet { width: 29%; min-height: 26rem; border: .6rem solid var(--color-foreground); border-radius: 1rem; }
-.case-device-desktop { width: 46%; min-height: 29rem; border: .6rem solid var(--color-foreground); }
-
 /* Let's talk: a site-black band before the next project, echoing the home
    page's "Say Hello" section. */
 .case-cta { background: var(--color-site-black); color: var(--color-text-white); }
@@ -426,8 +445,9 @@ html.hide-scrollbar::-webkit-scrollbar {
    the section heading's position. */
 .case-cta h2 { max-width: none; margin: 0; font-family: var(--font-editorial); font-size: clamp(3.6rem, 7.2vw, 9rem); line-height: 1; letter-spacing: normal; text-transform: uppercase; white-space: nowrap; }
 /* On desktop the heading and the copy each take half the section, centred
-   against each other, so the band has no empty corners; below lg they stack. */
-.case-cta-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; margin-top: clamp(2rem, 5vw, 5rem); }
+   vertically against each other; below lg they stack. The band has no
+   eyebrow, so the split starts right at the section's padding. */
+.case-cta-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; }
 @media (max-width: 1039.98px) { .case-cta-split { grid-template-columns: minmax(0, 1fr); gap: clamp(2.5rem, 6vw, 4rem); } }
 .case-cta-body { display: flex; flex-direction: column; gap: clamp(2rem, 4vw, 3.5rem); font-size: var(--case-body); }
 .case-cta-body > p { max-width: 34rem; font-size: var(--case-body); line-height: 1.5; }
@@ -445,20 +465,27 @@ html.hide-scrollbar::-webkit-scrollbar {
 .social-link svg { display: block; width: 1em; height: 1em; }
 .social-link:focus-visible { outline: 2px solid var(--color-primary-color); outline-offset: 4px; }
 @media (min-width: 80rem) { .social-links { gap: 1.5rem; font-size: 1.75rem; } }
-.case-next-link { display: block; color: var(--color-foreground); }
+/* One row: the "Next Project" eyebrow on the left, the project name and its
+   arrow together on the right. Only the name is a link. */
+.case-next > .case-shell { padding-block: clamp(3.5rem, 5vw, 5rem); }
+.case-next-link { position: relative; display: inline-block; color: var(--color-foreground); }
 .case-next-link:hover { color: var(--color-foreground); }
-.case-next-link > .case-shell { padding-block: clamp(5rem, 9vw, 9rem); }
-.case-next-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 3rem; }
-.case-next-heading h2 { max-width: none; }
-.case-next-heading > span { font-size: clamp(3rem, 8vw, 8rem); transition: transform .35s ease; }
-.case-next-link:hover .case-next-heading > span { transform: translate(12px, -12px); }
-/* Underline under the project name while the name itself is hovered (or the
-   link has keyboard focus), drawn in from the left with the same timing as
-   the header's active link. */
-.case-next-heading h2 { position: relative; }
-.case-next-heading h2::after { content: ''; position: absolute; inset: auto 0 -.08em; height: max(2px, .03em); background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .45s cubic-bezier(0.76, 0, 0.24, 1); }
-.case-next-heading h2:hover::after, .case-next-link:focus-visible .case-next-heading h2::after { transform: scaleX(1); }
-.case-bottom { display: flex; gap: 2rem; padding-block: 5rem 6rem; }
+.case-next-row { display: flex; align-items: center; justify-content: space-between; gap: clamp(1rem, 3vw, 3rem); }
+/* "NEXT PROJECT": all caps, wholly in the foreground colour (no orange). */
+.case-next-row > .case-eyebrow { flex: none; white-space: nowrap; text-transform: uppercase; color: var(--color-foreground); }
+.case-next-row > .case-eyebrow span { color: inherit; }
+.case-next-heading { min-width: 0; display: flex; align-items: center; gap: 1rem; }
+.case-next-heading h2 { max-width: none; text-align: right; }
+/* The arrow is drawn 1em square, at 90% of the title's size. */
+.case-next-heading > span { flex: none; display: inline-flex; font-size: calc(var(--text-h2) * .9); transition: transform .35s ease; }
+/* The arrow nudges only while the project name (the link) is hovered or has
+   keyboard focus. */
+.case-next-heading:has(.case-next-link:hover, .case-next-link:focus-visible) > span { transform: translate(12px, -12px); }
+/* Underline under the project name on the same hover or focus, drawn in from
+   the left with the same timing as the header's active link. */
+.case-next-link::after { content: ''; position: absolute; inset: auto 0 -.08em; height: max(2px, .03em); background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .45s cubic-bezier(0.76, 0, 0.24, 1); }
+.case-next-link:hover::after, .case-next-link:focus-visible::after { transform: scaleX(1); }
+.case-bottom { display: flex; gap: 2rem; padding-block: 2rem; }
 .case-bottom a { color: inherit; }
 .case-bottom a:last-child { margin-left: auto; }
 
@@ -492,30 +519,15 @@ html.hide-scrollbar::-webkit-scrollbar {
   .case-hero-image { min-height: 62vh; }
   .case-glance { grid-template-columns: 1fr; }
   .case-side-copy { width: 100%; }
-  .case-media-pair, .case-explore-grid, .case-feature, .case-system-grid, .case-build-grid { grid-template-columns: 1fr; }
-  .case-media-pair .case-media, .case-media-pair .case-media:last-child, .case-explore-grid .case-media { min-height: 24rem; }
-  .case-explore-grid .case-media:nth-child(2) { transform: none; }
-  .case-insights { grid-template-columns: 1fr; }
-  .case-insights article { min-height: 14rem; border-right: 0; border-bottom: 1px solid var(--case-line); }
-  .case-feature:nth-of-type(odd) .case-media { order: 0; }
-  .case-feature .case-media { min-height: 26rem; }
-  .case-system-grid > div, .case-build-grid > div { min-height: auto; padding-bottom: 3rem; }
-  .case-devices { align-items: center; flex-direction: column; }
-  .case-device-mobile, .case-device-tablet, .case-device-desktop { width: min(100%, 30rem); min-height: 34rem; }
   .case-hero-meta { gap: 1rem; flex-wrap: wrap; }
   .case-media, .case-hero-image { min-height: 18rem; }
-  .case-flow-track { grid-template-columns: repeat(6, minmax(8.5rem, 1fr)); }
-  .case-flow-track span { margin-bottom: 2rem; }
-  .case-device-mobile, .case-device-tablet, .case-device-desktop { min-height: 24rem; }
   .case-next-heading { gap: 1rem; }
   .case-next-heading h2 { min-width: 0; overflow-wrap: anywhere; }
-  .case-bottom { flex-wrap: wrap; gap: 1rem 1.5rem; padding-block: 3rem 5rem; }
+  .case-bottom { flex-wrap: wrap; gap: 1rem 1.5rem; padding-block: 1.5rem; }
 }
 
 @media (max-width: 479px) {
   .case-facts { grid-template-columns: 1fr; gap: 1.5rem; }
-  .case-feature h3 { font-size: 1.75rem; }
-  .case-system-grid strong { font-size: 4.5rem; }
 }
 
 /* Phones and portrait tablets stack the homepage vertically — never allow
